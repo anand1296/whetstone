@@ -28,7 +28,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   await items.nth(0).getByRole('button', { name: 'Reveal answer' }).click();
   await expect(items.nth(0).locator('.callout-tldr')).toBeVisible();
   await items.nth(0).getByRole('checkbox').check();
-  await expect(page.locator('.section-progress')).toContainText('1 of 9 done');
+  await expect(page.locator('.section-progress')).toContainText('1 of 12 done');
 
   await items.nth(1).locator('.q-trigger').click();
   await items.nth(1).getByRole('button', { name: 'Mark done & next' }).click();
@@ -44,7 +44,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   await page.goto('/');
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
-  await expect(resume.locator('.action-title')).toContainText('Effects are synchronization');
+  await expect(resume.locator('.action-title')).toContainText('When does a component re-render');
   await expect(page.locator('.loop-ring')).toContainText('2/119');
 
   await resume.click();
@@ -188,7 +188,7 @@ test('filters, theme and keyboard basics', async ({ page }) => {
   await page.getByRole('radio', { name: 'Done' }).click();
   await expect(page.locator('.q')).toHaveCount(1);
   await page.getByRole('radio', { name: 'To do' }).click();
-  await expect(page.locator('.q')).toHaveCount(6);
+  await expect(page.locator('.q')).toHaveCount(7);
   await page.getByRole('radio', { name: 'All' }).click();
 
   await page.getByRole('button', { name: 'Settings' }).first().click();
