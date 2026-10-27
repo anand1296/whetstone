@@ -1,7 +1,7 @@
 ---
 id: performance
 title: Performance
-description: Core Web Vitals in depth, INP fixes, bundle strategy, images and fonts, a profiling workflow, budgets in CI, and perceived performance.
+description: Core Web Vitals in depth, INP fixes, bundle strategy, React.lazy and Suspense, images and fonts, a profiling workflow, budgets in CI, and perceived performance.
 ---
 
 ## Diagnose and fix LCP, INP and CLS on a real page
@@ -306,6 +306,178 @@ Too many tiny chunks hurt (request overhead, worse compression); one giant vendo
 - [Vite: Building for production](https://vite.dev/guide/build)
 - [web.dev: Reduce JavaScript payloads with code splitting](https://web.dev/articles/reduce-javascript-payloads-with-code-splitting)
 - [size-limit](https://github.com/ai/size-limit)
+
+## `React.lazy` and `Suspense`: how lazy loading works, where to split, and how it fails
+<!--
+id: react-lazy-suspense
+level: senior
+tags: react.lazy, suspense, code splitting, dynamic import, preloading, error boundaries
+minutes: 18
+-->
+
+> [!PROMPT]
+> Explain `React.lazy` and `Suspense` and how lazy loading works. A heavy charts page is slowing down first load: split it, choose the fallback, and handle the case where the chunk fails to load.
+>
+> **Cover**
+> - What `lazy` does with a dynamic `import()`, and what Suspense does while it is pending.
+> - Where to split (routes, heavy widgets, modals) and where not to.
+> - Preloading on intent, avoiding waterfalls and fallback flashes, and chunk load failures.
+>
+> **Test cases**
+> - The charts bundle is not requested until the user opens the Reports route.
+> - Hovering the "Reports" link starts downloading the chunk before the click.
+> - A failed chunk request (offline or stale deploy) shows a retry UI, and the rest of the app keeps working.
+> - Navigating to Reports inside a transition keeps the current page visible instead of flashing a spinner.
+
+> [!TLDR]
+> `lazy(() => import('./Reports'))` returns a component that does not load its code until it is first rendered. On first render React calls the loader; the pending promise makes the component **suspend**, the nearest `<Suspense>` boundary shows its `fallback`, and when the module resolves React retries the render with the real component (the result is cached). Split at **route level first**, then heavy optional UI (charts, editors, modals); preload on hover or idle; pair Suspense with an **error boundary** for failed chunks; use a **transition** to avoid replacing visible UI with a spinner.
+
+### How it works
+
+```tsx
+import { lazy, Suspense } from 'react';
+
+// Module scope, never inside a component: a new lazy() per render is a new component type,
+// which remounts and re-suspends every time.
+const Reports = lazy(() => import('./Reports')); // the module must have a default export that is a component
+
+export function App() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <Reports />
+    </Suspense>
+  );
+}
+```
+
+1. The bundler turns `import()` into a separate chunk file.
+2. On the first render of `<Reports />`, `lazy` runs the loader and tracks the promise. While it is pending the component throws that promise (internally), and React walks up to the nearest `Suspense`.
+3. The boundary renders `fallback`. When the promise resolves, React re-renders the suspended subtree with the loaded component. Later renders reuse the loaded module.
+
+Named exports need an adapter:
+
+```tsx
+const Chart = lazy(() => import('./charts').then((module) => ({ default: module.Chart })));
+```
+
+### Where to split
+
+- **Routes**: the biggest win and the natural loading boundary. Users already expect navigation to take a moment.
+- **Heavy, optional UI**: charting, rich text or code editors, PDF viewers, a large modal, anything behind a tab or a click.
+- **Not for** tiny components (the request costs more than the code), above-the-fold content on the critical path (it delays first paint), or something every page needs.
+- A chunk should be worth at least a round trip: check the bundle analyzer before and after.
+
+### Preload on intent, and avoid waterfalls
+
+```tsx
+const loadReports = () => import('./Reports');
+const Reports = lazy(loadReports);
+
+<Link to="/reports" onPointerEnter={() => void loadReports()} onFocus={() => void loadReports()}>
+  Reports
+</Link>
+```
+
+Calling the same `import()` early warms the module cache, so by the time the component renders the promise is already resolved. Beware the waterfall: chunk, then render, then data fetch. Start the data request in the router loader (or prefetch it with the chunk) rather than in an effect inside the lazy component.
+
+### Failure: the chunk does not arrive
+
+If the dynamic import rejects (offline, a CDN error, or a **stale deploy** where the old HTML references a chunk that no longer exists), the error is thrown during render, so an **error boundary** catches it:
+
+```tsx
+<ErrorBoundary
+  fallbackRender={({ resetErrorBoundary }) => (
+    <div role="alert">
+      <p>We couldn't load this part of the app.</p>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </div>
+  )}
+>
+  <Suspense fallback={<PageSkeleton />}>
+    <Reports />
+  </Suspense>
+</ErrorBoundary>
+```
+
+A rejected `lazy` promise is cached by React, so simply re-rendering the same lazy component fails again. Retrying means creating a fresh `lazy` for the same loader (some browsers also cache a failed module fetch, so a retry may need a short delay or a full reload). After a deploy, the usual fix for a stale-chunk error is to reload the page once. Log the failure with the chunk name and app version.
+
+### Fallback design and transitions
+
+- Place `Suspense` boundaries at the regions that can load independently, with fallbacks of the same size as the content (layout shift is a bug).
+- Navigating inside `startTransition` (React Router and Next.js do this) keeps the old page on screen with a pending indicator until the new route is ready, instead of tearing it down for a spinner.
+- Suspense also works on the server with streaming SSR: the shell is sent first and lazy parts stream in when ready.
+
+:::react
+### Router-level splitting (React Router)
+
+```tsx
+const router = createBrowserRouter([
+  {
+    path: '/reports',
+    loader: reportsLoader,                       // static: starts fetching data immediately
+    lazy: async () => ({ Component: (await import('./routes/Reports')).default }), // code loads in parallel
+  },
+]);
+```
+
+React Router's `lazy` route property loads a route's component on navigation. Keeping the `loader` static while only the component is lazy means data and code are requested in parallel instead of chunk first and data second.
+:::
+
+:::angular
+### Equivalent in Angular
+
+Route-level: `{ path: 'reports', loadComponent: () => import('./reports.component').then((m) => m.ReportsComponent) }` (or `loadChildren` for a route tree). Inside a template, `@defer` splits a block:
+
+```html
+@defer (on viewport; prefetch on idle) {
+  <app-heavy-chart [data]="data()" />
+} @placeholder (minimum 200ms) {
+  <div class="chart-skeleton"></div>
+} @loading (after 150ms; minimum 500ms) {
+  <app-spinner />
+} @error {
+  <p>Couldn't load the chart.</p>
+}
+```
+
+`@defer` builds the placeholder, loading and error states into the syntax, with triggers like `on viewport`, `on interaction`, `on hover` and `on idle`, plus `prefetch` triggers.
+:::
+
+:::vue
+### Equivalent in Vue
+
+```ts
+import { defineAsyncComponent } from 'vue';
+
+const Reports = defineAsyncComponent({
+  loader: () => import('./Reports.vue'),
+  loadingComponent: PageSkeleton,
+  errorComponent: LoadError,
+  delay: 200, // do not show the loading component for fast loads
+  timeout: 10_000,
+});
+```
+
+Routes can use `component: () => import('./Reports.vue')` in Vue Router for per-route chunks. The `<Suspense>` component also exists but is documented as experimental, so most apps rely on `defineAsyncComponent`'s own loading and error options.
+:::
+
+### Follow-ups
+
+- **How is `lazy` different from `import()` alone?** `import()` only returns a promise; `lazy` integrates it with rendering and Suspense so React knows when to show a fallback and retry.
+- **Can `lazy` be used with SSR?** Yes with React 18's streaming APIs. The server renders what is ready and streams the rest; the client hydrates boundaries as their code arrives.
+- **How do you avoid a spinner flash for fast loads?** Prefer transitions for navigation; for local boundaries use a short delay before showing the fallback, or keep the old UI.
+- **What about named vs default exports?** `lazy` needs `{ default: Component }`, so adapt named exports as above.
+
+> [!WARNING]
+> Common mistakes: calling `lazy()` inside a component; one giant `Suspense` at the root so every load blanks the page; no error boundary (a failed chunk crashes the app); lazy-loading above-the-fold content; and splitting so finely that the waterfall of small requests is slower than one bundle.
+
+### References
+
+- [React docs: `lazy`](https://react.dev/reference/react/lazy)
+- [React docs: `<Suspense>`](https://react.dev/reference/react/Suspense)
+- [Angular: Deferrable views](https://angular.dev/guide/templates/defer)
+- [Vue: Async components](https://vuejs.org/guide/components/async.html)
+
 
 ## Images and fonts: responsive images, formats, lazy loading, `font-display` and layout shift
 <!--

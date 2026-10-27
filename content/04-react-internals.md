@@ -1,7 +1,7 @@
 ---
 id: react-internals
 title: React Rendering & Internals
-description: How React turns state into pixels, when components re-render, effects as synchronization, concurrent rendering, React 19, Server Components and the compiler.
+description: How React turns state into pixels, reconciliation and diffing, when components re-render, Fiber and concurrent rendering, SSR and hydration, effects as synchronization, concurrent rendering, React 19, Server Components and the compiler.
 ---
 
 ## What exactly happens between `setState` and pixels on screen?
@@ -77,6 +77,136 @@ Because a render may be called twice (StrictMode in dev), interrupted, or thrown
 - [React: Render and commit](https://react.dev/learn/render-and-commit)
 - [React: Preserving and resetting state](https://react.dev/learn/preserving-and-resetting-state)
 - [React 18: Automatic batching](https://react.dev/blog/2022/03/29/react-v18#new-feature-automatic-batching)
+
+## Reconciliation and React's diffing algorithm: the two heuristics, keys, and the list algorithm
+<!--
+id: react-reconciliation-diffing
+level: senior
+tags: react, reconciliation, diffing, keys, virtual dom, lists
+minutes: 18
+-->
+
+> [!PROMPT]
+> Explain what reconciliation is in React and how its diffing algorithm works. Then explain why a list of inputs "swaps the typed text" when items are inserted at the top, and fix it.
+>
+> **Cover**
+> - Why a general tree diff is too slow, and the two heuristics React uses instead.
+> - What happens for same type, different type, and a changed `key`.
+> - How keyed children are matched and moved, and what makes a good key.
+>
+> **Test cases**
+> - A list rendered with `key={index}` has an input per row. Typing in row 2 and then prepending an item leaves the typed text on the wrong row. Using a stable id fixes it.
+> - Changing `<div>` to `<section>` at the same position resets the state of everything below it.
+> - `<Profile key={userId} />` discards the old user's draft state when `userId` changes.
+
+> [!TLDR]
+> **Reconciliation** is how React compares the element tree your components just returned with the tree it already has, and decides the smallest set of changes to commit. A generic tree diff is O(n³), so React uses two heuristics to make it O(n): **elements of different types produce different trees** (unmount the old subtree, mount the new one), and **keys tell React which children are the same across renders**. Same type at the same position means "update in place and keep state"; a different type or a different key means "start over".
+
+### What is being compared
+
+Calling a component returns **elements**: plain objects describing UI (`{ type, key, props }`). React compares that new element tree with the fiber tree from the last render. "Virtual DOM" is the informal name for this; the output of the diff is a list of effects (insert, update, delete, move) that the commit phase applies to the real DOM. No DOM is touched during the diff.
+
+### The rules, level by level
+
+1. **Compare the types at the same position.**
+   - Different type (`<div>` to `<section>`, or `<A />` to `<B />`): destroy the old subtree (state is lost, effects clean up) and build a new one.
+   - Same DOM type: keep the node and update only the changed attributes and styles, then recurse into the children.
+   - Same component type: keep the instance and its state, pass the new props, call it again, then diff what it returns.
+2. **Compare children by key, or by position if there is no key.**
+3. **Bail out when the element is the same object.** If a parent re-renders but passes the exact same element reference as `children`, React skips diffing that subtree, which is why moving state down or lifting content up (the `children` trick) avoids re-renders.
+
+### The list algorithm, simplified
+
+For an array of children React does roughly this:
+
+1. Walk old and new children **from the start** while keys match, updating in place. Stop at the first mismatch.
+2. If the new list is exhausted, delete the remaining old children. If the old list is exhausted, insert the remaining new ones.
+3. Otherwise put the remaining old children in a **map by key** and walk the rest of the new list: reuse the matching old fiber if there is one, or create a new one. Track `lastPlacedIndex`, the highest old index placed so far. A reused child whose old index is **lower** than `lastPlacedIndex` must move; otherwise it stays where it is.
+4. Delete old children that were never matched.
+
+```text
+old: A B C D        new: D A B C      lastPlaced = 0
+D (old 3) 3 >= 0 stays, lastPlaced = 3
+A (old 0) 0 <  3 moves
+B (old 1) 1 <  3 moves
+C (old 2) 2 <  3 moves          -> three moves to bring D to the front
+
+old: A B C D        new: B C D A
+B (1) stays, C (2) stays, D (3) stays, A (0) < 3 moves   -> one move
+```
+
+So moving an item toward the end is cheap and moving one toward the front causes many moves. It is still correct either way; this is a reason not to worry unless lists are huge, in which case virtualize.
+
+### Keys
+
+```tsx
+// Bug: index keys. After prepending, row 0's key now belongs to a different item,
+// so React reuses row 0's DOM node and state (the typed text) for the wrong item.
+{items.map((item, index) => (
+  <li key={index}>
+    <input defaultValue={item.name} />
+  </li>
+))}
+
+// Fix: a stable, unique id from the data.
+{items.map((item) => (
+  <li key={item.id}>
+    <input defaultValue={item.name} />
+  </li>
+))}
+```
+
+A good key is **unique among siblings, stable across renders, and tied to the data's identity**. `Math.random()` or a new id on every render makes React remount every row each time. Index keys are acceptable only for static lists that never reorder, insert or delete.
+
+Keys are also a deliberate tool, not just a list concern:
+
+```tsx
+// Changing the key resets the component and all its state: no effect needed to "clear the form".
+<ProfileForm key={userId} userId={userId} />
+```
+
+### Bugs this explains
+
+```tsx
+function Parent() {
+  // A new function (so a new component type) on every render: React sees "different type",
+  // unmounts and remounts <Row /> every time, so the input loses focus and state.
+  const Row = ({ label }: { label: string }) => <input defaultValue={label} />;
+  return <Row label="name" />;
+}
+```
+
+- Wrapping or unwrapping a component in a conditional wrapper changes the element type at that position and remounts the child.
+- Conditional rendering shifts positions: `{cond && <A />}` followed by `<B />` keeps `B` at a stable slot because `false` still occupies a position; reordering with `cond ? <A/> : <B/>` changes types.
+
+:::angular
+### Equivalent in Angular
+
+`@for` requires `track`, which is the key: `@for (item of items(); track item.id)`. Angular matches by tracked identity and **moves** existing DOM nodes instead of recreating them, so component state and focus survive reordering. `track $index` has the same problems as index keys, and the compiler warns when you forget `track`.
+:::
+
+:::vue
+### Equivalent in Vue
+
+`v-for` needs `:key`. Vue 3's keyed diff trims matching prefixes and suffixes, then finds the **longest increasing subsequence** of old positions to decide which nodes can stay put and moves only the rest. Same rule for keys: stable and unique, never the index for lists that change.
+:::
+
+### Follow-ups
+
+- **Does React diff the real DOM?** No. It diffs elements against fibers; the DOM is touched only in the commit phase, and only for what changed.
+- **Does a re-render mean a DOM update?** No. A component can render many times while the diff produces zero DOM changes.
+- **Why must keys be unique only among siblings?** Identity is resolved within one parent's children list.
+- **Is the virtual DOM always faster than direct DOM updates?** No. It buys a declarative model at the cost of the diff; frameworks with fine-grained reactivity (signals) skip the diff entirely.
+
+> [!WARNING]
+> Common mistakes: using `key={index}` on reorderable lists; generating keys during render; putting the key on an inner element instead of the element returned from `map`; defining components inside components; and believing "re-render" and "DOM update" are the same thing.
+
+### References
+
+- [React docs: Preserving and resetting state](https://react.dev/learn/preserving-and-resetting-state)
+- [React docs: Rendering lists (keys)](https://react.dev/learn/rendering-lists)
+- [React legacy docs: Reconciliation](https://legacy.reactjs.org/docs/reconciliation.html)
+
 
 ## When does a component re-render, and which optimizations actually help?
 <!--
@@ -630,6 +760,101 @@ Suspense catches components that "suspend" (throw a promise / use `use(promise)`
 - [React: useDeferredValue](https://react.dev/reference/react/useDeferredValue)
 - [React: Suspense](https://react.dev/reference/react/Suspense)
 
+## React Fiber and concurrent rendering: what changed under the hood and what "Concurrent Mode" became
+<!--
+id: react-fiber-concurrent
+level: lead
+tags: react, fiber, concurrent rendering, scheduler, lanes, time slicing
+minutes: 20
+-->
+
+> [!PROMPT]
+> Explain React Fiber and concurrent rendering. Why was the reconciler rewritten, how does React pause and resume rendering, and what does "Concurrent Mode" mean today?
+>
+> **Cover**
+> - What a fiber is and why a linked structure replaced recursion.
+> - Work loop, double buffering (current and work-in-progress), lanes and time slicing.
+> - What stays synchronous, what is interruptible, and the rules this places on your code.
+>
+> **Test cases**
+> - Typing in a search input stays responsive while a 5,000-row list re-renders from a transition.
+> - A component's render function is called twice in development and its side effect in the body runs twice. Say why.
+> - A Suspense fallback does not flash when navigating inside `startTransition`.
+
+> [!TLDR]
+> Before React 16 the reconciler was a recursive function: once it started it could not stop until the whole tree was processed, blocking the main thread. **Fiber** (React 16) rewrote it around a **fiber**: a JS object per component instance that holds its type, props, state, effects and `child`/`sibling`/`return` pointers. Because the traversal is a loop over linked fibers rather than the call stack, React can stop after any unit of work, yield to the browser, and resume or discard the work. React 18 turned that capability into features (transitions, deferred values, Suspense). **"Concurrent Mode" as a separate mode no longer exists**: using `createRoot` makes concurrent rendering possible, and it only happens when you use a concurrent feature.
+
+### What a fiber is
+
+```text
+fiber {
+  type, key, props           // what to render
+  stateNode                  // DOM node or class instance
+  child, sibling, return     // tree as linked pointers
+  memoizedState              // hooks list for function components
+  lanes, flags               // pending priority and the effects to apply
+  alternate                  // the other copy of this fiber (double buffering)
+}
+```
+
+A fiber is both a **unit of work** and the **data structure** of the tree. Walking it needs no recursion: go to `child`, else `sibling`, else climb via `return`.
+
+### Two trees and a work loop
+
+- **Current tree**: what is on screen. **Work-in-progress tree**: the next version being built from it. Each fiber points to its twin through `alternate`; after commit React swaps the roles ("double buffering").
+- **Render phase** (interruptible in concurrent rendering): `beginWork` walks down calling components and diffing children, `completeWork` walks back up building DOM nodes and collecting effects. The concurrent work loop checks `shouldYield()` between fibers. The scheduler gives roughly 5 ms slices, then yields to the browser through a `MessageChannel` task so input and paint can run.
+- **Commit phase** (always synchronous): mutate the DOM, run layout effects, then schedule passive effects. It cannot be interrupted, because a half-applied commit would show an inconsistent UI.
+
+### Priorities: lanes
+
+Every update is tagged with a **lane** (a bit in a bitmask) such as sync (discrete events like click), default, transition and idle. When a higher-priority update arrives during a lower-priority render, React can **throw away the work-in-progress tree and start again** on the urgent update, then redo the low-priority one afterwards. This is how `startTransition` keeps typing responsive:
+
+```tsx
+const [query, setQuery] = useState('');
+const [results, setResults] = useState<string[]>([]);
+const [isPending, startTransition] = useTransition();
+
+function onChange(event: React.ChangeEvent<HTMLInputElement>) {
+  setQuery(event.target.value);                 // urgent: the input must update now
+  startTransition(() => {
+    setResults(search(event.target.value));     // can be interrupted by the next keystroke
+  });
+}
+```
+
+### What "Concurrent Mode" meant, and what replaced it
+
+Early previews had an all-or-nothing opt-in called Concurrent Mode that changed the behaviour of the whole app. React 18 dropped the mode: `createRoot` enables the new architecture, and concurrent behaviour appears only for updates you mark as non-urgent (`useTransition`, `startTransition`, `useDeferredValue`) and for Suspense. Updates that are not wrapped (a plain `setState` in an event handler) are still rendered urgently. Concurrency is a capability of the renderer, not a switch you flip.
+
+### Consequences for how you write code
+
+- **Render must be pure.** React may call a component, throw the result away, and call it again; it may also pause in the middle. Side effects in the render body (mutations, subscriptions, network calls) will run at the wrong time or twice. Strict Mode double-invokes render and effects in development to surface this.
+- **Effects need cleanup.** Strict Mode mounts, unmounts and re-mounts to check it, and real features (Offscreen/Activity, transitions) can do the same.
+- **External stores can tear.** If a store changes in the middle of a time-sliced render, different components could read different values in the same render. `useSyncExternalStore` forces a consistent, synchronous snapshot.
+- **`useMemo`/`memo` are performance hints**, not semantic guarantees; React may discard cached values.
+
+### Suspense without flashing
+
+Inside `startTransition`, if the new UI suspends, React keeps showing the **old** UI (with `isPending` true) instead of replacing it with a fallback, and commits only when the new UI is ready. Without a transition, a suspended boundary that is already visible falls back to its fallback.
+
+### Follow-ups
+
+- **Is concurrent rendering multithreading?** No. It is cooperative scheduling on one thread: render work is sliced and prioritized, JS still runs on the main thread.
+- **Why not make commit interruptible?** DOM changes and refs must appear atomically; a partial commit would show torn UI.
+- **Why does the render function run twice in dev?** To expose impure renders and missing cleanups, not because it is slow; production runs it once.
+- **Does it make my app faster?** It makes it more responsive by prioritizing urgent work. Total work can even increase because of discarded renders.
+- **What about starvation?** React raises the priority of lanes that have been waiting too long so a transition cannot be postponed forever.
+
+> [!WARNING]
+> Common mistakes: expecting `startTransition` to make a slow render faster (it only makes it interruptible); wrapping controlled input updates in a transition (the input then lags); mutating variables or refs during render; and thinking "Fiber" is a user-facing API rather than the engine.
+
+### References
+
+- [React 18: Concurrent rendering and the new root API](https://react.dev/blog/2022/03/29/react-v18)
+- [React docs: `useTransition`](https://react.dev/reference/react/useTransition)
+- [Acdlite: React Fiber Architecture](https://github.com/acdlite/react-fiber-architecture)
+
+
 ## React 19: Actions, `useActionState`, `useOptimistic`, `use` and form handling
 <!--
 id: react-19-actions
@@ -734,6 +959,125 @@ The promise must be **stable** (created outside render, cached, or passed from a
 - [React: useActionState](https://react.dev/reference/react/useActionState)
 - [React: useOptimistic](https://react.dev/reference/react/useOptimistic)
 - [React: use](https://react.dev/reference/react/use)
+
+## Server-side rendering vs client-side rendering in React: hydration, streaming and when each wins
+<!--
+id: react-ssr-vs-csr-hydration
+level: senior
+tags: ssr, csr, hydration, streaming, react, core web vitals, seo
+minutes: 18
+-->
+
+> [!PROMPT]
+> How does server-side rendering differ from client-side rendering in React? Walk through what the browser receives and does in each case, explain hydration and why mismatches happen, and say what streaming SSR improves.
+>
+> **Cover**
+> - The request timeline and Core Web Vitals impact of CSR vs SSR.
+> - What `hydrateRoot` does and the usual hydration errors.
+> - Streaming SSR and selective hydration, costs of SSR, and how to choose.
+>
+> **Test cases**
+> - Viewing the page source of a CSR app shows an empty root; an SSR app shows the real content.
+> - A component that renders `new Date().toLocaleString()` produces a hydration mismatch warning; fix it.
+> - A slow comment section does not delay the article if it sits in its own Suspense boundary.
+
+> [!TLDR]
+> **CSR**: the server sends a nearly empty HTML shell; the browser downloads and runs the JS bundle, fetches data, and React builds the DOM, so users see content late but navigation afterwards is fast and hosting is just static files. **SSR**: the server runs React to produce real HTML for each request, so users see content (and crawlers read it) before the JS arrives; the page then needs **hydration**, where React attaches event handlers to the existing HTML and checks it matches. SSR improves first paint and SEO at the cost of server work, higher TTFB, a page that looks ready before it is interactive, and the requirement that server and client render **identically**. Streaming SSR with Suspense sends HTML in chunks and hydrates parts independently.
+
+### Timelines
+
+```text
+CSR:  request -> tiny HTML -> download JS -> run JS -> fetch data -> render -> content visible
+SSR:  request -> server fetches data + renders HTML -> content visible -> download JS -> hydrate -> interactive
+```
+
+| | CSR | SSR |
+| --- | --- | --- |
+| First contentful paint / LCP | Late: waits for JS and data | Early: HTML already contains content |
+| TTFB | Fast (static file) | Slower (server work per request, mitigated by caching and streaming) |
+| Interactivity | When JS has run | After hydration; there is a window where the page is visible but not interactive |
+| SEO and link previews | Depends on the crawler running JS | HTML is ready for any crawler |
+| Hosting | Any static host or CDN | A server or edge runtime (or static generation for pages that don't change) |
+| Data fetching | After JS loads (waterfall risk) | On the server, close to the data |
+| Best for | Apps behind login, dashboards, editors | Public, content-heavy or SEO-critical pages |
+
+### Hydration
+
+```tsx
+// server (Node): produces HTML, streaming as parts become ready
+import { renderToPipeableStream } from 'react-dom/server';
+const { pipe } = renderToPipeableStream(<App />, {
+  bootstrapScripts: ['/client.js'],
+  onShellReady() { response.setHeader('content-type', 'text/html'); pipe(response); },
+});
+
+// client: reuse the server HTML instead of rebuilding it
+import { hydrateRoot } from 'react-dom/client';
+hydrateRoot(document.getElementById('root')!, <App />);
+```
+
+`hydrateRoot` walks the existing DOM, attaches event handlers and creates the component tree. It does **not** repair differences: if the first client render does not produce the same output as the server HTML, React warns and, depending on the case, patches it or discards the server HTML for that boundary and renders on the client (slower, and visible as a flash).
+
+### Typical mismatches and fixes
+
+Sources of mismatch: `Date.now()`, `Math.random()`, locale and time-zone formatting, `window`/`localStorage` reads during render, browser extensions that modify the DOM, invalid HTML nesting (`<div>` inside `<p>`), and different data on server and client.
+
+```tsx
+function LocalTime({ iso }: { iso: string }) {
+  // First render uses a value that is identical on server and client...
+  const [text, setText] = useState(() => new Date(iso).toISOString());
+  // ...then the browser-specific value is applied after hydration.
+  useEffect(() => setText(new Date(iso).toLocaleString()), [iso]);
+  return <time dateTime={iso}>{text}</time>;
+}
+```
+
+Other tools: `useId` for ids that match on both sides, `useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)` for browser-only stores, and `suppressHydrationWarning` for a single unavoidable text difference (it only works one level deep).
+
+### Streaming SSR and selective hydration
+
+Since React 18, `renderToPipeableStream` (Node) and `renderToReadableStream` (edge runtimes) stream HTML:
+
+- The **shell** (everything outside Suspense boundaries) is sent first. Suspended parts send their fallback, then stream the real HTML when ready.
+- **Selective hydration**: each Suspense boundary hydrates independently, so a slow or heavy section does not block the rest. If the user interacts with a boundary that has not hydrated yet, React prioritizes it and replays the event.
+- The older `renderToString` is synchronous, blocks on the whole tree and does not support Suspense for data; prefer the streaming APIs.
+
+```tsx
+<Layout>
+  <Article id={id} />                      {/* in the shell: shown immediately */}
+  <Suspense fallback={<CommentsSkeleton />}>
+    <Comments articleId={id} />            {/* streams in later, hydrates independently */}
+  </Suspense>
+</Layout>
+```
+
+### Costs of SSR to say out loud
+
+- Server CPU and latency per request; cache HTML at the CDN for anonymous traffic and use streaming for personalized parts.
+- The "uncanny valley": visible but not yet interactive, which hurts INP for early clicks. Smaller bundles, selective hydration and Server Components reduce it.
+- Complexity: two runtimes (no `window` on the server), mismatch bugs, and data that must be serialized into the page.
+- Duplicate work: components render once on the server and again on the client during hydration; **React Server Components** avoid sending some component code to the client at all.
+
+### How to choose
+
+Public, SEO-sensitive, content-first pages: SSR or static generation. Personalized pages needing fast first paint: SSR with streaming. Authenticated apps and tools: CSR is simpler and often fine, with code splitting. Most products mix per route, and use a framework (Next.js, React Router in framework mode, Remix) rather than a hand-rolled server.
+
+### Follow-ups
+
+- **SSR vs SSG?** SSG renders at build time (or on first request with ISR), so the HTML can be served from a CDN; SSR renders per request.
+- **Is hydration the only way to make SSR interactive?** In React, yes for client components; Server Components and islands architectures hydrate less or nothing.
+- **Does SSR fix a slow API?** No; it moves the wait to the server. Cache data, stream, or reduce the blocking work before the shell.
+- **What changed in React 19 for hydration?** Better error messages that show a diff of the mismatch, and third-party scripts or extensions that inject elements into `<head>` and `<body>` no longer cause mismatches.
+
+> [!WARNING]
+> Common mistakes: reading `window` or `localStorage` during render; non-deterministic values in render; assuming SSR makes the app faster in all cases; hydrating a huge page in one piece; and using `renderToString` for new work.
+
+### References
+
+- [React docs: `hydrateRoot`](https://react.dev/reference/react-dom/client/hydrateRoot)
+- [React docs: `renderToPipeableStream`](https://react.dev/reference/react-dom/server/renderToPipeableStream)
+- [web.dev: Rendering on the Web](https://web.dev/articles/rendering-on-the-web)
+
 
 ## React Server Components: the mental model, the boundaries and the costs
 <!--
