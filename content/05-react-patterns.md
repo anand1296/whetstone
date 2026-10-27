@@ -1,7 +1,7 @@
 ---
 id: component-api-design
 title: Component API Design
-description: Designing components other engineers will love using: compound components, headless hooks, controlled/uncontrolled APIs, forms, boundaries and API reviews.
+description: Designing components other engineers will love using: compound components, headless hooks, render props vs HOCs, controlled/uncontrolled APIs, forms, boundaries and API reviews.
 ---
 
 ## Design a compound component API (Tabs, Select) with context, and know when not to
@@ -603,6 +603,157 @@ Off-the-shelf headless libraries (React Aria, Radix Primitives, Ark UI, Downshif
 - [React Aria hooks](https://react-spectrum.adobe.com/react-aria/hooks.html)
 - [Kent C. Dodds: Inversion of control](https://kentcdodds.com/blog/inversion-of-control)
 - [TanStack Table (headless)](https://tanstack.com/table/latest)
+
+## Render props vs higher-order components (HOCs): how they differ, and what hooks replaced
+<!--
+id: render-props-vs-hocs
+level: senior
+tags: render props, higher-order components, hooks, composition, patterns, typescript
+minutes: 15
+-->
+
+> [!PROMPT]
+> What are render props, and how do they differ from higher-order components? Share the mouse position logic between two components using each pattern, then say which you would write today and why.
+>
+> **Cover**
+> - The definition and shape of each pattern, with TypeScript.
+> - Trade-offs: naming collisions, nesting, typing, refs, memoization.
+> - What hooks replaced and where each pattern is still the right tool.
+>
+> **Test cases**
+> - `<Mouse>{(position) => <Cat position={position} />}</Mouse>` and `withMouse(Cat)` render the same output.
+> - Applying `withMouse` twice with different prop names does not clash.
+> - Creating a HOC inside a component body remounts the wrapped component on every render (explain why).
+
+> [!TLDR]
+> A **render prop** is a prop whose value is a function that returns UI, so a component can share its state or behavior while the *caller* decides what to render (`<Mouse>{(pos) => <Cat pos={pos} />}</Mouse>`). A **higher-order component** is a function that takes a component and returns a new, enhanced component (`withMouse(Cat)`). Render props compose at **render time** and make the data flow explicit; HOCs compose at **definition time** and inject props implicitly. **Hooks** (`useMouse()`) replaced both for sharing stateful logic. Reach for render props when the consumer needs control of the markup (headless components, virtual lists) and HOCs for wrapping concerns that apply to a whole component (`memo`, `forwardRef`, error boundaries, legacy `connect`).
+
+### Render prop
+
+```tsx
+import { useEffect, useState, type ReactNode } from 'react';
+
+interface Position { x: number; y: number }
+
+function Mouse({ children }: { children: (position: Position) => ReactNode }) {
+  const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
+  useEffect(() => {
+    const onMove = (event: PointerEvent) => setPosition({ x: event.clientX, y: event.clientY });
+    window.addEventListener('pointermove', onMove);
+    return () => window.removeEventListener('pointermove', onMove);
+  }, []);
+  return <>{children(position)}</>;
+}
+
+// The caller decides the UI, and sees exactly where `position` comes from.
+<Mouse>{(position) => <Cat x={position.x} y={position.y} />}</Mouse>;
+```
+
+The function does not have to be called `render` or `children`; "render prop" describes a prop that is a function returning React elements.
+
+### Higher-order component
+
+```tsx
+import type { ComponentType } from 'react';
+
+function withMouse<P extends object>(Wrapped: ComponentType<P & { mouse: Position }>): ComponentType<P> {
+  function WithMouse(props: P) {
+    const mouse = useMousePosition(); // the same logic, here as a hook
+    return <Wrapped {...props} mouse={mouse} />;
+  }
+  WithMouse.displayName = `withMouse(${Wrapped.displayName ?? Wrapped.name ?? 'Component'})`;
+  return WithMouse;
+}
+
+const CatWithMouse = withMouse(Cat); // created once, at module scope
+```
+
+HOC conventions: pass unrelated props through, set `displayName` for DevTools, forward refs (`forwardRef`) if consumers need them, copy statics if needed, and **never create a HOC inside render**: a new wrapped component type on each render means React unmounts and remounts the subtree every time (see the reconciliation question).
+
+### The hook that replaced both
+
+```tsx
+function useMousePosition(): Position {
+  const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
+  useEffect(() => {
+    const onMove = (event: PointerEvent) => setPosition({ x: event.clientX, y: event.clientY });
+    window.addEventListener('pointermove', onMove);
+    return () => window.removeEventListener('pointermove', onMove);
+  }, []);
+  return position;
+}
+
+function Cat() {
+  const { x, y } = useMousePosition(); // flat, typed, no wrapper component in the tree
+  return <img src="/cat.png" alt="" style={{ transform: `translate(${x}px, ${y}px)` }} />;
+}
+```
+
+### Comparison
+
+| | Render prop | HOC | Hook |
+| --- | --- | --- | --- |
+| Composition time | Render | Definition | Render |
+| Where data comes from | Visible in the JSX (the function parameter) | Implicit injected props | Visible in the component body |
+| Naming collisions | None (you name the parameter) | Possible: two HOCs may inject the same prop name | None |
+| Nesting | "Callback pyramid" with several | "Wrapper hell" in DevTools, `a(b(c(X)))` | Flat |
+| TypeScript | Easy | Hard: generics, `Omit<P, keyof Injected>` | Easy |
+| Extra component in tree | Yes | Yes | No |
+| Refs, statics, displayName | Not an issue | Must be handled | Not an issue |
+| Memoization | An inline function is a new prop each render, which defeats `memo` on the child | Wrapper is stable if created once | Not an issue |
+
+### When each is still the right tool
+
+- **Render props / children-as-function:** the consumer must control the markup *and* the component owns tricky behavior: virtualized lists (`renderItem`), form libraries (`<Field>{({ field }) => …}</Field>`), headless widgets, anything that renders the same logic into different structures. Many modern libraries expose both a hook and a component.
+- **HOCs:** wrapping a whole component with a cross-cutting concern: `React.memo`, `forwardRef` (both are higher-order functions), error-boundary wrappers, analytics or feature-flag wrappers applied across many components, and legacy APIs such as Redux `connect` and `withRouter`. They are also the only option for **class components**, which cannot use hooks.
+- **Hooks:** the default for sharing stateful logic between function components.
+
+:::angular
+### Equivalent in Angular
+
+The render-prop idea is a template passed to a component and rendered with `ngTemplateOutlet` and a context object:
+
+```html
+<app-mouse>
+  <ng-template let-position>
+    <app-cat [x]="position.x" [y]="position.y" />
+  </ng-template>
+</app-mouse>
+```
+
+HOC-style wrapping is done with directives (including `hostDirectives`), and logic sharing with injectable services or functions that use `inject()` and signals, which play the role hooks do in React.
+:::
+
+:::vue
+### Equivalent in Vue
+
+Scoped slots are render props:
+
+```vue
+<Mouse v-slot="{ x, y }">
+  <Cat :x="x" :y="y" />
+</Mouse>
+```
+
+Composables are Vue's hooks: `const { x, y } = useMouse()` shares stateful logic with no wrapper component. Higher-order components exist but are rare in Vue 3.
+:::
+
+### Follow-ups
+
+- **Why can a render prop hurt memoization?** An inline arrow function is a new reference on every render, so a memoized child that receives it re-renders; move the function out or wrap it in `useCallback` if it matters.
+- **How do you type a HOC that injects props?** `ComponentType<P & Injected>` in, `ComponentType<P>` out, and omit the injected keys from the outer props when the wrapped component declares them.
+- **Are `memo` and `forwardRef` HOCs?** Yes, built-in ones: functions from component to component.
+- **Do hooks make these patterns obsolete?** For logic sharing, mostly. Render props remain a good API for inversion of control over markup.
+
+> [!WARNING]
+> Common mistakes: creating a HOC inside render (remounts every time); a HOC that forgets to pass through props or refs; two HOCs injecting the same prop name; losing `displayName` so DevTools shows `Anonymous`; and building a deep render-prop pyramid when a hook would flatten it.
+
+### References
+
+- [React legacy docs: Render Props](https://legacy.reactjs.org/docs/render-props.html)
+- [React legacy docs: Higher-Order Components](https://legacy.reactjs.org/docs/higher-order-components.html)
+- [React docs: Reusing logic with custom hooks](https://react.dev/learn/reusing-logic-with-custom-hooks)
+
 
 ## Support controlled and uncontrolled usage with one `useControllableState` hook
 <!--
@@ -1229,6 +1380,176 @@ Test like a user with Testing Library: type into labeled fields, submit, assert 
 - [react-hook-form: useForm](https://react-hook-form.com/docs/useform)
 - [react-hook-form: useFieldArray](https://react-hook-form.com/docs/usefieldarray)
 - [W3C WAI: Forms tutorial](https://www.w3.org/WAI/tutorials/forms/)
+
+## Error boundaries: how they work, what they miss, and how to handle errors they can't catch
+<!--
+id: error-boundaries-how-they-work
+level: senior
+tags: error boundaries, react, getderivedstatefromerror, componentdidcatch, error handling, resilience
+minutes: 14
+-->
+
+> [!PROMPT]
+> What are error boundaries and how do they work? A component throws during render and the whole screen goes blank. Add a boundary, show a fallback, report the error, and then handle an error thrown inside a click handler and one inside a `fetch` callback.
+>
+> **Cover**
+> - The two class lifecycle methods and when each runs.
+> - What boundaries do not catch and how to route those errors anyway.
+> - Resetting, reporting and React 19's root error hooks.
+>
+> **Test cases**
+> - A child that throws in render shows the fallback; the sibling widget stays usable.
+> - Clicking "Retry" re-renders the child after the cause is fixed.
+> - An error thrown in an `onClick` handler does not reach the boundary by itself, but a rejected fetch can be sent to it deliberately.
+
+> [!TLDR]
+> An **error boundary** is a class component that catches errors thrown **while rendering** its descendants (render, lifecycle methods, constructors) and shows a fallback instead of unmounting the whole tree. It implements `static getDerivedStateFromError(error)` (render phase: return state that switches to the fallback) and `componentDidCatch(error, info)` (commit phase: side effects such as reporting, with `info.componentStack`). It does **not** catch errors in event handlers, async code (promises, timers), server-side rendering, or in the boundary itself. There is no hook for it: write one small class or use `react-error-boundary`.
+
+### The minimal boundary
+
+```tsx
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+
+interface Props {
+  fallback: (error: Error, reset: () => void) => ReactNode;
+  onError?: (error: Error, info: ErrorInfo) => void;
+  children: ReactNode;
+}
+interface State { error: Error | null }
+
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { error: null };
+
+  // Render phase: must be pure. Returns the state used to render the fallback on the next pass.
+  static getDerivedStateFromError(error: Error): State {
+    return { error };
+  }
+
+  // Commit phase: side effects are fine here.
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    this.props.onError?.(error, info); // info.componentStack says where in the tree it happened
+  }
+
+  reset = () => this.setState({ error: null });
+
+  render() {
+    return this.state.error ? this.props.fallback(this.state.error, this.reset) : this.props.children;
+  }
+}
+```
+
+Use it around independent regions:
+
+```tsx
+<ErrorBoundary
+  onError={(error, info) => reportError(error, { componentStack: info.componentStack })}
+  fallback={(_error, reset) => (
+    <div role="alert">
+      <p>This panel failed to load.</p>
+      <button onClick={reset}>Retry</button>
+    </div>
+  )}
+>
+  <RevenueChart />
+</ErrorBoundary>
+```
+
+### What they do and do not catch
+
+| Caught | Not caught |
+| --- | --- |
+| Errors thrown in render of descendants | Errors in **event handlers** |
+| Errors in lifecycle methods and constructors | **Async** code: `setTimeout`, promises, `fetch` callbacks |
+| Errors thrown by `lazy` loaders and suspended reads that reject | **Server-side rendering** errors (handled by the server API) |
+| | Errors thrown **in the boundary itself** (it propagates to the next boundary up) |
+
+Event handlers run outside rendering, so React does not need to unwind the tree; plain `try`/`catch` is the tool there.
+
+### Routing async and event errors to a boundary on purpose
+
+If you want a failed request to show the same fallback, rethrow it during render:
+
+```tsx
+import { useState } from 'react';
+
+function useThrowToBoundary() {
+  const [, setState] = useState();
+  return (error: unknown) =>
+    setState(() => {
+      throw error; // thrown inside a state updater, so it surfaces during the next render
+    });
+}
+
+function SaveButton() {
+  const throwToBoundary = useThrowToBoundary();
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await save();
+        } catch (error) {
+          throwToBoundary(error); // or show an inline message for recoverable errors
+        }
+      }}
+    >
+      Save
+    </button>
+  );
+}
+```
+
+`react-error-boundary` packages the pattern as `useErrorBoundary().showBoundary(error)`, and adds `resetKeys`, `onReset` and a function component API. Reserve this for failures that make the region unusable; a failed save should usually be an inline, recoverable message.
+
+### Resetting
+
+- **Retry button** calling `reset` (clears the stored error and re-renders the children).
+- **Reset on navigation or data change**: render the boundary with a `key` (`<ErrorBoundary key={location.pathname}>`) or use `resetKeys`.
+- A boundary only helps if the cause can change; retrying a deterministic bug just throws again.
+
+### Reporting
+
+`componentDidCatch` is where you send errors to monitoring with the component stack and release version. Since React 19, `createRoot(container, { onCaughtError, onUncaughtError, onRecoverableError })` provides central hooks: errors caught by a boundary, errors that reach no boundary, and errors React recovered from (for example hydration mismatches). Prefer these for app-wide reporting and keep boundaries for UI.
+
+In development an error overlay still appears even when a boundary caught the error; the fallback is what users see in production.
+
+:::angular
+### Equivalent in Angular
+
+There is no per-subtree boundary. Angular routes errors to the global `ErrorHandler` (provide your own with `{ provide: ErrorHandler, useClass: ... }`, or `provideBrowserGlobalErrorListeners()` in recent versions), and you contain failures with a `catchError` in the data stream plus a state flag in the component. `@defer`'s `@error` block handles failures of deferred content.
+:::
+
+:::vue
+### Equivalent in Vue
+
+Vue has an `onErrorCaptured` hook: a component can catch errors from its descendants, set a flag to render a fallback, and return `false` to stop propagation. Unlike React boundaries it also receives errors from event handlers and watchers of descendants. `app.config.errorHandler` is the global catch-all for reporting.
+
+```ts
+import { onErrorCaptured, ref } from 'vue';
+
+const error = ref<Error | null>(null);
+onErrorCaptured((err) => {
+  error.value = err instanceof Error ? err : new Error(String(err));
+  return false; // do not propagate further
+});
+```
+:::
+
+### Follow-ups
+
+- **Why classes?** The two lifecycles that implement boundaries have no hook equivalent yet.
+- **Should I wrap every component?** No. Wrap regions that can fail independently: app shell, routes, widgets.
+- **Do boundaries prevent the error?** No; they contain the blast radius. Fix the bug, and report it.
+- **What happens without any boundary?** Since React 16 an uncaught render error unmounts the whole tree, leaving a blank page.
+
+> [!WARNING]
+> Common mistakes: expecting a boundary to catch event handler or fetch errors; one boundary at the root only; a fallback that renders the same failing component; no reset path; and swallowing errors without reporting them.
+
+### References
+
+- [React docs: Catching rendering errors with an error boundary](https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary)
+- [react-error-boundary](https://github.com/bvaughn/react-error-boundary)
+- [React 19: `createRoot` error options](https://react.dev/reference/react-dom/client/createRoot#parameters)
+
 
 ## Where do you place error boundaries and Suspense boundaries in a large app?
 <!--

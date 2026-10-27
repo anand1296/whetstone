@@ -1,7 +1,7 @@
 ---
 id: security
 title: Frontend Security
-description: XSS in React apps, CSP and Trusted Types, token storage and the BFF pattern, CSRF with SameSite cookies, OAuth with PKCE, and supply-chain risk.
+description: XSS in React apps, CSP and Trusted Types, token storage and the BFF pattern, protected routes, CSRF with SameSite cookies, OAuth with PKCE, and supply-chain risk.
 ---
 
 ## XSS in React apps: where React protects you, where it doesn't, and how to sanitize
@@ -288,6 +288,198 @@ Browser ──(HttpOnly session cookie)──▶ BFF (same site as the app)
 - [IETF: OAuth 2.0 for Browser-Based Applications](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps)
 - [OWASP: Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
 - [MDN: Set-Cookie (prefixes, SameSite)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
+
+## Authentication and protected routes in a React SPA: guards, loading states, redirects and what a guard can't do
+<!--
+id: react-auth-protected-routes
+level: senior
+tags: authentication, protected routes, react router, authorization, session, redirects
+minutes: 18
+-->
+
+> [!PROMPT]
+> How do you handle authentication and protected routes in React? Build a guard that sends signed-out users to `/login`, returns them to where they were headed after sign-in, supports role-based routes, and doesn't flash the login page for a signed-in user on reload.
+>
+> **Requirements**
+> - A three-state auth model (loading, signed in, signed out) rather than a boolean.
+> - A reusable guard for groups of routes, with a role check.
+> - Global handling of an expired session (a 401 from the API).
+>
+> **Test cases**
+> - Visiting `/settings` signed out redirects to `/login` and, after signing in, lands on `/settings`.
+> - Reloading `/settings` while signed in shows a loading state, then the page, with no flash of `/login`.
+> - A learner opening `/admin` sees a "not allowed" screen, not the admin UI; the admin API still refuses them regardless.
+> - A 401 from any request clears the session and sends the user to `/login`.
+
+> [!TLDR]
+> Client-side route protection is **UX, not security**: the JS bundle is public, so anything sensitive must be enforced by the server on every API call. In the SPA, keep an auth state with three values (`loading | authenticated | anonymous`) obtained from the server (a `/me` call using an HttpOnly session cookie is the safest default), and use a guard layout route that shows a loader while `loading`, redirects to `/login?next=…` when anonymous, checks roles when authenticated, and otherwise renders `<Outlet />`. Handle 401 centrally in the API client, and protect against open redirects when honouring `next`.
+
+### The model: three states, not a boolean
+
+A boolean `isLoggedIn` is `false` on first render, before the app knows, which sends signed-in users to the login page on every reload. Make "I don't know yet" a state.
+
+```tsx
+import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
+
+interface User { id: string; login: string; role: 'learner' | 'admin' | 'owner' }
+type Auth =
+  | { status: 'loading' }
+  | { status: 'anonymous' }
+  | { status: 'authenticated'; user: User };
+
+const AuthContext = createContext<{ auth: Auth; signOut: () => Promise<void>; expire: () => void } | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [auth, setAuth] = useState<Auth>({ status: 'loading' });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/me', { credentials: 'same-origin', signal: controller.signal })
+      .then((response) => (response.ok ? (response.json() as Promise<User>) : null))
+      .then((user) => setAuth(user ? { status: 'authenticated', user } : { status: 'anonymous' }))
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setAuth({ status: 'anonymous' });
+      });
+    return () => controller.abort();
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      auth,
+      signOut: async () => {
+        await fetch('/api/logout', { method: 'POST' });
+        setAuth({ status: 'anonymous' });
+      },
+      expire: () => setAuth({ status: 'anonymous' }), // called by the API client on a 401
+    }),
+    [auth],
+  );
+  return <AuthContext value={value}>{children}</AuthContext>;
+}
+
+export function useAuth() {
+  const context = use(AuthContext);
+  if (!context) throw new Error('useAuth must be used inside <AuthProvider>');
+  return context;
+}
+```
+
+### The guard as a layout route
+
+```tsx
+import { Navigate, Outlet, useLocation } from 'react-router';
+
+export function RequireAuth({ roles }: { roles?: User['role'][] }) {
+  const { auth } = useAuth();
+  const location = useLocation();
+
+  if (auth.status === 'loading') return <FullPageSpinner />;
+  if (auth.status === 'anonymous') {
+    const next = location.pathname + location.search;
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
+  }
+  if (roles && !roles.includes(auth.user.role)) return <NotAllowed />; // 403 screen, not a redirect loop
+  return <Outlet />;
+}
+```
+
+```tsx
+<Routes>
+  <Route path="/login" element={<Login />} />
+  <Route element={<RequireAuth />}>
+    <Route path="/" element={<Home />} />
+    <Route path="/settings" element={<Settings />} />
+  </Route>
+  <Route element={<RequireAuth roles={['admin', 'owner']} />}>
+    <Route path="/admin/*" element={<Admin />} />
+  </Route>
+</Routes>
+```
+
+A guard layout route protects a group once instead of wrapping each page, and `replace` keeps the protected URL out of the back-button history so Back does not bounce the user around.
+
+### After sign-in: go back, safely
+
+```tsx
+function safeNext(raw: string | null): string {
+  // Only same-site relative paths: "//evil.com" and "https://evil.com" would be open redirects.
+  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
+}
+// after a successful sign-in:
+navigate(safeNext(new URLSearchParams(location.search).get('next')), { replace: true });
+```
+
+### Expired sessions and 401s
+
+Do it once in the API client, not in every component: on a 401 (not on a 403), call `expire()` so the guard redirects; keep the current location in `next` so work is not lost. For a forms-heavy app also keep unsent drafts. Sync sign-out between tabs with a `BroadcastChannel` or the `storage` event.
+
+### Where this stops being enough
+
+- **A guard hides UI; it does not protect data.** Anyone can open the dev tools, call the API directly or read the bundle. Every endpoint must check the session and the role on the server (this app's admin console works that way: the server refuses non-admins even if the UI is bypassed).
+- **Role checks in the client are display logic.** Return permissions from the server (`user.permissions`) rather than recomputing rules in the bundle.
+- **Token storage matters:** an HttpOnly, `Secure`, `SameSite` session cookie keeps the credential out of JavaScript; tokens in `localStorage` are exposed to XSS (see the token-storage question). Cookies bring CSRF considerations.
+- **Data-router apps** can do the check in a route `loader` and `throw redirect('/login?next=…')`, which avoids rendering the page shell at all; frameworks like Next.js do it in middleware or server components, before any HTML is sent.
+
+:::angular
+### Equivalent in Angular
+
+A functional route guard returns `true` or a `UrlTree`:
+
+```ts
+export const authGuard: CanActivateFn = async (_route, state) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const user = await auth.ready(); // resolves after the first /me call
+  return user ? true : router.createUrlTree(['/login'], { queryParams: { next: state.url } });
+};
+
+export const routes: Routes = [
+  { path: 'login', component: LoginComponent },
+  { path: '', canActivate: [authGuard], children: [{ path: 'settings', component: SettingsComponent }] },
+  { path: 'admin', canActivate: [authGuard, roleGuard(['admin', 'owner'])], loadComponent: () => import('./admin') },
+];
+```
+
+An `HttpInterceptorFn` handles 401s globally. `canMatch` prevents the lazy chunk from being downloaded for users who cannot access the route.
+:::
+
+:::vue
+### Equivalent in Vue
+
+```ts
+router.beforeEach(async (to) => {
+  const auth = useAuthStore();
+  await auth.ready; // resolves after the first /me call
+  if (to.meta.requiresAuth && !auth.user) {
+    return { name: 'login', query: { next: to.fullPath } };
+  }
+  if (to.meta.roles && auth.user && !(to.meta.roles as string[]).includes(auth.user.role)) {
+    return { name: 'forbidden' };
+  }
+});
+```
+
+Mark routes with `meta: { requiresAuth: true, roles: ['admin'] }`; an Axios or `fetch` wrapper handles 401 once.
+:::
+
+### Follow-ups
+
+- **JWT in memory vs cookie?** Prefer an HttpOnly cookie (optionally through a BFF); memory tokens are lost on reload and need a refresh cookie anyway.
+- **How do you test it?** Render the router with a mocked auth provider in each of the three states and assert the redirect, the loader and the forbidden screen; add one end-to-end test through the real sign-in.
+- **Where do you handle roles with many permissions?** Server-provided permission list plus a `can(permission)` helper.
+- **What about SSR?** Check the session on the server before rendering and redirect there, so protected HTML is never sent.
+
+> [!WARNING]
+> Common mistakes: treating the guard as security; a boolean that redirects during the initial load; redirecting on a 403 (loops) instead of showing a forbidden screen; an unvalidated `next` parameter (open redirect); storing long-lived tokens in `localStorage`; and forgetting to clear cached data and queries on sign-out.
+
+### References
+
+- [React Router: Authentication patterns](https://reactrouter.com/)
+- [OWASP: Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+- [OWASP: Unvalidated Redirects and Forwards](https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html)
+- [Angular: Route guards](https://angular.dev/guide/routing/route-guards)
+- [Vue Router: Navigation guards](https://router.vuejs.org/guide/advanced/navigation-guards.html)
+
 
 ## CSRF today: SameSite cookies, tokens, and when you still need both
 <!--
