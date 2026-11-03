@@ -388,6 +388,7 @@ recover → security headers → access log → CSRF guard → session → Serve
 | `PORT`, `STATIC_DIR` | binary only | Listen port; directory of the built frontend |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM` | for reminders | Any SMTP provider (Gmail app password, Resend, Brevo…); port 587 STARTTLS or 465 TLS |
 | `CRON_SECRET` | for reminders | Bearer secret the scheduler must present to `GET /cron/reminders` |
+| `MCP_ENABLED=true` | optional | Turns on the read-only MCP endpoint `POST /api/mcp` (docs/MCP.md). Off by default; refused while content is members-only |
 
 ### 7.4 Startup and serverless behavior
 
@@ -480,6 +481,7 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `PUT /me/reminders {enabled, frequency}` | learner+ | 422 `no_email` without a verified address; 403 `disabled` when the admin switched the feature off |
 | `POST /me/reminders/test` | learner+ (3/hour) | Sends one reminder now; 503 `email_unconfigured`, 502 `send_failed` |
 | `GET /cron/reminders` | `Authorization: Bearer $CRON_SECRET` | Claims up to 50 due reminders, sends, releases failures; `{claimed, sent, failed}` or `{skipped}` |
+| `POST /mcp` | none (anonymous, public content only; needs `MCP_ENABLED=true`; Origin check; 120/min per IP; exempt from the CSRF header rule: no cookies involved) | JSON-RPC 2.0: `initialize`, `ping`, `tools/list`, `tools/call` (`list_rounds`, `search_questions`, `get_question`). 202 for notifications, 405 for GET |
 | `GET /reminders/unsubscribe?token=` | token | HTML confirmation page (never changes state) |
 | `POST /reminders/unsubscribe?token=` | token (exempt from the CSRF header rule: no cookies involved) | Turns reminders off; also the RFC 8058 one-click target |
 | `POST /submissions/preview` | learner+ (rate-limited) | `{html, problems}` for a draft submission; nothing saved |

@@ -37,6 +37,8 @@ type Config struct {
 	EmailFrom    string // e.g. "Whetstone <you@gmail.com>"
 	// CronSecret authenticates the scheduler (Vercel Cron sends "Authorization: Bearer <CRON_SECRET>").
 	CronSecret string
+	// MCPEnabled turns on the read-only MCP endpoint (POST /api/mcp). Off unless MCP_ENABLED=true.
+	MCPEnabled bool
 }
 
 // ConfigFromEnv reads Config from environment variables.
@@ -66,6 +68,7 @@ func ConfigFromEnv() Config {
 		SMTPPassword:       os.Getenv("SMTP_PASSWORD"),
 		EmailFrom:          os.Getenv("EMAIL_FROM"),
 		CronSecret:         os.Getenv("CRON_SECRET"),
+		MCPEnabled:         os.Getenv("MCP_ENABLED") == "true" || os.Getenv("MCP_ENABLED") == "1",
 	}
 }
 
