@@ -24,6 +24,7 @@ import (
 	"github.com/anand1296/whetstone/backend/auth"
 	"github.com/anand1296/whetstone/backend/catalog"
 	"github.com/anand1296/whetstone/backend/mail"
+	"github.com/anand1296/whetstone/backend/mcp"
 	"github.com/anand1296/whetstone/backend/store"
 	"github.com/anand1296/whetstone/content"
 )
@@ -43,6 +44,8 @@ type Server struct {
 	now      func() time.Time
 	mailer   mail.Sender
 
+	mcp http.Handler
+
 	settingsMu   sync.Mutex
 	settingsSnap *settingsSnapshot
 }
@@ -52,7 +55,7 @@ func New(cfg Config, st *store.Store, repo []catalog.Section, log *slog.Logger) 
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Server{
+	s := &Server{
 		cfg:      cfg,
 		store:    st,
 		compiler: catalog.NewCompiler(),
@@ -64,6 +67,10 @@ func New(cfg Config, st *store.Store, repo []catalog.Section, log *slog.Logger) 
 		mailer: &mail.SMTP{Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUsername,
 			Password: cfg.SMTPPassword, From: cfg.EmailFrom},
 	}
+	endpoint := mcp.New(mcpCatalog{st}, "whetstone", Version)
+	endpoint.Log = log
+	s.mcp = endpoint
+	return s
 }
 
 // SetMailer replaces the email sender (tests use mail.Recorder).
@@ -109,6 +116,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/bootstrap", s.bootstrap)
 	mux.HandleFunc("GET /api/content/sections/{id}", s.sectionAnswers)
 	mux.HandleFunc("GET /api/invites/{token}", s.inviteInfo)
+	mux.HandleFunc("/api/mcp", s.mcpEndpoint)
 
 	// Auth
 	mux.HandleFunc("GET /api/auth/github/start", s.githubStart)
@@ -327,6 +335,12 @@ func (s *Server) withCSRF(next http.Handler) http.Handler {
 		// The unsubscribe link is authenticated by its token, not by cookies, so
 		// it can't be forged cross-site; mail providers POST to it directly (RFC 8058).
 		if r.URL.Path == "/api/reminders/unsubscribe" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// The MCP endpoint is called by AI clients, not by browser pages, and it never
+		// uses cookies or sessions. It does its own Origin check (see mcpEndpoint).
+		if r.URL.Path == "/api/mcp" {
 			next.ServeHTTP(w, r)
 			return
 		}

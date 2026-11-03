@@ -493,3 +493,23 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 **Consequences.**
 - (+) Links can be copied any time, with no need to recreate them.
 - (−) A database leak would expose unused invite links. Mitigated by expiry (max 90 days), max uses, revocation, and the fact that an invite only grants a learner (or admin) account on a private-by-default site.
+
+
+---
+
+## ADR-031: A hand-written, read-only MCP endpoint (stateless, off by default)
+
+**Status:** Accepted (AI roadmap, phase 1)
+
+**Context.** We want AI clients (Claude, IDE assistants) to be able to quiz you from the question bank, and we want to learn the protocol by building it. MCP is JSON-RPC 2.0 with a handful of methods; the Streamable HTTP transport allows a server to answer each POST with one JSON response. The official Go SDK was not an option in the build sandbox (no module downloads), and the project keeps its dependency list short.
+
+**Decision.** `backend/mcp` implements `initialize`, `ping`, `tools/list` and `tools/call` with the standard library only, behind a small `Catalog` interface so the protocol is tested without a database. `POST /api/mcp` is served only when `MCP_ENABLED=true` and the site's content is public. The server is stateless (no session ids, no streams, no server-initiated requests), which suits serverless. Tools are read-only and return no answers by default: `get_question` returns only the prompt until `reveal_answer=true`. Browser requests from other origins are refused, and calls are rate-limited per IP. The endpoint is exempt from the cookie-CSRF header rule because it never reads cookies.
+
+**Alternatives considered.** The official Go SDK (less code, tracks the spec, but a dependency we could not verify here and it hides the wire format we want to learn); a TypeScript MCP server as a separate service (second runtime and deployment); authenticated per-user MCP now (needs OAuth for MCP clients, planned later; phase 1 stays anonymous and public-only).
+
+**Consequences.**
+- (+) Small, readable, fully tested; no new dependency; the whole protocol fits in about 300 lines.
+- (+) Safe default: nothing changes in production until the owner sets `MCP_ENABLED=true`.
+- (−) We support protocol revisions 2025-03-26 to 2025-11-25. The 2026-07-28 revision removes the `initialize` handshake in favour of per-request metadata and `server/discover`; clients that only speak it will need that added.
+- (−) No per-user tools yet (my due reviews, my progress): those need authentication, which comes with the OAuth work.
+- (−) Question text reaches the model's context. Anything an admin or an approved submitter writes is therefore model input, so treat question content as untrusted-ish and never give these tools write access without a review of that risk.
