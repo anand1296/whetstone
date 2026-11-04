@@ -229,7 +229,7 @@ test('topic chips filter the rounds; "coming soon" chips are inert; the choice i
   await expect(backend).toHaveAttribute('aria-disabled', 'true');
   await backend.hover();
   await expect(filter.locator('.chip-wrap', { hasText: 'Backend' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
-  await backend.click();
+  await backend.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
   await expect(rounds).toHaveCount(15);
 
   // Within a row chips widen the result; across rows they narrow it.
