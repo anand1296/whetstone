@@ -2,6 +2,7 @@
 id: browser-platform
 title: Browser & Web Platform
 description: What the browser actually does with your bytes: rendering pipeline, HTTP caching, CORS, loading priorities, service workers, storage and workers.
+topics: frontend
 ---
 
 ## The critical rendering path: parse, style, layout, paint, composite. What triggers what?

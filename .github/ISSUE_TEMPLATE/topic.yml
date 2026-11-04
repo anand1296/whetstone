@@ -1,0 +1,39 @@
+name: Suggest a topic
+description: Propose a whole new category (for example Kubernetes for SREs or Go concurrency), with a few starter questions if you have them. The owner reviews it before anything is added.
+title: "Topic: "
+labels: [topic-suggestion]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping the bank grow beyond frontend! Please leave out anything confidential.
+        Members of the hosted app can also suggest this inside the app (**Suggest a topic**) and follow its progress there.
+  - type: input
+    id: topic
+    attributes:
+      label: The topic
+      description: A short name for the category.
+      placeholder: Kubernetes for SREs
+    validations:
+      required: true
+  - type: dropdown
+    id: chips
+    attributes:
+      label: Where does it belong?
+      description: The closest filter chip.
+      multiple: true
+      options: [Frontend, Backend, Full-stack, SRE, QE / SDET, Cloud, JavaScript, TypeScript, Go, Node.js, Java, Python, React, Angular, Vue, AWS, Azure, GCP, Kubernetes]
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters and what it should cover
+    validations:
+      required: false
+  - type: textarea
+    id: questions
+    attributes:
+      label: Starter questions (optional)
+      description: One per line. You don't need to write the answers.
+      render: text
+    validations:
+      required: false

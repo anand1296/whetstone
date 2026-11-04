@@ -2,6 +2,7 @@
 id: frontend-system-design
 title: Frontend System Design
 description: A framework for the 45-minute design round, then full walkthroughs: news feed, e-commerce product page, real-time dashboard, spreadsheet, collaborative editor, offline-first app and search.
+topics: frontend
 ---
 
 ## A framework for frontend system design interviews, and how to spend the 45 minutes

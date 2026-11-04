@@ -14,6 +14,7 @@ The console's *Export* produces exactly this file format, so content can move be
 id: browser-platform
 title: Browser & Web Platform
 description: One line shown on the overview.
+topics: frontend, react
 ---
 
 ## The question exactly as an interviewer would ask it
@@ -30,6 +31,8 @@ minutes: 15
 ### Mental model
 ...
 ```
+
+**`topics`** (comma separated) tags the round with filter chips on the overview. The allowed ids are listed in [`content/topics.json`](../content/topics.json) (role, language, framework, platform). A chip is selectable as soon as one published round carries it; chips nobody carries yet show as "Coming soon". Rounds without topics are never matched by a chip filter, so always set at least one. In the console, pick topics in the round editor; **Sync from repository** refreshes topics on existing rounds.
 
 | Field | Rules |
 | --- | --- |

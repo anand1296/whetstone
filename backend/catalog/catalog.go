@@ -40,11 +40,13 @@ var idPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 // Section is a round, as stored and edited.
 type Section struct {
-	ID          string     `json:"id"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Published   bool       `json:"published"`
-	Questions   []Question `json:"questions,omitempty"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Published   bool   `json:"published"`
+	// Topics are filter-chip ids from content/topics.json (frontend, react, ...).
+	Topics    []string   `json:"topics"`
+	Questions []Question `json:"questions,omitempty"`
 }
 
 // Question is one interview question with its Markdown answer.
@@ -119,6 +121,7 @@ func (s *Section) Normalize() {
 	s.ID = strings.TrimSpace(s.ID)
 	s.Title = strings.TrimSpace(s.Title)
 	s.Description = strings.TrimSpace(s.Description)
+	s.Topics = NormalizeTopics(s.Topics)
 }
 
 // Validate checks a section's own fields (not its questions).
@@ -136,6 +139,15 @@ func (s Section) Validate() Problems {
 		p.add("description", "is required")
 	} else if utf8.RuneCountInString(s.Description) > MaxDescription {
 		p.add("description", "must be at most %d characters", MaxDescription)
+	}
+	if len(s.Topics) > MaxTopics {
+		p.add("topics", "use at most %d topics", MaxTopics)
+	}
+	for _, t := range s.Topics {
+		if !ValidTopic(t) {
+			p.add("topics", "unknown topic %q: pick from content/topics.json", t)
+			break
+		}
 	}
 	return p
 }

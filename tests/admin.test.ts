@@ -11,8 +11,8 @@ const tick = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const q = (id: string, sectionId: string) => ({ id, sectionId, title: id, level: 'senior' as const, tags: [], minutes: 1, summary: '', searchText: '' });
 const sections: SectionMeta[] = [
-  { id: 'a', title: 'A', description: '', questions: [q('a1', 'a'), q('a2', 'a')] },
-  { id: 'b', title: 'B', description: '', questions: [q('b1', 'b')] },
+  { id: 'a', title: 'A', description: '', topics: [], questions: [q('a1', 'a'), q('a2', 'a')] },
+  { id: 'b', title: 'B', description: '', topics: [], questions: [q('b1', 'b')] },
 ];
 
 describe('learner summary', () => {

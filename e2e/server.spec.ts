@@ -187,3 +187,38 @@ test('a learner contributes a question; it goes live only after the owner approv
   await expect(learner.page.locator('.contributor-line')).toContainText('@priya');
   expect([...learner.errors, ...owner.errors]).toEqual([]);
 });
+
+test('a learner suggests a topic; the owner accepts it and the learner can follow it', async ({ browser }) => {
+  const learner = await newPage(browser);
+  await learner.page.goto('/');
+  await signIn(learner.page, 'priya');
+
+  await learner.page.getByRole('button', { name: 'Suggest a topic' }).first().click();
+  const dialog = learner.page.getByRole('dialog', { name: 'Suggest a topic' });
+  await dialog.getByLabel('What should we cover?').fill('Kubernetes for SREs');
+  await dialog.getByRole('button', { name: 'SRE', exact: true }).click();
+  await dialog.getByLabel('Starter question 1').fill('How do liveness and readiness probes differ?');
+  await dialog.getByRole('button', { name: 'Send for review' }).click();
+  await expect(dialog.getByText('Thanks, it’s with the owner.')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Follow it on Contribute' }).click();
+  await expect(learner.page.locator('.idea-list')).toContainText('Kubernetes for SREs');
+  await expect(learner.page.locator('.idea-list')).toContainText('In review');
+
+  const owner = await newPage(browser);
+  await owner.page.goto('/');
+  await signIn(owner.page, OWNER);
+  await owner.page.locator('aside.sidebar').getByRole('button', { name: /Admin/ }).click();
+  await owner.page.getByRole('tab', { name: /Topic ideas/ }).click();
+  await owner.page.locator('.idea-list').getByRole('button', { name: 'Review' }).click();
+  await owner.page.getByLabel('One-line description').fill('Operating Kubernetes in production.');
+  await owner.page.getByRole('button', { name: 'Accept and create drafts' }).click();
+  await expect(owner.page.getByText(/Accepted “Kubernetes for SREs”/)).toBeVisible();
+  await expect(owner.page.locator('.idea-list')).toContainText('Answers being written');
+
+  // The learner sees progress, but the draft round and question stay hidden.
+  await learner.page.reload();
+  await expect(learner.page.locator('.idea-list')).toContainText('Answers being written');
+  const bootstrap = await learner.page.evaluate(() => fetch('/api/bootstrap').then((r) => r.text()));
+  expect(bootstrap).not.toContain('kubernetes-for-sres');
+  expect([...learner.errors, ...owner.errors]).toEqual([]);
+});

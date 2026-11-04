@@ -2,6 +2,7 @@
 id: ai-frontend
 title: AI-Powered Frontends
 description: Building LLM features that feel fast and behave safely: streaming, incremental Markdown, tool calling and generative UI, RAG UX, latency and cost, evaluation and observability.
+topics: frontend, react
 ---
 
 ## Stream an LLM response into the UI: fetch streams, SSE parsing, abort and render batching

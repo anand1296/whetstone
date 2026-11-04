@@ -98,9 +98,9 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
               >
                 <Icon name="shield" size={18} />
                 <span>Admin</span>
-                {server.pendingSubmissions > 0 ? (
-                  <span className="badge" aria-label={`${server.pendingSubmissions} to review`}>
-                    {server.pendingSubmissions}
+                {server.pendingSubmissions + server.pendingIdeas > 0 ? (
+                  <span className="badge" aria-label={`${server.pendingSubmissions + server.pendingIdeas} to review`}>
+                    {server.pendingSubmissions + server.pendingIdeas}
                   </span>
                 ) : null}
                 <span className="role-chip">{adminChip}</span>

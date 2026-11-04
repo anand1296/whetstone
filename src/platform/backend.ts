@@ -72,6 +72,8 @@ export interface ServerState {
   locked: boolean;
   /** Admins only: community question submissions waiting for review. */
   pendingSubmissions: number;
+  /** Admins only: suggested topics waiting for review. */
+  pendingIdeas: number;
 }
 
 const ALL_ON = Object.fromEntries(FEATURE_KEYS.map((key) => [key, true])) as Features;
@@ -88,6 +90,7 @@ export const serverStore = createStore<ServerState>({
   email: false,
   locked: false,
   pendingSubmissions: 0,
+  pendingIdeas: 0,
 });
 
 export function useServer(): ServerState {
@@ -134,7 +137,8 @@ export function parseSections(value: unknown): SectionMeta[] {
   return value.flatMap((raw): SectionMeta[] => {
     if (!isRecord(raw) || typeof raw.id !== 'string') return [];
     const questions = Array.isArray(raw.questions) ? raw.questions.map(parseQuestion).filter((q): q is QuestionMeta => q !== null) : [];
-    return [{ id: raw.id, title: str(raw.title), description: str(raw.description), published: raw.published !== false, questions }];
+    const topics = Array.isArray(raw.topics) ? raw.topics.filter((t): t is string => typeof t === 'string') : [];
+    return [{ id: raw.id, title: str(raw.title), description: str(raw.description), published: raw.published !== false, topics, questions }];
   });
 }
 
@@ -186,6 +190,7 @@ function apply(body: Record<string, unknown>): void {
     email: body.email === true,
     locked: body.locked === true,
     pendingSubmissions: typeof body.pendingSubmissions === 'number' ? body.pendingSubmissions : 0,
+    pendingIdeas: typeof body.pendingIdeas === 'number' ? body.pendingIdeas : 0,
   }));
   const content = isRecord(body.content) ? body.content : null;
   setContent(content ? parseSections(content.sections) : [], 'server', content && typeof content.version === 'number' ? content.version : -1);

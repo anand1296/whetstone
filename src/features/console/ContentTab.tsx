@@ -9,6 +9,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Dialog, LevelChip } from '../../components/primitives.tsx';
+import { TopicPicker } from '../../components/TopicPicker.tsx';
 import { plural } from '../../lib/format.ts';
 import { refreshBootstrap } from '../../platform/backend.ts';
 import { navigate } from '../../state/route.ts';
@@ -48,6 +49,7 @@ function NewRoundDialog({ open, takenIds, onClose, onCreated }: { open: boolean;
   const [id, setId] = useState('');
   const [idTouched, setIdTouched] = useState(false);
   const [description, setDescription] = useState('');
+  const [topics, setTopics] = useState<string[]>([]);
   const { busy, flash, run } = useAction();
   const formId = useId();
   const effectiveId = idTouched ? id : slugify(title);
@@ -55,12 +57,13 @@ function NewRoundDialog({ open, takenIds, onClose, onCreated }: { open: boolean;
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    const ok = await run(() => consoleApi.createSection({ id: effectiveId, title, description, published: true }));
+    const ok = await run(() => consoleApi.createSection({ id: effectiveId, title, description, topics, published: true }));
     if (ok) {
       setTitle('');
       setId('');
       setIdTouched(false);
       setDescription('');
+      setTopics([]);
       await onCreated(effectiveId);
     }
   };
@@ -97,6 +100,7 @@ function NewRoundDialog({ open, takenIds, onClose, onCreated }: { open: boolean;
           One-line description
           <input id={`${formId}-desc`} value={description} required maxLength={300} onChange={(e) => setDescription(e.target.value)} />
         </label>
+        <TopicPicker value={topics} onChange={setTopics} />
         <p className="admin-note">The round appears to learners once it has at least one published question.</p>
         <FlashLine flash={flash} />
         <div className="button-row">
@@ -286,16 +290,17 @@ function RoundDetail({ section, index, total, onChanged, onEdit, onNew, onDelete
 }) {
   const [title, setTitle] = useState(section.title);
   const [description, setDescription] = useState(section.description);
+  const [topics, setTopics] = useState<string[]>(section.topics);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const { busy, flash, run } = useAction();
   const formId = useId();
-  const dirty = title !== section.title || description !== section.description;
+  const dirty = title !== section.title || description !== section.description || topics.join() !== section.topics.join();
   const drafts = section.questions.filter((q) => !q.published).length;
 
   const save = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    if (await run(() => consoleApi.updateSection(section.id, { title, description }), 'Round saved.')) await onChanged();
+    if (await run(() => consoleApi.updateSection(section.id, { title, description, topics }), 'Round saved.')) await onChanged();
   };
 
   const togglePublished = async (): Promise<void> => {
@@ -328,6 +333,7 @@ function RoundDetail({ section, index, total, onChanged, onEdit, onNew, onDelete
           Description
           <input id={`${formId}-desc`} value={description} required maxLength={300} onChange={(e) => setDescription(e.target.value)} />
         </label>
+        <TopicPicker value={topics} onChange={setTopics} />
         <div className="button-row">
           <button type="submit" className="btn btn-primary" disabled={busy || !dirty}>
             Save round

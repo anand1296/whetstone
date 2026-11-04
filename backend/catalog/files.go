@@ -103,7 +103,7 @@ func ParseFile(file, source string) (Section, error) {
 	}
 	headerLines := strings.Count(source[:len(source)-len(body)], "\n")
 
-	section := Section{ID: data["id"], Title: data["title"], Description: data["description"], Published: true}
+	section := Section{ID: data["id"], Title: data["title"], Description: data["description"], Topics: ParseTopics(data["topics"]), Published: true}
 	section.Normalize()
 	if problems := section.Validate(); len(problems) > 0 {
 		return Section{}, &ParseError{File: file, Line: 1, Message: problems.Error()}
@@ -208,7 +208,11 @@ func ParseFS(fsys fs.FS) ([]Section, error) {
 // output with ParseFile yields the same section (round-trip tested).
 func ExportFile(s Section) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "---\nid: %s\ntitle: %s\ndescription: %s\n---\n", s.ID, oneLine(s.Title), oneLine(s.Description))
+	fmt.Fprintf(&b, "---\nid: %s\ntitle: %s\ndescription: %s\n", s.ID, oneLine(s.Title), oneLine(s.Description))
+	if len(s.Topics) > 0 {
+		fmt.Fprintf(&b, "topics: %s\n", strings.Join(s.Topics, ", "))
+	}
+	b.WriteString("---\n")
 	for _, q := range s.Questions {
 		fmt.Fprintf(&b, "\n## %s\n<!--\nid: %s\nlevel: %s\ntags: %s\nminutes: %d\n-->\n\n%s\n",
 			oneLine(q.Title), q.ID, q.Level, strings.Join(q.Tags, ", "), q.Minutes, strings.TrimSpace(q.Body))

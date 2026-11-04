@@ -79,6 +79,18 @@ Admin → **Submissions** → **Review**:
 
 Nothing a member submits is visible to anyone else until you approve it. Each person can send 5 a day and have 10 waiting. To pause submissions, switch off **Contribute** in Features & settings.
 
+### Topic ideas (new categories)
+
+People can also suggest a **whole new topic** (sidebar → **Contribute → Suggest a topic**, or the button above the rounds), with up to five optional starter questions. You get an email, and a count badge appears on **Admin** and on the **Topic ideas** tab.
+
+Admin → **Topic ideas** → **Review**:
+
+1. Read the idea and its suggested chips. Choose **a new round** (title, permanent id, one-line description, chips) or **an existing round**.
+2. Keep, reword or drop the starter questions and set each one's level, optionally write a note, then **Accept and create drafts**. This creates a hidden draft round and one hidden draft question per kept starter question, and emails the person. Or **Decline** with a note.
+3. Open the idea under **Being written** and click **Copy authoring brief**. It is a ready-to-paste prompt (format, depth, level, question ids) for producing the answers. Paste each answer into its draft in **Content**, then publish the questions and the round.
+
+The person watches **In review → Accepted → Writing answers → Live** on their Contribute page. You never update that status by hand: it follows the drafts, and becomes **Live** when the questions are published. A chip lights up on the overview as soon as a published round carries its topic. Limits: 5 ideas a day and 10 waiting per person; **Contribute** in Features & settings pauses ideas and submissions together.
+
 ### Pull requests on GitHub (repository rules)
 
 The repository ships `CODEOWNERS` (you own every file), `CONTRIBUTING.md`, PR and issue templates, a code of conduct and `SECURITY.md`. GitHub only enforces "nobody merges without my approval" once these settings are on (one time, in the repository on github.com):

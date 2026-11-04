@@ -44,6 +44,7 @@ type SectionMeta struct {
 	Title       string         `json:"title"`
 	Description string         `json:"description"`
 	Published   bool           `json:"published"`
+	Topics      []string       `json:"topics"`
 	UpdatedAt   time.Time      `json:"updatedAt"`
 	Questions   []QuestionMeta `json:"questions"`
 }
@@ -96,14 +97,14 @@ func (s *Store) Index(ctx context.Context, includeDrafts bool) (Index, error) {
 	if idx.Version, err = contentVersion(ctx, tx); err != nil {
 		return idx, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id, title, description, published, updated_at FROM sections ORDER BY position, id`)
+	rows, err := tx.QueryContext(ctx, `SELECT id, title, description, published, topics, updated_at FROM sections ORDER BY position, id`)
 	if err != nil {
 		return idx, err
 	}
 	var sections []SectionMeta
 	for rows.Next() {
 		var sec SectionMeta
-		if err := rows.Scan(&sec.ID, &sec.Title, &sec.Description, &sec.Published, &sec.UpdatedAt); err != nil {
+		if err := rows.Scan(&sec.ID, &sec.Title, &sec.Description, &sec.Published, pq.Array(&sec.Topics), &sec.UpdatedAt); err != nil {
 			rows.Close()
 			return idx, err
 		}
@@ -193,9 +194,9 @@ func insertSection(ctx context.Context, tx *sql.Tx, actorID int64, sec catalog.S
 	} else if taken {
 		return ErrIDTaken
 	}
-	_, err := tx.ExecContext(ctx, `INSERT INTO sections (id, title, description, position, published, updated_by)
-		VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position) + 1, 0) FROM sections), $4, $5)`,
-		sec.ID, sec.Title, sec.Description, sec.Published, nullID(actorID))
+	_, err := tx.ExecContext(ctx, `INSERT INTO sections (id, title, description, topics, position, published, updated_by)
+		VALUES ($1, $2, $3, $4, (SELECT COALESCE(MAX(position) + 1, 0) FROM sections), $5, $6)`,
+		sec.ID, sec.Title, sec.Description, pq.Array(topicsOrEmpty(sec.Topics)), sec.Published, nullID(actorID))
 	return err
 }
 
@@ -218,8 +219,8 @@ func (s *Store) CreateSection(ctx context.Context, actorID int64, sec catalog.Se
 // GetSection loads a round's own fields.
 func (s *Store) GetSection(ctx context.Context, id string) (catalog.Section, error) {
 	var sec catalog.Section
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, description, published FROM sections WHERE id = $1`, id).
-		Scan(&sec.ID, &sec.Title, &sec.Description, &sec.Published)
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, description, published, topics FROM sections WHERE id = $1`, id).
+		Scan(&sec.ID, &sec.Title, &sec.Description, &sec.Published, pq.Array(&sec.Topics))
 	if errors.Is(err, sql.ErrNoRows) {
 		return sec, ErrNotFound
 	}
@@ -232,8 +233,8 @@ func (s *Store) UpdateSection(ctx context.Context, actorID int64, sec catalog.Se
 		if err := lock(ctx, tx, lockContent); err != nil {
 			return err
 		}
-		res, err := tx.ExecContext(ctx, `UPDATE sections SET title = $2, description = $3, published = $4, updated_at = now(), updated_by = $5 WHERE id = $1`,
-			sec.ID, sec.Title, sec.Description, sec.Published, nullID(actorID))
+		res, err := tx.ExecContext(ctx, `UPDATE sections SET title = $2, description = $3, published = $4, topics = $6, updated_at = now(), updated_by = $5 WHERE id = $1`,
+			sec.ID, sec.Title, sec.Description, sec.Published, nullID(actorID), pq.Array(topicsOrEmpty(sec.Topics)))
 		if err != nil {
 			return err
 		}
@@ -687,7 +688,26 @@ func (s *Store) ApplySync(ctx context.Context, actorID int64, repo []catalog.Sec
 		if !overwrite {
 			p.ChangedQuestions = []string{}
 		}
+		// Topics are filter metadata, not authored content: always refresh them on rounds
+		// that already exist, so tagging a round in git lights up its chip after a sync.
+		topicsChanged := 0
+		for _, sec := range repo {
+			if !sections[sec.ID] {
+				continue
+			}
+			res, err := tx.ExecContext(ctx, `UPDATE sections SET topics = $2, updated_at = now() WHERE id = $1 AND topics IS DISTINCT FROM $2::text[]`,
+				sec.ID, pq.Array(topicsOrEmpty(sec.Topics)))
+			if err != nil {
+				return err
+			}
+			if n, _ := res.RowsAffected(); n > 0 {
+				topicsChanged++
+			}
+		}
 		if p.Empty() {
+			if topicsChanged > 0 {
+				return bumpVersion(ctx, tx)
+			}
 			return nil
 		}
 		changed := map[string]bool{}
@@ -772,4 +792,12 @@ func (s *Store) SeedIfEmpty(ctx context.Context, repo []catalog.Section, compile
 		return bumpVersion(ctx, tx)
 	})
 	return seeded, err
+}
+
+// topicsOrEmpty keeps a NULL out of the NOT NULL topics column.
+func topicsOrEmpty(t []string) []string {
+	if t == nil {
+		return []string{}
+	}
+	return t
 }

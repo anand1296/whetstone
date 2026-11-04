@@ -2,6 +2,7 @@
 id: performance
 title: Performance
 description: Core Web Vitals in depth, INP fixes, bundle strategy, React.lazy and Suspense, images and fonts, a profiling workflow, budgets in CI, and perceived performance.
+topics: frontend, react
 ---
 
 ## Diagnose and fix LCP, INP and CLS on a real page

@@ -1,26 +1,41 @@
 import { useMemo, useState } from 'react';
 import { preloadSection, useContent } from '../../content/index.ts';
+import { filterSections } from '../../content/topics.ts';
 import { LEVELS, LEVEL_LABEL } from '../../content/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { LoopRing } from '../../components/LoopRing.tsx';
 import { InlineText, ProgressBar } from '../../components/primitives.tsx';
 import { formatStudyTime, plural } from '../../lib/format.ts';
+import { prefsStore, updatePrefs } from '../../state/prefs.ts';
 import { progressStore } from '../../state/progressStore.ts';
 import { continueTarget, doneCount, dueQuestions } from '../../state/selectors.ts';
 import { navigate } from '../../state/route.ts';
 import { useStore } from '../../state/useStore.ts';
 import { useServer } from '../../platform/backend.ts';
+import { SuggestTopicDialog } from '../contribute/SuggestTopic.tsx';
+import { TopicFilter } from './TopicFilter.tsx';
 
 export function Overview() {
   const { allQuestions, questionsById, sections, sectionsById, totalMinutes } = useContent();
   const state = useStore(progressStore, (s) => s);
   const { features, site } = useServer();
   const [now] = useState(() => Date.now());
+  const selectedTopics = useStore(prefsStore, (s) => s.topics);
+  const [suggesting, setSuggesting] = useState(false);
 
   const segments = useMemo(
     () => sections.map((section) => ({ section, done: doneCount(section.questions, state.questions) })),
     [sections, state.questions],
   );
+  // A remembered chip can lose its content (a round was hidden): only filter by chips that still match something.
+  const activeTopics = useMemo(
+    () => selectedTopics.filter((id) => sections.some((section) => section.topics.includes(id))),
+    [selectedTopics, sections],
+  );
+  const visible = useMemo(() => {
+    const shown = new Set(filterSections(sections, activeTopics).map((section) => section.id));
+    return segments.map((segment, index) => ({ ...segment, number: index + 1 })).filter(({ section }) => shown.has(section.id));
+  }, [segments, sections, activeTopics]);
   const done = segments.reduce((sum, s) => sum + s.done, 0);
   const total = allQuestions.length;
   const due = useMemo(() => dueQuestions(allQuestions, state.questions, now), [allQuestions, state.questions, now]);
@@ -112,8 +127,28 @@ export function Overview() {
         <h2 id="rounds-heading" className="section-heading">
           The rounds
         </h2>
+        <TopicFilter
+          sections={sections}
+          selected={activeTopics}
+          shown={visible.length}
+          onChange={(topics) => updatePrefs({ topics })}
+          onSuggest={() => setSuggesting(true)}
+        />
+        {visible.length === 0 ? (
+          <div className="rounds-empty">
+            <p>No rounds match all of those chips yet.</p>
+            <div className="button-row">
+              <button type="button" className="btn" onClick={() => updatePrefs({ topics: [] })}>
+                Clear the filter
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => setSuggesting(true)}>
+                Suggest a topic
+              </button>
+            </div>
+          </div>
+        ) : null}
         <ol className="round-list">
-          {segments.map(({ section, done: sectionDone }, index) => (
+          {visible.map(({ section, done: sectionDone, number }) => (
             <li key={section.id}>
               <button
                 type="button"
@@ -123,7 +158,7 @@ export function Overview() {
                 onFocus={() => preloadSection(section.id)}
                 onClick={() => navigate({ name: 'section', sectionId: section.id })}
               >
-                <span className="round-index tabular">{String(index + 1).padStart(2, '0')}</span>
+                <span className="round-index tabular">{String(number).padStart(2, '0')}</span>
                 <span className="round-body">
                   <span className="round-title">{section.title}</span>
                   <span className="round-desc">{section.description}</span>
@@ -139,6 +174,7 @@ export function Overview() {
           ))}
         </ol>
       </section>
+      <SuggestTopicDialog open={suggesting} onClose={() => setSuggesting(false)} />
     </article>
   );
 }

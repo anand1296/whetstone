@@ -1,6 +1,6 @@
 # Contributing to Whetstone
 
-Thanks for helping! There are two ways to contribute, and both are reviewed by the owner ([@anand1296](https://github.com/anand1296)) before anything goes live.
+Thanks for helping! There are a few ways to contribute, and both are reviewed by the owner ([@anand1296](https://github.com/anand1296)) before anything goes live.
 
 ## 1. Share a question from your interviews
 
@@ -16,6 +16,10 @@ What makes a good question:
 - **Nothing confidential**: no company secrets, NDA material or names.
 
 The format is described in [docs/CONTENT_GUIDE.md](docs/CONTENT_GUIDE.md).
+
+## 1b. Suggest a whole new topic
+
+Missing an area entirely (Kubernetes for SREs, Go concurrency, test automation)? Use **Suggest a topic** above the rounds in the app (or on **Contribute**), or open a [topic suggestion](https://github.com/anand1296/whetstone/issues/new?template=topic.yml) issue. Starter questions are optional; you don't need to write answers. If the owner accepts it, the answers are written in the same depth as the rest of the bank, and you can follow it from **Contribute** until it's live.
 
 ## 2. Improve the code with a pull request
 

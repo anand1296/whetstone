@@ -2,6 +2,7 @@
 id: component-api-design
 title: Component API Design
 description: Designing components other engineers will love using: compound components, headless hooks, render props vs HOCs, controlled/uncontrolled APIs, forms, boundaries and API reviews.
+topics: frontend, react
 ---
 
 ## Design a compound component API (Tabs, Select) with context, and know when not to

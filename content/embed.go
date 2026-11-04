@@ -9,5 +9,5 @@ import "embed"
 
 // Files holds every round file (content/*.md) compiled into the binary.
 //
-//go:embed *.md
+//go:embed *.md topics.json
 var Files embed.FS

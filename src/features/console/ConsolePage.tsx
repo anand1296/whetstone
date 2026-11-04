@@ -11,6 +11,7 @@ import { readJson, writeJson } from '../../state/persistence/local.ts';
 import { ROLE_LABEL } from '../account/Account.tsx';
 import { ActivityTab } from './ActivityTab.tsx';
 import { ContentTab } from './ContentTab.tsx';
+import { IdeasTab } from './IdeasTab.tsx';
 import { InvitesTab } from './InvitesTab.tsx';
 import { PeopleTab } from './PeopleTab.tsx';
 import { SettingsTab } from './SettingsTab.tsx';
@@ -19,6 +20,7 @@ import { SubmissionsTab } from './SubmissionsTab.tsx';
 const TABS = [
   { id: 'content', label: 'Content' },
   { id: 'submissions', label: 'Submissions' },
+  { id: 'ideas', label: 'Topic ideas' },
   { id: 'people', label: 'Learners' },
   { id: 'invites', label: 'Invites' },
   { id: 'settings', label: 'Features & settings' },
@@ -34,7 +36,7 @@ function initialTab(): TabId {
 }
 
 export function ConsolePage() {
-  const { user, pendingSubmissions } = useServer();
+  const { user, pendingSubmissions, pendingIdeas } = useServer();
   const [tab, setTab] = useState<TabId>(initialTab);
   const baseId = useId();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -109,6 +111,15 @@ export function ConsolePage() {
                 </span>
               </>
             ) : null}
+            {t.id === 'ideas' && pendingIdeas > 0 ? (
+              <>
+                {' '}
+                <span className="tab-count">
+                  {pendingIdeas}
+                  <span className="sr-only"> waiting</span>
+                </span>
+              </>
+            ) : null}
           </button>
         ))}
       </div>
@@ -116,6 +127,7 @@ export function ConsolePage() {
       <div role="tabpanel" id={`${baseId}-panel-${tab}`} aria-labelledby={`${baseId}-tab-${tab}`} className="console-panel">
         {tab === 'content' ? <ContentTab /> : null}
         {tab === 'submissions' ? <SubmissionsTab /> : null}
+        {tab === 'ideas' ? <IdeasTab onOpenContent={() => select('content')} /> : null}
         {tab === 'people' ? <PeopleTab me={user} /> : null}
         {tab === 'invites' ? <InvitesTab me={user} /> : null}
         {tab === 'settings' ? <SettingsTab me={user} /> : null}
