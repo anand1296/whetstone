@@ -228,7 +228,7 @@ test('topic chips filter the rounds; "coming soon" chips are inert; the choice i
   const backend = filter.getByRole('button', { name: 'Backend' });
   await expect(backend).toHaveAttribute('aria-disabled', 'true');
   await backend.hover();
-  await expect(filter.locator('.chip-wrap', { has: backend }).getByRole('tooltip')).toHaveCSS('opacity', '1');
+  await expect(filter.locator('.chip-wrap', { hasText: 'Backend' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
   await backend.click();
   await expect(rounds).toHaveCount(15);
 
