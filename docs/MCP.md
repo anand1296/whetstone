@@ -1,4 +1,4 @@
-# Whetstone MCP server (phase 1 of the AI roadmap)
+# Whetstone MCP server (phases 1 and 2 of the AI roadmap)
 
 Whetstone can expose its question bank to AI clients through the **Model Context Protocol (MCP)**. A client such as Claude can then search the bank and quiz you: it shows you a question, waits for your answer, and only then reads the model answer to compare. This page explains the protocol well enough to rebuild it, then how to turn it on and try it.
 
@@ -6,7 +6,7 @@ Whetstone can expose its question bank to AI clients through the **Model Context
 
 - MCP is **JSON-RPC 2.0** with agreed method names. A client sends `{"jsonrpc":"2.0","id":1,"method":"…","params":{…}}` and gets `{"jsonrpc":"2.0","id":1,"result":{…}}` or an `error`.
 - A message **without an `id` is a notification** (nothing is answered). Over HTTP we reply `202 Accepted`.
-- The server declares **capabilities** (here: `tools`). **Tools** are functions the *model* may decide to call; each has a name, a description the model reads, and a JSON Schema for its arguments.
+- The server declares **capabilities** (here: `tools` and `prompts`). **Tools** are functions the *model* may decide to call; each has a name, a description the model reads, and a JSON Schema for its arguments.
 - **Streamable HTTP** is the transport: the client POSTs each message to one URL (`/api/mcp`), and the server may answer with plain JSON (what we do) or open a stream (what we don't need).
 - **Two kinds of failure.** A JSON-RPC error means the protocol was misused (unknown method or tool). A normal result with `"isError": true` means the tool ran but could not do the job; its text is written for the model so it can retry.
 
@@ -16,7 +16,7 @@ Whetstone can expose its question bank to AI clients through the **Model Context
 client → POST /api/mcp  {"jsonrpc":"2.0","id":1,"method":"initialize",
                          "params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"demo","version":"1"}}}
 server → 200            {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25",
-                         "capabilities":{"tools":{"listChanged":false}},"serverInfo":{…},"instructions":"…"}}
+                         "capabilities":{"tools":{"listChanged":false},"prompts":{"listChanged":false}},"serverInfo":{…},"instructions":"…"}}
 client → POST           {"jsonrpc":"2.0","method":"notifications/initialized"}      → 202, no body
 client → POST           {"jsonrpc":"2.0","id":2,"method":"tools/list"}               → the three tools
 client → POST           {"jsonrpc":"2.0","id":3,"method":"tools/call",
@@ -68,6 +68,26 @@ npx @modelcontextprotocol/inspector
 
 **With Claude**: add a custom connector (Settings → Connectors → Add custom connector) with the same URL, then ask "quiz me on React Suspense; don't show the answer until I've tried". Which clients accept a remote server without OAuth depends on the client and plan; if yours insists on authentication, use the Inspector for now (authenticated MCP is a later phase).
 
+## The `quiz_me` prompt
+
+MCP has a second primitive besides tools: **prompts**, reusable starting points the *user* picks (most clients show them as a slash command or a menu). `prompts/list` advertises them; `prompts/get` returns the messages to put in front of the model. They run nothing by themselves: `quiz_me` is a carefully written set of interviewer rules that makes the model drive the three tools above.
+
+| Argument | Meaning |
+| --- | --- |
+| `topic` | What to be quizzed on, e.g. "react rendering". Empty means a mixed round |
+| `level` | `senior`, `lead` or `principal` (anything else is an error) |
+| `questions` | 1 to 10, default 3 (out-of-range values fall back to the default) |
+
+The rules: ask one question at a time; fetch it **without** `reveal_answer`; show only the prompt; wait for the user's answer (a "skip" counts as an attempt); only then fetch with `reveal_answer=true`, compare, name what was missed and the one change that would help most, give the question id; finish with a short summary and what to study next. Keeping this in a prompt means every user gets the same good interviewer instead of re-typing the rules in each chat, and it is versioned with the server.
+
+```text
+client → POST  {"jsonrpc":"2.0","id":4,"method":"prompts/get",
+                "params":{"name":"quiz_me","arguments":{"topic":"react rendering","questions":"5"}}}
+server → 200   {"jsonrpc":"2.0","id":4,"result":{"description":"…","messages":[{"role":"user","content":{"type":"text","text":"Run a mock interview …"}}]}}
+```
+
+Try it in the MCP Inspector (Prompts tab) or, in Claude, from the connector's prompt menu.
+
 ## Security notes
 
 - **Public, anonymous, read-only.** No user data is reachable. Rate limit: 120 requests a minute per IP.
@@ -78,7 +98,7 @@ npx @modelcontextprotocol/inspector
 ## Not implemented (on purpose)
 
 - Server-to-client streaming (`GET`, SSE), sessions and resumability: not needed for stateless request/response tools.
-- Resources, prompts, sampling and elicitation. Prompts (a `quiz_me` template) are the natural next step.
+- Resources, sampling and elicitation. (Prompts are implemented: see `quiz_me`.)
 - The 2026-07-28 revision, which removes `initialize` in favour of per-request `_meta` and `server/discover`. The handler is already stateless, so supporting it is a small change once clients use it.
 
 ## Where the code is
@@ -87,6 +107,7 @@ npx @modelcontextprotocol/inspector
 | --- | --- |
 | `backend/mcp/protocol.go` | JSON-RPC types, error codes, version negotiation |
 | `backend/mcp/server.go` | HTTP handling (POST only, 202 for notifications, size limit) and method dispatch |
+| `backend/mcp/prompts.go` | `prompts/list` and `prompts/get`: the `quiz_me` interviewer prompt |
 | `backend/mcp/tools.go` | The three tools, argument validation, search scoring, prompt extraction, framework filtering |
 | `backend/mcp/catalog.go` | The small interface the tools need from the app |
 | `backend/server/mcp.go` | The gate (enabled, public, Origin, rate limit) and the adapter from the store |
