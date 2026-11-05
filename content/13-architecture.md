@@ -673,3 +673,92 @@ Canary deploys (a small percentage of traffic gets the new build), automated ana
 
 - [Martin Fowler: Feature Toggles](https://martinfowler.com/articles/feature-toggles.html)
 - [OpenFeature specification](https://openfeature.dev/)
+
+## Folder structure and separation of concerns in a React application
+<!--
+id: arch-folder-structure-basics
+level: junior
+tags: architecture, folder structure, separation of concerns, feature folders, react, fundamentals
+minutes: 10
+-->
+
+> [!PROMPT]
+> How would you structure the folders of a growing React app? Compare "by type" (components, hooks, utils) with "by feature", and explain where API calls, state and shared UI belong.
+
+> [!TLDR]
+> Grouping by type (`components/`, `hooks/`, `services/`) is easy at first but scatters one feature across many folders; grouping by feature (`features/checkout/` with its components, hooks, API calls and tests) keeps related code together and makes ownership and deletion easier. Keep truly shared, domain-free pieces in `shared/` or `ui/`, keep API access in a thin layer (not inside JSX), keep pure logic in plain functions that are easy to test, and let features import from shared code but not from each other's internals. Start simple and refactor as boundaries become clear.
+
+### A workable layout
+
+```
+src/
+  app/            routing, providers, app shell
+  features/
+    checkout/
+      components/ CartSummary.tsx
+      api.ts      fetchCart, submitOrder
+      hooks.ts    useCart
+      logic.ts    calculateTotals (pure)
+      index.ts    public exports
+    profile/
+  shared/
+    ui/           Button, Modal, Input (no business logic)
+    lib/          formatDate, http client
+```
+
+### Principles
+
+- **Separation of concerns:** UI renders, hooks coordinate state and effects, services talk to the network, pure functions hold rules.
+- **Colocation:** put tests, styles and types next to the code they serve.
+- **Public API per feature:** other code imports from `features/checkout` (the index), not deep paths.
+- **Avoid cycles:** shared code never imports from features.
+
+### Pitfalls
+
+A giant `utils.ts` dumping ground; components that fetch, transform and render in one file; premature micro-folders for a 10-file app; copy-pasted API calls with different error handling.
+
+## Enforce architecture boundaries: import rules, dependency direction and preventing a tangled codebase
+<!--
+id: arch-boundaries-import-rules
+level: lead
+tags: architecture, boundaries, eslint, dependency rules, monorepo, nx, modularity, tech debt
+minutes: 16
+-->
+
+> [!PROMPT]
+> A five-year-old frontend codebase has features importing each other's internals, circular dependencies and a `shared` folder that depends on features. How do you define boundaries and enforce them with tooling without stopping feature work?
+
+> [!TLDR]
+> Decide the allowed dependency direction first (for example `app -> features -> shared`, features may not import other features except via their public API), make it explicit with module boundaries (workspace packages or folders with `index.ts` entry points), and enforce it automatically with lint rules (`eslint-plugin-boundaries`, `no-restricted-imports`, Nx module boundary tags, `dependency-cruiser`) and circular dependency checks in CI. Adopt a ratchet: record existing violations in a baseline, fail the build only on new ones, and burn the baseline down alongside feature work. Rules in code beat wiki pages.
+
+### Define the model
+
+| Layer | May import |
+| --- | --- |
+| `shared/ui`, `shared/lib` | Only external packages and other shared code |
+| `features/*` | `shared`, and other features only via their public entry point |
+| `app` | Everything |
+
+Document it in one page and encode it in config.
+
+### Enforce
+
+```js
+// eslint: no deep imports into other features
+'no-restricted-imports': ['error', { patterns: ['@/features/*/*'] }]
+```
+
+- **dependency-cruiser** or **madge** to report cycles and forbidden edges in CI.
+- **Nx tags** (`scope:checkout`, `type:feature`) with `enforce-module-boundaries`.
+- **Package boundaries** in a monorepo make the rule physical: a package cannot import what it does not declare.
+
+### Migrate without a freeze
+
+1. Generate the current violation list and commit it as a baseline.
+2. Fail CI only for violations not in the baseline.
+3. Fix violations opportunistically when touching a feature; track the count on a dashboard.
+4. Extract shared code that features truly need into `shared` with an owner.
+
+### Pitfalls
+
+Boundaries that exist only in a diagram; rules so strict that teams add exceptions everywhere; moving everything to `shared` to dodge a rule (turning `shared` into a second monolith).

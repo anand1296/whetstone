@@ -18,7 +18,7 @@ import (
 )
 
 // Levels a question can target, in order.
-var Levels = []string{"senior", "lead", "principal"}
+var Levels = []string{"junior", "senior", "lead", "principal"}
 
 // Limits shared by validation and the editor UI.
 const (

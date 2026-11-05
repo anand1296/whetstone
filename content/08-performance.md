@@ -903,3 +903,75 @@ Vue's own `<Transition>` and `<TransitionGroup>` are for enter/leave and list an
 - [web.dev: View Transitions](https://developer.chrome.com/docs/web-platform/view-transitions)
 - [Nielsen Norman Group: Response time limits](https://www.nngroup.com/articles/response-times-3-important-limits/)
 - [TanStack Query: Prefetching](https://tanstack.com/query/latest/docs/framework/react/guides/prefetching)
+
+## Core Web Vitals in plain words, and five quick wins any page can make
+<!--
+id: perf-core-web-vitals-basics
+level: junior
+tags: performance, core web vitals, lcp, inp, cls, fundamentals, quick wins
+minutes: 10
+-->
+
+> [!PROMPT]
+> Explain LCP, INP and CLS to a non-engineer, give the "good" thresholds, and list five changes that usually improve them.
+
+> [!TLDR]
+> Largest Contentful Paint (LCP) measures how quickly the main content appears (good: 2.5 s or less); Interaction to Next Paint (INP) measures how quickly the page responds to clicks, taps and key presses (good: 200 ms or less); Cumulative Layout Shift (CLS) measures unexpected movement of content (good: 0.1 or less). Quick wins: compress and size images properly and give the LCP image priority, reserve space for images and embeds with width, height or `aspect-ratio`, ship less JavaScript (code split, remove unused libraries), break up long tasks, and cache static assets with a CDN. Measure with Lighthouse for diagnosis and field data (CrUX or your own RUM) for truth.
+
+### In plain words
+
+- **LCP:** "When does the biggest thing on screen show up?" Usually a hero image or headline.
+- **INP:** "When I click, how long until the page reacts?"
+- **CLS:** "Does the page jump around while I'm trying to read or tap?"
+
+### Five quick wins
+
+1. **Optimize the hero image:** modern format (AVIF or WebP), correct dimensions, `fetchpriority="high"`, never lazy-load the LCP image.
+2. **Reserve space:** `width` and `height` attributes, `aspect-ratio`, placeholders for ads and embeds, `font-display: swap` with a matching fallback.
+3. **Ship less JS:** lazy-load below-the-fold features, drop heavy libraries, defer third-party scripts.
+4. **Keep the main thread free:** split long tasks, move heavy work to a Web Worker, avoid layout thrash.
+5. **Cache and compress:** Brotli or gzip, immutable caching for hashed assets, a CDN close to users.
+
+### How to measure
+
+Lighthouse and the Performance panel in DevTools for lab diagnosis; the Chrome UX Report or `web-vitals` library for field data. Lab and field numbers will differ, and field data at the 75th percentile is what Google uses.
+
+## Third-party scripts: audit their cost, load them safely and keep control
+<!--
+id: perf-third-party-scripts
+level: senior
+tags: performance, third-party, analytics, tag manager, main thread, partytown, governance
+minutes: 14
+-->
+
+> [!PROMPT]
+> Marketing keeps adding scripts through the tag manager (analytics, chat widget, A/B testing, ads) and INP and LCP regressed. How do you measure the cost, reduce it and stop it from creeping back?
+
+> [!TLDR]
+> Treat third-party scripts as dependencies with a performance and security budget. Measure their cost (requests, bytes, main-thread time, layout shifts) with the Performance panel, Lighthouse's third-party summary and field RUM segmented by script; remove what nobody uses, load the rest after the critical path (`async` or `defer`, on interaction or idle, facades for chat and video embeds), self-host or proxy where licensing allows, isolate heavy ones in a worker or iframe, and set a governance process: every new tag needs an owner, a purpose, a size budget and a review. Verify with before and after field data.
+
+### Measure
+
+- DevTools: bottom-up grouped by domain; look at long tasks and who started them.
+- Lighthouse "Reduce the impact of third-party code".
+- Real-user monitoring: compare INP and LCP for sessions with and without a tag (or via feature flag).
+- A/B test the removal on a small percentage of traffic.
+
+### Reduce
+
+| Tactic | Example |
+| --- | --- |
+| Remove unused tags | Quarterly audit, owner sign-off |
+| Defer loading | Load after `load` or on idle; chat only on click (a facade) |
+| Right-size embeds | Static thumbnail for video until play |
+| Isolate | `iframe` with `sandbox`, or run in a worker where supported |
+| Control caching and connections | `preconnect` only to the few critical origins |
+| Server-side tagging | Move work off the browser when the vendor supports it |
+
+### Governance and security
+
+Put a performance budget in CI (Lighthouse CI or a size limit for first-party plus a count of third-party requests), restrict the tag manager's publish rights, use CSP and Subresource Integrity where possible, and review privacy and consent: scripts must respect the user's consent choices.
+
+### Pitfalls
+
+Optimizing first-party code while a tag manager undoes it; blocking rendering for an A/B test script without an anti-flicker timeout; no owner for old tags.

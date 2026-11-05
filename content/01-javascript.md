@@ -822,3 +822,88 @@ state.user.name = 'Grace'; // logs "name is Grace"
 - [MDN: Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
 - [MDN: Reflect](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect)
 - [Vue: Reactivity in depth](https://vuejs.org/guide/extras/reactivity-in-depth.html)
+
+## `var`, `let` and `const`: scoping, hoisting and the temporal dead zone
+<!--
+id: js-var-let-const-scope
+level: junior
+tags: javascript, fundamentals, scope, hoisting, tdz, let, const, var
+minutes: 8
+-->
+
+> [!PROMPT]
+> Explain the difference between `var`, `let` and `const`. What is hoisting, what is the temporal dead zone, and what does this print?
+>
+> ```js
+> for (var i = 0; i < 3; i++) setTimeout(() => console.log(i));
+> for (let j = 0; j < 3; j++) setTimeout(() => console.log(j));
+> ```
+
+> [!TLDR]
+> `var` is function-scoped and hoisted with the value `undefined`; `let` and `const` are block-scoped and hoisted but unusable until their declaration runs (the temporal dead zone, which throws a `ReferenceError`). `const` forbids reassigning the binding, not mutating the object it points to. The snippet prints `3 3 3` then `0 1 2`, because `var` shares one binding across iterations while `let` creates a fresh binding per iteration. Default to `const`, use `let` when you must reassign, and avoid `var`.
+
+### The rules
+
+| | `var` | `let` | `const` |
+| --- | --- | --- | --- |
+| Scope | function | block | block |
+| Hoisted | yes, initialized to `undefined` | yes, but in the TDZ | yes, but in the TDZ |
+| Reassign | yes | yes | no (binding) |
+| Redeclare in same scope | yes | no | no |
+
+```js
+console.log(a); // undefined (var is hoisted)
+var a = 1;
+console.log(b); // ReferenceError: the TDZ lasts until the declaration
+let b = 2;
+
+const user = { name: 'Ada' };
+user.name = 'Grace';   // allowed: the object is mutable
+user = {};             // TypeError: the binding is constant
+```
+
+### The loop example
+
+With `var`, all three callbacks close over the same `i`, which is `3` by the time they run. With `let`, each iteration gets its own `j`, so the callbacks log `0`, `1`, `2`.
+
+### What to say in an interview
+
+Prefer `const`, then `let`. Mention that function declarations are hoisted completely (you can call them before they appear), but function expressions assigned to `const` are not. Use `Object.freeze` if you need shallow immutability.
+
+## Equality, coercion and `typeof`: `==` versus `===`, `NaN`, `null` and the traps
+<!--
+id: js-equality-coercion
+level: junior
+tags: javascript, fundamentals, coercion, equality, nan, typeof, truthy falsy
+minutes: 10
+-->
+
+> [!PROMPT]
+> What is the difference between `==` and `===`? Predict the results of `[] == false`, `null == undefined`, `NaN === NaN`, `typeof null` and `0.1 + 0.2 === 0.3`, and explain how you check for `NaN`, arrays and `null` safely.
+
+> [!TLDR]
+> `===` compares without conversion; `==` converts types by a set of rules that surprise people, so use `===` by default (the one common exception is `x == null`, which is true for both `null` and `undefined`). `[] == false` is `true` (both convert to `0`), `null == undefined` is `true`, `NaN` is not equal to itself (use `Number.isNaN`), `typeof null` is `'object'` (a historical bug), and `0.1 + 0.2 !== 0.3` because of binary floating point (compare with a tolerance or use integers). Falsy values are `false`, `0`, `-0`, `0n`, `''`, `null`, `undefined` and `NaN`.
+
+### Answers
+
+```js
+[] == false          // true  ([] -> '' -> 0, false -> 0)
+null == undefined    // true  (special rule)
+null === undefined   // false
+NaN === NaN          // false
+Number.isNaN(NaN)    // true  (Object.is(NaN, NaN) is also true)
+typeof null          // 'object' (historical quirk)
+typeof []            // 'object' -> use Array.isArray(x)
+0.1 + 0.2 === 0.3    // false (0.30000000000000004)
+Math.abs(0.1 + 0.2 - 0.3) < Number.EPSILON // true
+```
+
+### Safe checks
+
+- `Array.isArray(x)` for arrays, `x === null` for null, `typeof x === 'function'` for functions.
+- `Number.isNaN` (strict) rather than global `isNaN` (which coerces: `isNaN('abc')` is `true`).
+- Use `??` for defaults when `0` or `''` are valid values; `||` replaces every falsy value.
+
+### Common trap
+
+`if (items.length)` is fine, but `if (value)` treats `0` and `''` as missing. Be explicit when those are meaningful values (a quantity of 0, an empty search string).

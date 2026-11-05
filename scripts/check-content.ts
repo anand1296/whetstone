@@ -24,7 +24,7 @@ try {
   const emitPath = emitAt === -1 ? undefined : process.argv[emitAt + 1];
   if (emitPath) writeFileSync(emitPath, JSON.stringify(compiled));
   const rows = sections.map((section) => {
-    const levels = { senior: 0, lead: 0, principal: 0 };
+    const levels = { junior: 0, senior: 0, lead: 0, principal: 0 };
     for (const question of section.questions) levels[question.level] += 1;
     const minutes = section.questions.reduce((sum, q) => sum + q.minutes, 0);
     return { section: section.id, questions: section.questions.length, ...levels, minutes };

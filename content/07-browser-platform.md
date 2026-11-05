@@ -531,3 +531,181 @@ worker.postMessage(buffer, [buffer]); // buffer.byteLength is 0 here afterwards
 - [MDN: Using Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers)
 - [Comlink](https://github.com/GoogleChromeLabs/comlink)
 - [MDN: Transferable objects](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Transferable_objects)
+
+## What happens when you type a URL and press Enter? The full journey, from DNS to pixels
+<!--
+id: url-to-pixels-journey
+level: junior
+tags: browser, networking, dns, tcp, tls, http, rendering, fundamentals
+minutes: 10
+-->
+
+> [!PROMPT]
+> Walk me through what happens from typing `https://example.com` in the address bar to seeing the page. How much detail you give is up to you; show that you know where time is spent.
+
+> [!TLDR]
+> The browser checks its caches and resolves the hostname with DNS, opens a TCP connection (or QUIC for HTTP/3), negotiates TLS, sends an HTTP request, receives HTML and starts parsing while it streams. Parsing discovers CSS, JavaScript, images and fonts, which are fetched in parallel; the browser builds the DOM and CSSOM, computes layout, paints and composites. Each step has costs you can reduce: DNS and connection setup (`preconnect`, CDN), server response time (caching), render-blocking CSS and scripts (inline critical CSS, `defer`), and large resources (compression, responsive images).
+
+### Steps
+
+1. **URL parsing and caches.** Check HSTS, the HTTP cache and a possible service worker.
+2. **DNS lookup.** Browser, OS and resolver caches, then recursive resolution to an IP.
+3. **Connection.** TCP handshake, then **TLS** handshake for HTTPS (HTTP/3 uses QUIC and merges these).
+4. **Request and response.** `GET /` with headers; server may redirect, serve from a CDN edge or render HTML.
+5. **Parse HTML.** The preload scanner finds resources early; CSS blocks rendering; synchronous scripts block parsing unless `defer` or `async`.
+6. **Build trees.** DOM plus CSSOM become the render tree.
+7. **Layout, paint, composite.** Geometry, drawing into layers, then the GPU composites them.
+8. **JavaScript runs** (hydration for SSR apps), and interactions become possible.
+
+### Where to optimize
+
+| Stage | Tactic |
+| --- | --- |
+| DNS and connect | CDN, `preconnect`, HTTP/2 or HTTP/3, keep-alive |
+| Server | Caching, streaming HTML, fast TTFB |
+| Render blocking | Minimal critical CSS, `defer` scripts |
+| Resources | Compression (gzip or brotli), image formats, code splitting |
+| Repeat visits | Long-lived `Cache-Control` for hashed assets |
+
+### Follow-ups
+
+"Why is CSS render-blocking?" (to avoid flashing unstyled content) and "What is the difference between `defer` and `async`?" (`defer` runs in order after parsing; `async` runs as soon as downloaded, in any order).
+
+## DOM events: capturing, bubbling, delegation, `stopPropagation` and passive listeners
+<!--
+id: dom-events-bubbling-delegation
+level: junior
+tags: dom, events, bubbling, capturing, event delegation, preventdefault, passive
+minutes: 10
+-->
+
+> [!PROMPT]
+> Explain event bubbling and capturing. What is event delegation and why use it? What do `preventDefault`, `stopPropagation` and `{ passive: true }` do? Implement delegation for a list where items are added dynamically.
+
+> [!TLDR]
+> An event travels from the window down to the target (capturing), fires on the target, then bubbles back up. Listeners run in the bubbling phase by default; pass `{ capture: true }` to listen on the way down. Event delegation puts one listener on a common ancestor and inspects `event.target` (usually with `closest`), which handles many and dynamically added children cheaply. `preventDefault()` cancels the browser's default action (following a link, submitting a form); `stopPropagation()` stops the event travelling further, which breaks other listeners and analytics so use it rarely; `{ passive: true }` promises you will not call `preventDefault`, letting the browser scroll without waiting for your handler.
+
+### Delegation
+
+```js
+list.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-action="delete"]');
+  if (!button || !list.contains(button)) return;
+  button.closest('li').remove();
+});
+
+// Works for items added later, with a single listener.
+list.insertAdjacentHTML('beforeend', '<li>New <button data-action="delete">x</button></li>');
+```
+
+### Details
+
+- `event.target` is the element that was clicked; `event.currentTarget` is the element the listener is attached to.
+- Some events do not bubble (`focus`, `blur`, `mouseenter`); use `focusin` and `focusout`, or capture.
+- `once: true` removes the listener after first call; `AbortController` signals can remove many at once: `addEventListener(type, fn, { signal })`.
+- Touch and wheel listeners on `window` or `document` should be passive for smooth scrolling.
+
+### In React
+
+React attaches its listeners at the root and delegates for you; `e.stopPropagation()` stops React propagation, and mixing React handlers with native `document` listeners can cause surprising ordering.
+
+## CSS you must know cold: the cascade, specificity, the box model and stacking contexts
+<!--
+id: css-cascade-specificity-box-model
+level: junior
+tags: css, cascade, specificity, box model, stacking context, z-index, fundamentals
+minutes: 12
+-->
+
+> [!PROMPT]
+> Two rules target the same element: `.card .title { color: blue }` and `#page h2 { color: red }`. Which wins and why? Explain specificity, the cascade, `box-sizing`, margin collapsing and why `z-index: 9999` sometimes does not work.
+
+> [!TLDR]
+> The cascade decides which declaration wins by, in order: origin and importance (`!important`), cascade layers, specificity, then source order. Specificity is compared as (inline, IDs, classes/attributes/pseudo-classes, elements/pseudo-elements), so `#page h2` (one ID) beats `.card .title` (two classes). `box-sizing: border-box` makes `width` include padding and border, which is almost always what you want. Vertical margins between block siblings can collapse into the larger one. `z-index` only works relative to a stacking context, so a high value inside a lower context cannot rise above elements in a higher one.
+
+### Specificity
+
+| Selector | Specificity |
+| --- | --- |
+| `h2` | 0,0,0,1 |
+| `.title` | 0,0,1,0 |
+| `.card .title` | 0,0,2,0 |
+| `#page h2` | 0,1,0,1 |
+| inline `style` | beats all selectors |
+
+`:where()` has zero specificity, `:is()` takes its most specific argument. Prefer low-specificity, class-based selectors and `@layer` over `!important`.
+
+### The box model
+
+```css
+*, *::before, *::after { box-sizing: border-box; }
+```
+
+Total width with content-box is `width + padding + border`; with border-box it is `width`.
+
+### Margin collapsing
+
+Adjacent vertical margins of block boxes merge (`20px` and `30px` become `30px`), but not in flex or grid containers, and not when padding or border separates them.
+
+### Stacking contexts
+
+A new context is created by `position` plus `z-index`, `opacity < 1`, `transform`, `filter`, `isolation: isolate` and more. Children's `z-index` values are compared only inside their context, which is why a modal inside a transformed parent can appear under a header. Fix by rendering overlays in a portal at the end of `body`.
+
+### Common mistakes
+
+Fighting specificity with `!important`; `height: 100vh` problems on mobile (use `dvh`); forgetting that `position: absolute` is relative to the nearest positioned ancestor.
+
+## Layout choices: flexbox versus grid, responsive design, container queries and logical properties
+<!--
+id: css-layout-flex-grid-responsive
+level: senior
+tags: css, flexbox, grid, responsive design, container queries, clamp, logical properties
+minutes: 14
+-->
+
+> [!PROMPT]
+> Build a responsive card gallery and a page shell (header, sidebar, main, footer). When do you use flexbox, when grid, and how do you make components adapt to their container instead of the viewport?
+
+> [!TLDR]
+> Flexbox lays out one dimension (a row or a column) and lets content size drive distribution, which suits toolbars, nav bars and centering. Grid lays out two dimensions with explicit tracks, which suits page shells and galleries (`repeat(auto-fill, minmax(240px, 1fr))` gives a responsive gallery with no media queries). Use media queries for page-level changes, container queries for components that live in different-width slots, `clamp()` for fluid type and spacing, and logical properties (`margin-inline`, `padding-block`) so layouts survive right-to-left languages. Test at narrow widths and with zoom, not only at three breakpoints.
+
+### Gallery and shell
+
+```css
+.gallery { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+
+.shell {
+  display: grid;
+  min-height: 100dvh;
+  grid-template: "header header" auto "side main" 1fr "footer footer" auto / 14rem 1fr;
+}
+@media (max-width: 720px) {
+  .shell { grid-template: "header" auto "main" 1fr "footer" auto / 1fr; }
+  .side { display: none; }
+}
+```
+
+### Choosing
+
+| Need | Tool |
+| --- | --- |
+| Items in a row or column, content sized | Flexbox |
+| Rows and columns together, named areas | Grid |
+| Component adapts to its container | `@container` queries |
+| Fluid sizes | `clamp(1rem, 2vw + 0.5rem, 1.5rem)` |
+| Equal-height cards with footer pinned | Grid or flex column with `margin-top: auto` |
+
+### Container queries
+
+```css
+.card-wrap { container-type: inline-size; }
+@container (min-width: 480px) { .card { display: grid; grid-template-columns: 160px 1fr; } }
+```
+
+### Details
+
+Use `gap` instead of margins between items, `min-width: 0` on flex or grid children that must shrink, `aspect-ratio` for media boxes, and logical properties for internationalization.
+
+### Pitfalls
+
+Nested flex boxes to fake a grid; fixed pixel breakpoints tied to devices; text overflow (`min-width: auto` default in flex); hiding content with `display: none` and losing accessibility without a replacement.

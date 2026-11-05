@@ -70,7 +70,7 @@ export function SignInScreen() {
           <span>{site.name}</span>
         </div>
         <h1>{invite ? "You're invited" : 'Sign in to continue'}</h1>
-        <p className="auth-lede">{site.tagline || 'Interview prep for senior, lead and principal engineers: deep answers, progress that follows you, spaced review.'}</p>
+        <p className="auth-lede">{site.tagline || 'Interview prep for engineers, from junior to principal: deep answers, progress that follows you, spaced review.'}</p>
 
         {authError ? (
           <p className="auth-note is-error" role="alert">

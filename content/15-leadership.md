@@ -345,3 +345,71 @@ minutes: 12
 
 - [Tanya Reilly: The Staff Engineer's Path (O'Reilly)](https://www.oreilly.com/library/view/the-staff-engineers/9781098118723/)
 - [StaffEng: Staff archetypes](https://staffeng.com/guides/staff-archetypes/)
+
+## "Tell me about yourself": a two-minute structure for a strong opening answer
+<!--
+id: leadership-tell-me-about-yourself
+level: junior
+tags: behavioral, introduction, storytelling, communication, interview basics
+minutes: 6
+-->
+
+> [!PROMPT]
+> The interview starts with "Tell me about yourself." Give a two-minute answer, and explain why this question matters more than it seems.
+
+> [!TLDR]
+> Use a present-past-future structure in about two minutes: who you are now (role, scope, strengths), the one or two experiences that prove it (with results), and why this role is the logical next step. Tailor it to the job description, lead with your most relevant achievement, and avoid reciting your CV or personal history. The question sets the agenda for follow-ups, so seed it with topics you want to discuss (a migration you led, a performance win) and end with a clear link to the role.
+
+### Template
+
+1. **Present (30 s):** "I'm a frontend engineer with six years of experience, currently owning the design system at X, used by 12 teams."
+2. **Past (60 s):** two proof points with impact: "I led the AngularJS to React migration (200 screens in 14 months, no rewrite freeze) and cut CI time from 60 to 20 minutes."
+3. **Future (30 s):** "I'm looking for a role with larger architectural scope, which is why this platform team is exciting."
+
+### Tips
+
+- Prepare 60-second and 3-minute versions.
+- Use numbers and outcomes, not responsibilities.
+- Sound natural: bullet points in notes, not a memorized script.
+- Match the audience: engineers want technical depth; a hiring manager wants scope and impact.
+
+### Mistakes
+
+Starting from childhood or listing every job; being vague ("I like solving problems"); ending without connecting to the role; negativity about past employers.
+
+## Estimate, negotiate scope and communicate a slipping deadline
+<!--
+id: leadership-estimates-slipping-deadlines
+level: senior
+tags: behavioral, estimation, scope, deadlines, communication, stakeholders, risk
+minutes: 15
+-->
+
+> [!PROMPT]
+> A project you own is going to miss its date by three weeks, and the VP is counting on it. How do you estimate in the first place, how do you notice slippage early, and what exactly do you say and do when it happens?
+
+> [!TLDR]
+> Estimate with ranges and explicit assumptions, break work into milestones that deliver value early, track risk weekly, and escalate when a milestone slips rather than at the deadline. When a date is at risk, tell stakeholders immediately with facts: current status, the reason, a revised range, and options (cut scope, add help, move the date, accept a risk), with your recommendation and what you need from them. Never hide it or promise heroics. Afterwards, review what the estimate missed so the next one improves.
+
+### Estimating well
+
+- Give a range and confidence ("3-5 weeks, likely 4, assuming the API is ready by week 1").
+- Decompose until tasks are days, not weeks; add explicit buffer for integration and review.
+- Identify the riskiest assumption and test it first (a spike).
+- Re-forecast with actual velocity, not hope.
+
+### The message
+
+> "We will not hit March 3. The payments API changes took longer than planned and testing found two edge cases. Realistic new range: March 17-24. Options: (1) ship without saved cards on March 3 and add them later, (2) move the date, (3) add one engineer, which I expect to save about a week at some ramp-up cost. I recommend option 1. I need a decision by Friday."
+
+### Principles
+
+1. **Early and specific beats late and perfect.**
+2. **Offer options with trade-offs**, not just bad news.
+3. **Protect quality:** do not silently cut testing or accessibility.
+4. **Keep a risk log** and review it in standups.
+5. **Learn:** note whether the cause was scope growth, dependency delay or estimation error.
+
+### Pitfalls
+
+Single-point estimates, waiting until the last week to speak, blaming other teams, and treating every date as immovable without discussing scope.

@@ -3,10 +3,11 @@
  * The compiler produces these shapes; the app only ever consumes them.
  */
 
-export const LEVELS = ['senior', 'lead', 'principal'] as const;
+export const LEVELS = ['junior', 'senior', 'lead', 'principal'] as const;
 export type Level = (typeof LEVELS)[number];
 
 export const LEVEL_LABEL: Record<Level, string> = {
+  junior: 'Junior / Early career',
   senior: 'Senior',
   lead: 'Lead / Staff',
   principal: 'Principal',

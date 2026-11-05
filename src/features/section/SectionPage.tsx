@@ -11,6 +11,8 @@ import { doneCount } from '../../state/selectors.ts';
 import { navigate } from '../../state/route.ts';
 import { useStore } from '../../state/useStore.ts';
 import { QuestionItem } from './QuestionItem.tsx';
+import { isGrowing } from '../../content/coverage.ts';
+import { contributeToTopic } from '../../state/contributeDraft.ts';
 
 interface Props {
   section: SectionMeta;
@@ -64,6 +66,7 @@ const LEVEL_OPTIONS: ReadonlyArray<{ value: LevelFilter; label: string }> = [
 export function SectionPage({ section, focusId, focusAt }: Props) {
   const { sections } = useContent();
   const filtersOn = useFeature('filters');
+  const canContribute = useFeature('contribute');
   const savedStatus = useStore(prefsStore, (p) => p.status);
   const savedLevel = useStore(prefsStore, (p) => p.level);
   // With the filters feature switched off, saved filters must not silently hide questions.
@@ -154,7 +157,7 @@ export function SectionPage({ section, focusId, focusAt }: Props) {
         </p>
         <h1>
           {section.title}
-          {section.published === false ? <span className="draft-chip">Draft round</span> : null}
+          {section.published === false ? <span className="draft-chip">Draft topic</span> : null}
         </h1>
         <p className="lede">{section.description}</p>
         <div className="section-progress">
@@ -203,6 +206,21 @@ export function SectionPage({ section, focusId, focusAt }: Props) {
           ))}
         </ol>
       )}
+
+      {isGrowing(section.questions.length) ? (
+        <aside className="more-coming" aria-label="More questions coming">
+          <p>
+            <strong>More questions are coming for this topic.</strong> Have one you were asked, or one you wish you had practiced?
+            Write it up with your answer and code, and it goes to a reviewer.
+          </p>
+          {canContribute ? (
+            <button type="button" className="btn" onClick={() => contributeToTopic(section.id)}>
+              <Icon name="pullRequest" size={16} />
+              Suggest a question
+            </button>
+          ) : null}
+        </aside>
+      ) : null}
 
       {nextSection ? (
         <nav className="next-section" aria-label="Next topic">

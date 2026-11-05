@@ -291,3 +291,99 @@ function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return run;
 }
 ```
+
+## OOP in four ideas: encapsulation, abstraction, inheritance and polymorphism, with examples
+<!--
+id: lld-oop-four-pillars
+level: junior
+tags: lld, oop, encapsulation, abstraction, inheritance, polymorphism, fundamentals
+minutes: 10
+-->
+
+> [!PROMPT]
+> Explain the four pillars of object-oriented programming with a small example for each, and say when each one goes wrong.
+
+> [!TLDR]
+> **Encapsulation** hides internal state behind methods so invariants cannot be broken from outside; **abstraction** exposes what an object does through a simple interface and hides how; **inheritance** lets a type reuse and specialize another ("is a"); **polymorphism** lets code work with a base type or interface and have the right implementation run. They work best together: program to interfaces (abstraction and polymorphism), keep data private (encapsulation) and use inheritance sparingly, preferring composition when the relationship is not truly "is a".
+
+### Example in TypeScript
+
+```ts
+interface Shape { area(): number }                         // abstraction
+
+class Circle implements Shape {
+  constructor(private readonly r: number) {}               // encapsulation: r is private
+  area() { return Math.PI * this.r ** 2; }
+}
+class Rect implements Shape {
+  constructor(private readonly w: number, private readonly h: number) {}
+  area() { return this.w * this.h; }
+}
+
+const total = (shapes: Shape[]) => shapes.reduce((s, x) => s + x.area(), 0);  // polymorphism
+```
+
+```ts
+class Account {                                            // encapsulation protecting an invariant
+  private balance = 0;
+  deposit(n: number) { if (n <= 0) throw new Error('invalid'); this.balance += n; }
+  get current() { return this.balance; }
+}
+class SavingsAccount extends Account {}                    // inheritance: a savings account is an account
+```
+
+### When each goes wrong
+
+- Encapsulation: public mutable fields everywhere.
+- Abstraction: interfaces nobody needs, or leaky ones that expose implementation details.
+- Inheritance: deep hierarchies and subclasses that break the parent's contract.
+- Polymorphism: `instanceof` checks scattered around instead of letting the object decide.
+
+### Follow-up
+
+"Abstraction versus encapsulation?" Encapsulation protects data and rules inside a unit; abstraction simplifies how others use it.
+
+## Composition over inheritance: refactor a class hierarchy into small pluggable parts
+<!--
+id: lld-composition-over-inheritance
+level: senior
+tags: lld, composition, inheritance, strategy, liskov, refactoring, design principles
+minutes: 14
+-->
+
+> [!PROMPT]
+> A codebase has `Bird`, `FlyingBird`, `SwimmingBird`, `FlyingSwimmingBird` and a growing explosion of subclasses. How do you refactor with composition, and when is inheritance still the right tool?
+
+> [!TLDR]
+> Inheritance couples a subclass to its parent's implementation and models only one axis of variation; when behaviors vary independently (flying, swimming, sound), a class per combination explodes. Composition models each behavior as a small object (a strategy) that the class holds and delegates to, so you combine behaviors by assembly, swap them at runtime and test them alone. Keep inheritance for genuine "is a" relationships where every subtype honors the parent's contract (Liskov), or use shallow hierarchies with an abstract base and interfaces.
+
+### The refactor
+
+```ts
+interface Movement { move(): string }
+class Fly implements Movement { move() { return 'flies'; } }
+class Swim implements Movement { move() { return 'swims'; } }
+class Walk implements Movement { move() { return 'walks'; } }
+
+class Bird {
+  constructor(private readonly name: string, private readonly movements: Movement[]) {}
+  describe() { return `${this.name} ${this.movements.map(m => m.move()).join(' and ')}`; }
+}
+
+const duck = new Bird('Duck', [new Walk(), new Fly(), new Swim()]);
+const penguin = new Bird('Penguin', [new Walk(), new Swim()]);   // no FlyingBird tree, no "penguin can't fly" override
+```
+
+### Why it is better
+
+- New behavior is a new class, not a new level in a tree.
+- No overriding a method to throw "not supported" (a Liskov violation).
+- Behaviors are reusable by unrelated classes and easy to mock.
+
+### When inheritance is fine
+
+A stable taxonomy with real substitutability (`Shape` with `Circle`, `Rect`), framework extension points that require a base class, or a template method with a tiny, well-documented hook surface. Prefer an interface plus a default implementation helper over deep class trees.
+
+### Interview phrasing
+
+"I model what varies as a separate object so the class stays closed to modification and composition lets me add behaviors without touching it."

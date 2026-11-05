@@ -333,3 +333,96 @@ A contract states the schema, meaning of fields, allowed values, freshness, owne
 ### Pitfalls
 
 Relying on dashboards to discover problems; checks with no owner; strict tests that everyone learns to ignore; transforming data without keeping raw inputs for recovery.
+
+## ETL versus ELT, data warehouses, data lakes and the modern data stack: the vocabulary
+<!--
+id: de-etl-elt-warehouse-basics
+level: junior
+tags: data engineering, etl, elt, data warehouse, data lake, fundamentals, dbt
+minutes: 10
+-->
+
+> [!PROMPT]
+> Explain ETL versus ELT, and the differences between a data warehouse, a data lake and a lakehouse. Which do you pick for a startup that wants dashboards from its app database and a few SaaS tools?
+
+> [!TLDR]
+> ETL extracts data, transforms it on a separate engine, then loads clean results; ELT loads raw data into the warehouse first and transforms it there with SQL (the modern default, because cloud warehouses scale and keep raw history). A data warehouse stores structured, modeled data for analytics; a data lake stores raw files of any shape cheaply; a lakehouse adds warehouse features (transactions, schema, SQL) on lake storage. For a small team: managed ingestion (Fivetran, Airbyte or simple scripts) into a cloud warehouse, SQL transformations with dbt, and a BI tool. Keep it simple and add streaming or a lakehouse only when the need appears.
+
+### ETL versus ELT
+
+| | ETL | ELT |
+| --- | --- | --- |
+| Transform | Before load, on a separate server | After load, inside the warehouse |
+| Raw data kept | Often not | Yes, so you can re-transform |
+| Flexibility | Lower; change needs pipeline work | Higher; change a SQL model |
+| Typical era | On-premise warehouses | Cloud warehouses |
+
+### Storage options
+
+- **Warehouse:** structured, schema on write, fast SQL (BigQuery, Snowflake, Redshift).
+- **Lake:** files in object storage, schema on read, cheap, flexible, harder to govern.
+- **Lakehouse:** table formats (Iceberg, Delta) give transactions and SQL over lake files.
+
+### A simple stack
+
+1. **Ingest:** managed connectors or scripts into a `raw` schema.
+2. **Transform:** layered SQL models (staging, then marts) managed with dbt, with tests.
+3. **Serve:** BI dashboards on the marts.
+4. **Orchestrate:** a scheduler (Airflow, Dagster, or the tool's own).
+
+### Pitfalls
+
+Building real-time infrastructure before anyone needs it; transforming in dashboards instead of models; no tests on core tables.
+
+## Joins and aggregations at scale: shuffles, broadcast joins, data skew and partition design
+<!--
+id: de-joins-shuffle-skew
+level: lead
+tags: data engineering, spark, joins, shuffle, broadcast, skew, partitioning, performance
+minutes: 20
+-->
+
+> [!PROMPT]
+> A Spark job joining a 2 TB `events` table with a 50 MB `users` table runs for hours, with a few tasks taking far longer than the rest. Diagnose it and describe how you would fix it.
+>
+> **Cover**
+> - Shuffle cost and join strategies.
+> - Data skew and how to detect and mitigate it.
+> - Partition sizing and file layout.
+
+> [!TLDR]
+> Distributed joins are expensive mostly because of the shuffle: moving rows across the network so matching keys meet. When one side is small, use a broadcast join (send the small table to every executor, no shuffle of the big one). A few very slow tasks usually mean data skew: one key (a null, a default id, a huge customer) holds a disproportionate share of rows. Detect it in the Spark UI (task time and input size distribution) and with a key-frequency query; fix it by filtering or handling null and hot keys separately, salting the key, using adaptive query execution with skew join handling, or pre-aggregating before the join. Also tune partition counts and use columnar, partitioned storage so reads prune data.
+
+### Join strategies
+
+| Strategy | When | Cost |
+| --- | --- | --- |
+| Broadcast hash join | One side small (tens to hundreds of MB) | Cheap, no shuffle of the big side |
+| Sort-merge join | Both sides large | Shuffle and sort both sides |
+| Shuffle hash join | Medium sides, build side fits memory | Shuffle, hash build |
+
+```python
+from pyspark.sql.functions import broadcast
+result = events.join(broadcast(users), "user_id")
+```
+
+### Diagnosing skew
+
+```sql
+SELECT user_id, COUNT(*) c FROM events GROUP BY user_id ORDER BY c DESC LIMIT 20;
+```
+
+If `NULL` or a placeholder id dominates, filter or route it separately. In the Spark UI, look for stages where max task duration is far above the median.
+
+### Mitigations
+
+1. **Broadcast** the small side (increase the broadcast threshold if needed).
+2. **Handle hot keys separately:** process the top keys with a different strategy.
+3. **Salting:** add a random suffix to the hot key on the big side and replicate the small side across the salts.
+4. **Adaptive Query Execution:** enable skew join and partition coalescing.
+5. **Pre-aggregate** before joining to shrink data.
+6. **Right-size partitions** (roughly 100-200 MB each) and avoid thousands of tiny files.
+
+### Pitfalls
+
+Collecting large data to the driver; wide transformations repeated without caching a reused result; over-partitioning; joining on mismatched types (forcing casts and breaking pruning).

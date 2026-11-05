@@ -1389,3 +1389,82 @@ function useLatest<T>(value: T) {
 - [React: useEffectEvent](https://react.dev/reference/react/useEffectEvent)
 - [React: Removing effect dependencies](https://react.dev/learn/removing-effect-dependencies)
 - [Dan Abramov: Making setInterval declarative with React hooks](https://overreacted.io/making-setinterval-declarative-with-react-hooks/)
+
+## Props versus state, and why you never mutate state directly
+<!--
+id: react-props-state-immutability
+level: junior
+tags: react, fundamentals, props, state, immutability, rendering
+minutes: 8
+-->
+
+> [!PROMPT]
+> What is the difference between props and state? Why does `items.push(x); setItems(items)` not re-render, and how do you update arrays and objects in state correctly?
+
+> [!TLDR]
+> Props are inputs passed from a parent and are read-only inside the component; state is memory owned by the component that can change over time and triggers a re-render when you call its setter. React decides whether to re-render by comparing the new state to the old with `Object.is`, so mutating the same array and passing it back looks like "no change". Always create a new array or object (`[...items, x]`, `items.filter(...)`, `{ ...user, name }`) and use the functional form `setX(prev => ...)` when the new value depends on the old one.
+
+### Examples
+
+```jsx
+const [items, setItems] = useState([]);
+
+items.push(x); setItems(items);                  // wrong: same reference, no re-render
+setItems([...items, x]);                          // add
+setItems(items.filter(i => i.id !== id));         // remove
+setItems(items.map(i => i.id === id ? { ...i, done: true } : i)); // update one
+
+setCount(c => c + 1);                             // safe when called twice in a row
+```
+
+### Where state should live
+
+Keep state in the lowest common parent of the components that need it ("lifting state up"); derive values during render instead of storing them (`const total = items.length`); do not copy props into state unless you want an initial value only.
+
+### Why immutability helps
+
+Cheap change detection (`memo`, dependency arrays), predictable updates, and easy undo or debugging. Libraries like Immer let you write mutating-looking code that produces new objects.
+
+## `useRef`, state, derived values and effects: where does each kind of data belong?
+<!--
+id: react-ref-state-derived
+level: senior
+tags: react, useref, state, derived state, effects, data modeling, hooks
+minutes: 14
+-->
+
+> [!PROMPT]
+> A component stores `filteredItems` in state and syncs it with an effect whenever `items` or `query` change, and keeps a timer id in state. Review it. Where should each piece of data live: props, state, ref, derived value, URL or server cache?
+
+> [!TLDR]
+> Put each piece of data in the cheapest place that does the job. Values computable from props or state are **derived during render** (no state, no effect). Values that change what the user sees and need a re-render are **state**. Values that must persist across renders but do not affect output (timer ids, DOM nodes, previous values, mutable instance data) are **refs**. Shareable or reload-surviving UI state (filters, pagination) belongs in the **URL**, and fetched data in a **server-state cache** rather than component state. Syncing one state from another with an effect creates extra renders and bugs; compute it instead.
+
+### The review
+
+```jsx
+// Before: redundant state plus an effect and a timer in state
+const [filtered, setFiltered] = useState(items);
+useEffect(() => setFiltered(items.filter(i => i.name.includes(query))), [items, query]);
+const [timer, setTimer] = useState(null);
+
+// After
+const filtered = useMemo(() => items.filter(i => i.name.includes(query)), [items, query]);
+const timer = useRef<number | null>(null);
+```
+
+(`useMemo` is optional; filtering a few hundred items is cheap. The key change is no state and no effect.)
+
+### Decision guide
+
+| Data | Home |
+| --- | --- |
+| Computable from other data | Derive in render (memoize only if measured slow) |
+| Changes the UI | `useState` / `useReducer` |
+| Persists, does not render (timer id, DOM node, last value) | `useRef` |
+| Should survive refresh or be shareable | URL search params |
+| From the server | Query cache (TanStack Query, SWR, framework loaders) |
+| Needed by distant components | Context or a store |
+
+### Pitfalls
+
+Writing `ref.current` during render (breaks concurrent rendering assumptions); storing derived values in state so they go stale; using a ref when the UI should update; resetting state by key (`<Form key={id}/>`) is often cleaner than an effect that copies props into state.

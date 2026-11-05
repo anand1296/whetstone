@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { preloadSection, useContent } from '../../content/index.ts';
 import { describeSelection, facetLabel, filterSections, groupOf } from '../../content/facets.ts';
 import { LEVELS, LEVEL_LABEL } from '../../content/types.ts';
+import { isGrowing } from '../../content/coverage.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { LoopRing } from '../../components/LoopRing.tsx';
 import { InlineText, ProgressBar } from '../../components/primitives.tsx';
@@ -54,7 +55,7 @@ export function Overview() {
     <article className="page overview">
       <header className="overview-hero">
         <div className="overview-intro">
-          <p className="eyebrow">Senior · Lead · Principal engineering interviews</p>
+          <p className="eyebrow">Junior to principal engineering interviews</p>
           <h1>{site.tagline || 'Your interview loop, one topic at a time.'}</h1>
           <p className="lede">
             {plural(total, 'question')} across {plural(mine.length, 'topic')}
@@ -166,7 +167,10 @@ export function Overview() {
               >
                 <span className="round-index tabular">{String(numbers.get(section.id) ?? 0).padStart(2, '0')}</span>
                 <span className="round-body">
-                  <span className="round-title">{section.title}</span>
+                  <span className="round-title">
+                    {section.title}
+                    {isGrowing(section.questions.length) ? <span className="growing-chip">More coming</span> : null}
+                  </span>
                   <span className="round-desc">{section.description}</span>
                   <FacetTags facets={section.facets} />
                 </span>

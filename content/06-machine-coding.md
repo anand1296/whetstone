@@ -3117,3 +3117,129 @@ Vue notes for the interview:
 - [MDN: requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)
 - [MDN: ARIA progressbar role](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/progressbar_role)
 - [MDN: AbortSignal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal)
+
+## Build a todo list: add, toggle, delete, filter and persist to `localStorage`
+<!--
+id: todo-list-persisted
+level: junior
+tags: machine coding, react, todo, state, localstorage, fundamentals
+minutes: 25
+-->
+
+> [!PROMPT]
+> Build a todo app in 25 minutes. Users can add a task, mark it done, delete it and filter by All, Active and Done. Tasks survive a page reload.
+>
+> **Requirements**
+> - Do not allow empty tasks; pressing Enter adds.
+> - Show a count of remaining tasks.
+> - Keyboard accessible, with labels on inputs and buttons.
+
+> [!TLDR]
+> Keep a single array of `{ id, text, done }` in state, derive the visible list and the remaining count from it plus a `filter` value, and persist with an effect that writes JSON to `localStorage` (and a lazy `useState` initializer that reads it, guarded with try/catch). Use stable ids (`crypto.randomUUID()`), never the array index, as keys. Update immutably, trim input, label controls, and test the empty-input and reload cases. Mention what you would add with more time: edit in place, undo, drag to reorder and syncing.
+
+### Core
+
+```jsx
+function Todos() {
+  const [todos, setTodos] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('todos') ?? '[]'); } catch { return []; }
+  });
+  const [filter, setFilter] = useState('all');
+  const [text, setText] = useState('');
+
+  useEffect(() => { try { localStorage.setItem('todos', JSON.stringify(todos)); } catch {} }, [todos]);
+
+  const visible = todos.filter(t => filter === 'all' || (filter === 'done') === t.done);
+  const remaining = todos.filter(t => !t.done).length;
+
+  const add = (e) => {
+    e.preventDefault();
+    const value = text.trim();
+    if (!value) return;
+    setTodos(ts => [...ts, { id: crypto.randomUUID(), text: value, done: false }]);
+    setText('');
+  };
+
+  return (
+    <form onSubmit={add}>
+      <label>New task <input value={text} onChange={e => setText(e.target.value)} /></label>
+      <button>Add</button>
+      <ul>{visible.map(t => (
+        <li key={t.id}>
+          <label><input type="checkbox" checked={t.done}
+            onChange={() => setTodos(ts => ts.map(x => x.id === t.id ? { ...x, done: !x.done } : x))} /> {t.text}</label>
+          <button type="button" aria-label={`Delete ${t.text}`}
+            onClick={() => setTodos(ts => ts.filter(x => x.id !== t.id))}>x</button>
+        </li>))}
+      </ul>
+      <p>{remaining} left</p>
+    </form>
+  );
+}
+```
+
+### What interviewers check
+
+Derived values instead of duplicate state, immutable updates, correct keys, accessible labels, and safe storage access (it can throw in private mode). Be ready to extend: edit mode, "clear completed", or storing in IndexedDB.
+
+## Build a star rating component: controlled and uncontrolled, hover preview, half stars and keyboard support
+<!--
+id: star-rating-component
+level: senior
+tags: machine coding, component api, accessibility, radio group, rating, controlled uncontrolled
+minutes: 35
+-->
+
+> [!PROMPT]
+> Build a reusable `<StarRating>` component. It supports `value` and `defaultValue`, `onChange`, a configurable number of stars, hover preview, a read-only mode, and keyboard and screen-reader use.
+>
+> **Requirements**
+> - Click or arrow keys change the rating; clicking the current value may clear it.
+> - Half stars as an option.
+> - Works controlled and uncontrolled.
+
+> [!TLDR]
+> Model it as an ARIA radio group: a container with `role="radiogroup"` and an accessible name, each star a `role="radio"` with `aria-checked`, roving tabindex so only the checked (or first) star is in the tab order, and arrow keys moving and selecting. Track a separate `hover` value for the preview and render from `hover ?? value`. Support both usage modes with a `useControllableState` hook, handle half values by computing the pointer position inside the star, and expose `readOnly` and `disabled`. Test with keyboard only and a screen reader, and verify that the visual and ARIA state always match.
+
+### Structure
+
+```tsx
+function StarRating({ value, defaultValue = 0, onChange, count = 5, readOnly = false, label = 'Rating' }: Props) {
+  const [current, setCurrent] = useControllableState({ value, defaultValue, onChange });
+  const [hover, setHover] = useState<number | null>(null);
+  const shown = hover ?? current;
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (readOnly) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') setCurrent(Math.min(count, current + 1));
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') setCurrent(Math.max(0, current - 1));
+    if (e.key === 'Home') setCurrent(0);
+    if (e.key === 'End') setCurrent(count);
+  };
+
+  return (
+    <div role="radiogroup" aria-label={label} onKeyDown={onKeyDown} onMouseLeave={() => setHover(null)}>
+      {Array.from({ length: count }, (_, i) => i + 1).map(n => (
+        <button key={n} role="radio" aria-checked={current === n} aria-label={`${n} star${n > 1 ? 's' : ''}`}
+          tabIndex={n === (current || 1) ? 0 : -1} disabled={readOnly}
+          onMouseEnter={() => !readOnly && setHover(n)}
+          onClick={() => setCurrent(current === n ? 0 : n)}>
+          {n <= shown ? '★' : '☆'}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+### Details that separate good answers
+
+- **Half stars:** on pointer move, `const half = e.nativeEvent.offsetX < target.clientWidth / 2`; value becomes `n - 0.5`. Provide a keyboard step of 0.5 when `allowHalf`.
+- **Read-only:** use `role="img"` with `aria-label="Rated 3.5 out of 5"` rather than interactive radios.
+- **Touch:** hover does not exist; do not depend on it for meaning.
+- **RTL:** arrow direction flips.
+- **Form integration:** render a hidden input or use `name` so native form submission works.
+
+### Pitfalls
+
+Using `div` with `onClick` only, no focus ring, hover state that sticks after a touch, and ARIA `aria-checked` that disagrees with the visual state.

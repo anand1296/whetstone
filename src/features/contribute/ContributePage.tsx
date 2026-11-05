@@ -13,6 +13,7 @@ import { repoUrl } from 'virtual:walkthroughs';
 import { Icon } from '../../components/Icon.tsx';
 import { useContent } from '../../content/index.ts';
 import { LEVELS, LEVEL_LABEL, type Level } from '../../content/types.ts';
+import { takePendingTopic } from '../../state/contributeDraft.ts';
 import { api, ApiError } from '../../platform/api.ts';
 import { useServer } from '../../platform/backend.ts';
 import { navigate } from '../../state/route.ts';
@@ -84,7 +85,7 @@ export function ContributePage() {
             <Icon name="note" /> Share an interview question
           </h2>
           <p>
-            Asked something memorable in a senior, lead or principal loop? Write it up with the answer you'd give. It goes to the
+            Asked something memorable in an interview, at any level? Write it up with the answer you'd give. It goes to the
             owner for review and, once approved, into the bank for everyone, credited to your GitHub handle if you like.
           </p>
           <div className="button-row">
@@ -173,7 +174,10 @@ export function ContributePage() {
 function QuestionForm({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
   const { sections } = useContent();
   const formId = useId();
-  const [topic, setRound] = useState(sections[0]?.id ?? NEW_ROUND);
+  const [topic, setRound] = useState(() => {
+    const wanted = takePendingTopic();
+    return wanted && sections.some((s) => s.id === wanted) ? wanted : (sections[0]?.id ?? NEW_ROUND);
+  });
   const [newRound, setNewRound] = useState('');
   const [title, setTitle] = useState('');
   const [level, setLevel] = useState<Level>('senior');

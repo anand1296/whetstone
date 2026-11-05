@@ -45,7 +45,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
   await expect(resume.locator('.action-title')).toContainText('When does a component re-render');
-  await expect(page.locator('.loop-ring')).toContainText('2/165');
+  await expect(page.locator('.loop-ring')).toContainText('2/210');
 
   await resume.click();
   const third = page.locator('.q').nth(2);
@@ -175,7 +175,7 @@ test('import, spaced review and reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Yes, clear it' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.goto('/');
-  await expect(page.locator('.loop-ring')).toContainText('0/165');
+  await expect(page.locator('.loop-ring')).toContainText('0/210');
 });
 
 test('filters, theme and keyboard basics', async ({ page }) => {
@@ -267,5 +267,14 @@ test('tracks narrow the topics; "coming soon" tracks are inert; the choice is re
     'href',
     /issues\/new\?template=topic\.yml/,
   );
+  expect(errors).toEqual([]);
+});
+
+test('small topics say more questions are coming, and junior questions are classified', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/#design-prototyping');
+  await expect(page.getByRole('heading', { level: 1, name: 'Design and AI Prototyping' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'More questions coming' })).toContainText('More questions are coming for this topic.');
+  await expect(page.locator('.level-chip[data-level="junior"]').first()).toBeVisible();
   expect(errors).toEqual([]);
 });

@@ -845,3 +845,169 @@ Reading prices from the live product at display time of an old order; double cha
 ### Extension demo
 
 "Add wallet payments and buy-one-get-one": a new gateway adapter and a pricing rule, no change to checkout.
+
+## Design a logging library: levels, appenders, formatters and thread-safe delivery
+<!--
+id: lld-logger-library
+level: junior
+tags: lld, logger, observer, strategy, chain of responsibility, singleton, appenders, fundamentals
+minutes: 30
+-->
+
+> [!PROMPT]
+> Design a logging library. Applications log messages at levels (DEBUG, INFO, WARN, ERROR) that are filtered by a minimum level and sent to one or more destinations (console, file). Formatting must be configurable.
+>
+> **Requirements**
+> - Add new destinations without changing the logger.
+> - Safe when many threads or tasks log at once.
+> - Easy to test.
+
+> [!TLDR]
+> Model `LogLevel` (ordered), `LogRecord` (level, message, time, context), a `Logger` that filters by level and fans out to `Appender`s, an `Appender` interface (`ConsoleAppender`, `FileAppender`) each with a `Formatter` (Strategy for output format), and a `LoggerFactory` or registry keyed by name. The fan-out is Observer-like; level filtering can be a Chain of Responsibility if you need per-appender thresholds. Make appenders thread-safe (a lock or a single-writer queue), keep the clock and sink injectable for tests, and avoid a global mutable Singleton: expose a default instance but allow injection.
+
+### Core types
+
+```ts
+enum Level { DEBUG, INFO, WARN, ERROR }
+interface Formatter { format(r: LogRecord): string }
+interface Appender { append(r: LogRecord): void }
+
+class Logger {
+  constructor(private level: Level, private appenders: Appender[], private clock: () => number = Date.now) {}
+  log(level: Level, message: string, context?: object) {
+    if (level < this.level) return;
+    const record = { level, message, context, time: this.clock() };
+    for (const a of this.appenders) a.append(record);
+  }
+  info(m: string, c?: object) { this.log(Level.INFO, m, c); }
+}
+
+class ConsoleAppender implements Appender {
+  constructor(private f: Formatter) {}
+  append(r: LogRecord) { console.log(this.f.format(r)); }
+}
+```
+
+### Design notes
+
+- **Extensibility:** a `JsonFormatter` or `HttpAppender` is a new class, not a logger edit.
+- **Per-appender level:** wrap with `FilteringAppender(level, inner)` (Decorator).
+- **Performance:** async appenders with a bounded queue; drop or block policy when full; flush on shutdown.
+- **Concurrency:** file appenders serialize writes (lock or a single consumer thread).
+
+### Traps
+
+Formatting strings even when the level is disabled (check the level first or accept a lazy message function); a global singleton that makes tests share state; swallowing appender errors without a fallback.
+
+## Design a rate limiter: fixed window, sliding window, token bucket and a pluggable strategy
+<!--
+id: lld-rate-limiter
+level: senior
+tags: lld, rate limiter, token bucket, sliding window, strategy pattern, concurrency, clock
+minutes: 40
+-->
+
+> [!PROMPT]
+> Design an in-process rate limiter class `allow(key)` that limits each user or API key to N requests per time window, with different algorithms available and safe under concurrency.
+>
+> **Requirements**
+> - Per-key limits; configurable rule per route or plan.
+> - Support token bucket and sliding window algorithms.
+> - Deterministic tests.
+
+> [!TLDR]
+> Define a `RateLimiter` interface with `allow(key): Decision` and implement algorithms as strategies: a fixed window counter (simple, but allows bursts at window edges), a sliding window log or counter (accurate, more memory), and a token bucket (allows controlled bursts, refilling at a constant rate). Store per-key state in a map with expiry, make the check-and-update atomic per key (lock per key or atomic operations), inject the clock for tests, and return remaining quota and retry-after for clients. For multiple servers move state to a shared store such as Redis with atomic scripts.
+
+### Token bucket implementation
+
+```ts
+class TokenBucket implements RateLimiter {
+  private buckets = new Map<string, { tokens: number; last: number }>();
+  constructor(private capacity: number, private refillPerSec: number, private now: () => number = Date.now) {}
+
+  allow(key: string) {
+    const t = this.now();
+    const b = this.buckets.get(key) ?? { tokens: this.capacity, last: t };
+    b.tokens = Math.min(this.capacity, b.tokens + ((t - b.last) / 1000) * this.refillPerSec);
+    b.last = t;
+    const ok = b.tokens >= 1;
+    if (ok) b.tokens -= 1;
+    this.buckets.set(key, b);
+    return { allowed: ok, retryAfterMs: ok ? 0 : Math.ceil(((1 - b.tokens) / this.refillPerSec) * 1000) };
+  }
+}
+```
+
+### Comparing algorithms
+
+| Algorithm | Pros | Cons |
+| --- | --- | --- |
+| Fixed window | Simplest, cheap | Burst of 2N across a boundary |
+| Sliding window log | Exact | Memory per request |
+| Sliding window counter | Good approximation, small | Slightly approximate |
+| Token bucket | Allows bursts, smooth refill | Needs tuning of capacity and rate |
+
+### Concurrency and scale
+
+- Update state under a per-key lock (or compare-and-set); read-modify-write races let extra requests through.
+- Evict idle keys (TTL or periodic sweep) to bound memory.
+- Distributed: Redis `INCR` with expiry, or a Lua script for token bucket so the check and update are atomic.
+
+### Traps
+
+Using wall-clock time that can jump backwards (prefer a monotonic clock); not returning `Retry-After`; keys that include unbounded user input.
+
+## Design an elevator system: request scheduling, state machine and extensible dispatch strategies
+<!--
+id: lld-elevator-system
+level: lead
+tags: lld, elevator, state machine, scheduling, strategy pattern, observer, concurrency
+minutes: 50
+-->
+
+> [!PROMPT]
+> Design an elevator control system for a building with multiple elevators. Passengers press up or down buttons on floors and destination buttons inside the cab. The system decides which elevator serves which request.
+>
+> **Requirements**
+> - Multiple elevators; each moves up, down or idle with doors opening and closing.
+> - Dispatch strategy should be swappable (nearest car, least loaded).
+> - Handle overload and out-of-service cars.
+
+> [!TLDR]
+> Model `Elevator` (current floor, direction, state, a sorted set of stops), `Request` (floor, direction), `ElevatorController` (receives requests and assigns them) and `Floor` panels. Each elevator is a state machine (IDLE, MOVING_UP, MOVING_DOWN, DOORS_OPEN, OUT_OF_SERVICE). A `DispatchStrategy` decides assignment (nearest car moving the right way, else the closest idle, else least loaded). Each elevator serves stops in its direction before reversing (the SCAN or "elevator algorithm"). Requests and ticks are processed through a single-threaded scheduler per elevator or guarded by locks to avoid races, and observers update displays.
+
+### Core structure
+
+```ts
+interface DispatchStrategy { pick(elevators: Elevator[], req: Request): Elevator }
+
+class Elevator {
+  state: 'IDLE' | 'UP' | 'DOWN' | 'DOORS_OPEN' | 'OUT_OF_SERVICE' = 'IDLE';
+  private stops = new Set<number>();
+  constructor(public id: number, public floor = 0) {}
+  addStop(f: number) { this.stops.add(f); }
+  step() { /* move one floor toward the next stop in the current direction; open doors on arrival */ }
+}
+
+class Controller {
+  constructor(private elevators: Elevator[], private strategy: DispatchStrategy) {}
+  request(r: Request) { this.strategy.pick(this.elevators.filter(e => e.state !== 'OUT_OF_SERVICE'), r).addStop(r.floor); }
+}
+```
+
+### Scheduling details
+
+- Keep going in the current direction while there are stops ahead; reverse only when none remain.
+- Cost for nearest-car: distance, plus a penalty if moving away or if the car is full.
+- Inside-cab destinations are stops for that car only.
+
+### Edge cases and extensions
+
+- Overload sensor: skip new pickups until weight drops.
+- Fire mode or maintenance: clear stops and go to a target floor.
+- Peak traffic patterns (lobby bias in the morning) as another strategy.
+- Concurrency: requests arrive anytime; serialize mutations per elevator or use a thread-safe queue.
+
+### Traps
+
+Simulating time with sleeps instead of an injectable tick; one giant `if` on direction and state (use State objects); assigning one request to several cars.

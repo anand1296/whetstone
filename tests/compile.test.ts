@@ -103,7 +103,7 @@ describe('compileContent', () => {
 
   it('rejects missing TL;DR, bad levels, unknown languages and duplicate ids', () => {
     assert.throws(() => compileContent([file(`## Q?\n${answer().replace('[!TLDR]', '[!NOTE]')}`)]), ContentError);
-    assert.throws(() => compileContent([file(`## Q?\n${answer().replace('level: senior', 'level: junior')}`)]), ContentError);
+    assert.throws(() => compileContent([file(`## Q?\n${answer().replace('level: senior', 'level: expert')}`)]), ContentError);
     assert.throws(() => compileContent([file(`## Q?\n${answer('```cobol\nx\n```')}`)]), ContentError);
     assert.throws(() => compileContent([file(`## A?\n${answer()}\n## B?\n${answer()}`)]), /Duplicate id/);
     assert.throws(() => compileContent([file(`## A?\n${answer()}`, 'q-one')]), /Duplicate id/);

@@ -651,3 +651,100 @@ Timeout suggestions (e.g. 800ms) and fall back to recent searches; never block t
 
 - [WAI-ARIA APG: Combobox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/)
 - [Nielsen Norman Group: Site search suggestions](https://www.nngroup.com/articles/site-search-suggestions/)
+
+## Component-level design for a small UI: structure, state, data flow and API for a comments section
+<!--
+id: design-comments-section-basics
+level: junior
+tags: system design, component design, state, api, comments, optimistic ui, fundamentals
+minutes: 20
+-->
+
+> [!PROMPT]
+> Design a comments section under a blog post: list comments, add a comment, delete your own. Describe the component tree, state, API calls and what happens while loading, on failure and with many comments.
+
+> [!TLDR]
+> Break the UI into `CommentSection` (owns data fetching and the list state), `CommentList`, `CommentItem` and `CommentForm`. Fetch comments with a paginated endpoint (`GET /posts/:id/comments?cursor=`), keep server data in a query cache, and handle loading, empty, error and retry states explicitly. Post with `POST` and update the list optimistically (rolling back on failure), disable the submit button while sending, and show server-side validation errors. Delete with an authorization check on the server. Paginate or load more instead of rendering thousands of items, and sanitize or escape comment text.
+
+### Component and data flow
+
+```
+CommentSection (fetch, mutations)
+ ├─ CommentForm (local input state, submit)
+ └─ CommentList
+     └─ CommentItem (author, time, delete button if own)
+```
+
+### API
+
+| Call | Notes |
+| --- | --- |
+| `GET /posts/:id/comments?cursor=&limit=20` | Cursor pagination, newest first |
+| `POST /posts/:id/comments` | Body `{ text }`; returns created comment |
+| `DELETE /comments/:id` | Server checks ownership |
+
+### States to design
+
+- **Loading:** skeleton rows. **Empty:** "Be the first to comment". **Error:** message with a retry button.
+- **Submitting:** disabled button; keep text if it fails.
+- **Optimistic add:** insert a pending item with a temporary id, replace it on success, remove it and restore the text on failure.
+- **Many comments:** "Load more" or infinite scroll; consider virtualization beyond a few hundred rows.
+
+### Security and quality
+
+Escape text (React does by default; sanitize if you allow Markdown); rate limit posting; show relative times with a tooltip for the exact time; accessible form labels and focus management after posting.
+
+### Follow-ups
+
+"How would you add replies?" (a `parentId`, nested rendering with a depth limit) and "real-time updates?" (polling, SSE or WebSocket with de-duplication by id).
+
+## Design a notification and toast system: queueing, stacking, accessibility and cross-tab behavior
+<!--
+id: design-notification-toast-system
+level: senior
+tags: system design, notifications, toast, queue, accessibility, live region, cross tab
+minutes: 30
+-->
+
+> [!PROMPT]
+> Design an app-wide notification system with transient toasts, persistent banners and an in-app notification center. Any part of the app can trigger a notification; the system handles priority, stacking, dismissal, timers and accessibility.
+>
+> **Requirements**
+> - Imperative API: `notify({ type, message, action })`.
+> - Max three visible; others queue; priorities can jump the queue.
+> - Pauses timers on hover or focus; screen-reader friendly.
+
+> [!TLDR]
+> Create a small store outside React (a queue with `subscribe`, `notify`, `dismiss`) and a single `<Notifications />` host rendered once near the root, so any module can trigger a notification without props or context drilling. Each item has an id, type, priority, duration and optional action; the host renders at most N visible items, queues the rest, and sorts by priority and time. Use a polite live region for normal toasts and an assertive one for errors, pause auto-dismiss on hover and focus, never auto-dismiss messages with required actions, respect reduced motion, and deduplicate repeats by key. For the center, persist read state and sync across tabs with `BroadcastChannel`.
+
+### API and store
+
+```ts
+type Notice = { id: string; type: 'info' | 'success' | 'error'; message: string;
+                priority?: number; duration?: number | null; action?: { label: string; run(): void } };
+
+const store = createStore<Notice[]>([]);
+export const notify = (n: Omit<Notice, 'id'> & { key?: string }) => { /* dedupe by key, push, schedule */ };
+export const dismiss = (id: string) => { /* remove and promote next from queue */ };
+```
+
+### Behavior details
+
+- **Queue and stacking:** visible = first N after sorting by priority then arrival; promoting from the queue on dismissal.
+- **Timers:** per-toast timers that pause on `pointerenter` or `focusin`, resume with the remaining time.
+- **Deduplication:** a `key` collapses repeated errors ("Network error" x3) into one with a counter.
+- **Persistence:** banners (for example "offline") stay until the condition clears; toasts auto-dismiss in 4-8 seconds unless they contain an action.
+
+### Accessibility
+
+- A single live region container (`aria-live="polite"`, `role="status"`), and `role="alert"` for errors.
+- Do not move focus to toasts; provide a keyboard shortcut or an always-available notification center to review missed messages.
+- Sufficient time: users must be able to pause or extend; avoid timers shorter than a few seconds for text.
+
+### Cross-tab and scale
+
+`BroadcastChannel` to sync read or dismissed state; avoid duplicate toasts for the same server event by including an event id; for push notifications, use a service worker and a separate permission flow.
+
+### Pitfalls
+
+Rendering toasts inside a transformed parent (stacking context bugs; use a portal), storing JSX in the store (store data, render in the host), and unbounded queues during error storms.

@@ -1324,3 +1324,108 @@ Data libraries do this for you: TanStack Query for Vue passes an `AbortSignal` i
 - [MDN: AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
 - [RxJS: switchMap](https://rxjs.dev/api/operators/switchMap)
 - [React: Fetching data with effects (race conditions)](https://react.dev/learn/synchronizing-with-effects#fetching-data)
+
+## Callbacks, callback hell and the event loop basics: how asynchronous code started
+<!--
+id: async-callbacks-basics
+level: junior
+tags: javascript, async, callbacks, callback hell, promises, fundamentals
+minutes: 8
+-->
+
+> [!PROMPT]
+> What is a callback? What is "callback hell", and how do promises and `async/await` improve it? Convert this nested code to `async/await`.
+>
+> ```js
+> getUser(id, (err, user) => {
+>   if (err) return handle(err);
+>   getOrders(user.id, (err, orders) => {
+>     if (err) return handle(err);
+>     render(user, orders);
+>   });
+> });
+> ```
+
+> [!TLDR]
+> A callback is a function passed to another function to be called later, which is how JavaScript handled asynchronous work before promises. Nesting callbacks makes control flow and error handling hard to follow (callback hell). Promises give one chainable object per operation with a single error channel, and `async/await` lets you write that chain like synchronous code with `try/catch`. Run independent calls in parallel with `Promise.all`, and remember that `await` pauses only the current async function, not the whole program.
+
+### The conversion
+
+```js
+async function load(id) {
+  try {
+    const user = await getUser(id);
+    const orders = await getOrders(user.id);
+    render(user, orders);
+  } catch (err) {
+    handle(err);
+  }
+}
+```
+
+If two calls do not depend on each other, start them together:
+
+```js
+const [user, settings] = await Promise.all([getUser(id), getSettings(id)]);
+```
+
+### Why it matters
+
+- Errors from any step land in the same `catch`.
+- Sequential steps read top to bottom.
+- Promisify old callback APIs with `util.promisify` or a small wrapper: `new Promise((resolve, reject) => cb((err, v) => err ? reject(err) : resolve(v)))`.
+
+### Common mistakes
+
+Forgetting `await` (you get a pending promise), using `await` inside `forEach` (it does not wait; use `for...of` or `Promise.all(array.map(...))`), and swallowing errors with an empty `catch`.
+
+## Error handling in async code: unhandled rejections, `finally`, timeouts and error boundaries at the edges
+<!--
+id: async-error-handling
+level: senior
+tags: javascript, async, error handling, unhandled rejection, finally, timeout, abortsignal
+minutes: 15
+-->
+
+> [!PROMPT]
+> A background `fetch` fails silently in production and a promise rejection shows up only in the console. How do you design error handling for async code so failures are surfaced, retried or reported, and never swallowed?
+>
+> **Cover**
+> - Unhandled rejections and fire-and-forget promises.
+> - Timeouts and cancellation.
+> - What to catch locally and what to let bubble.
+
+> [!TLDR]
+> Every promise needs an owner that handles its rejection. Do not fire and forget: either `await` it inside a `try/catch`, return it to a caller who will, or attach `.catch` that reports the error. Add a global safety net (`unhandledrejection` in browsers, `process.on('unhandledRejection')` in Node) that logs to your error tracker, but treat it as a bug detector, not a handler. Add timeouts with `AbortSignal.timeout`, use `finally` for cleanup, convert error shapes at boundaries (HTTP status to typed errors), and catch only where you can do something useful (retry, fallback, user message); otherwise let it bubble.
+
+### Patterns
+
+```ts
+// 1. No floating promises: handle or return
+void sync().catch(report);                       // explicit fire-and-forget with a handler
+
+// 2. Timeouts and cancellation
+const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+if (!res.ok) throw new HttpError(res.status, await res.text());
+
+// 3. Cleanup always runs
+setLoading(true);
+try { await save(); } finally { setLoading(false); }
+
+// 4. Global safety net
+window.addEventListener('unhandledrejection', (e) => report(e.reason));
+```
+
+### Where to catch
+
+- **At the call site** when you have a recovery (retry, default value, inline error message).
+- **At a boundary** (route, request handler, React error boundary plus a query library's error state) to show a consistent failure UI and report once.
+- **Not** in the middle, where a bare `catch (e) { console.log(e) }` hides the failure from callers.
+
+### Detecting the problem
+
+Lint with `@typescript-eslint/no-floating-promises`, and test the failure path (reject the mocked call and assert the UI and reporting).
+
+### Pitfalls
+
+`Promise.all` rejecting while other tasks keep running (consider `allSettled` or cancellation); `catch` that rethrows a new error without the original `cause`; relying on `try/catch` around a function that returns a promise without awaiting it.
