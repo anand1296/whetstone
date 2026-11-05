@@ -127,7 +127,7 @@
     },
     {
       "id": "frontend-react",
-      "label": "Frontend \u00b7 React",
+      "label": "Frontend · React",
       "facets": [
         "frontend",
         "react"
@@ -135,7 +135,7 @@
     },
     {
       "id": "frontend-angular",
-      "label": "Frontend \u00b7 Angular",
+      "label": "Frontend · Angular",
       "facets": [
         "frontend",
         "angular"
@@ -143,7 +143,7 @@
     },
     {
       "id": "frontend-vue",
-      "label": "Frontend \u00b7 Vue",
+      "label": "Frontend · Vue",
       "facets": [
         "frontend",
         "vue"
@@ -154,6 +154,30 @@
       "label": "Backend",
       "facets": [
         "backend"
+      ]
+    },
+    {
+      "id": "backend-java",
+      "label": "Backend · Java",
+      "facets": [
+        "backend",
+        "java"
+      ]
+    },
+    {
+      "id": "backend-nodejs",
+      "label": "Backend · Node.js",
+      "facets": [
+        "backend",
+        "nodejs"
+      ]
+    },
+    {
+      "id": "backend-go",
+      "label": "Backend · Go",
+      "facets": [
+        "backend",
+        "go"
       ]
     },
     {

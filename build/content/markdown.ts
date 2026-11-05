@@ -21,6 +21,7 @@ import json from 'highlight.js/lib/languages/json';
 import diff from 'highlight.js/lib/languages/diff';
 import yaml from 'highlight.js/lib/languages/yaml';
 import graphql from 'highlight.js/lib/languages/graphql';
+import java from 'highlight.js/lib/languages/java';
 import go from 'highlight.js/lib/languages/go';
 import sql from 'highlight.js/lib/languages/sql';
 import python from 'highlight.js/lib/languages/python';
@@ -40,6 +41,7 @@ hljs.registerLanguage('diff', diff);
 hljs.registerLanguage('yaml', yaml);
 hljs.registerLanguage('graphql', graphql);
 hljs.registerLanguage('go', go);
+hljs.registerLanguage('java', java);
 hljs.registerLanguage('sql', sql);
 hljs.registerLanguage('python', python);
 hljs.registerLanguage('dockerfile', dockerfile);
@@ -73,6 +75,7 @@ const LANGUAGES: Record<string, LanguageDef> = {
   // Backend, cloud and data (for full-stack rounds). Keep in sync with backend/markdown/highlight.go.
   go: { grammar: 'go', label: 'Go' },
   golang: { grammar: 'go', label: 'Go' },
+  java: { grammar: 'java', label: 'Java' },
   sql: { grammar: 'sql', label: 'SQL' },
   python: { grammar: 'python', label: 'Python' },
   py: { grammar: 'python', label: 'Python' },

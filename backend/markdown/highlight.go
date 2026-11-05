@@ -41,6 +41,7 @@ var Languages = map[string]Language{
 	// Backend, cloud and data (for full-stack topics).
 	"go":         {"go", "Go"},
 	"golang":     {"go", "Go"},
+	"java":       {"java", "Java"},
 	"sql":        {"sql", "SQL"},
 	"python":     {"python", "Python"},
 	"py":         {"python", "Python"},
