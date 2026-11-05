@@ -19,7 +19,7 @@ function Row({ me, person, rounds, now, onChanged }: { me: ServerUser; person: P
   const { busy, flash, run } = useAction();
   const [confirmRemove, setConfirmRemove] = useState(false);
   const { summary } = person;
-  const finished = topics.filter((r) => r.total > 0 && (summary.byRound[r.id] ?? 0) >= r.total).length;
+  const finished = rounds.filter((r) => r.total > 0 && (summary.byRound[r.id] ?? 0) >= r.total).length;
   const studying = rounds.find((r) => r.id === summary.lastSectionId)?.title ?? '—';
   const manageable = canManage(me, person);
 
