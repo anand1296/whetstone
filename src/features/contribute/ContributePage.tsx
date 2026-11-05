@@ -297,8 +297,8 @@ function QuestionForm({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
           <textarea id={`${formId}-body`} className="body-input" value={body} onChange={(e) => setBody(e.target.value)} aria-invalid={Boolean(problems.body)} />
           {fieldError('body')}
           <span className="field-hint">
-            A detailed answer with code snippets gets approved fastest. If you only have the question, leave the template as it is and a
-            reviewer will draft the answer.
+            A detailed answer with code snippets gets approved fastest. With only a title, leave the template as it is and a reviewer will
+            draft the rest.
           </span>
         </label>
         <label htmlFor={`${formId}-context`} className="span-2">
