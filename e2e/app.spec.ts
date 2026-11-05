@@ -28,7 +28,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   await items.nth(0).getByRole('button', { name: 'Reveal answer' }).click();
   await expect(items.nth(0).locator('.callout-tldr')).toBeVisible();
   await items.nth(0).getByRole('checkbox').check();
-  await expect(page.locator('.section-progress')).toContainText('1 of 12 done');
+  await expect(page.locator('.section-progress')).toContainText('1 of 14 done');
 
   await items.nth(1).locator('.q-trigger').click();
   await items.nth(1).getByRole('button', { name: 'Mark done & next' }).click();
@@ -188,7 +188,7 @@ test('filters, theme and keyboard basics', async ({ page }) => {
   await page.getByRole('radio', { name: 'Done' }).click();
   await expect(page.locator('.q')).toHaveCount(1);
   await page.getByRole('radio', { name: 'To do' }).click();
-  await expect(page.locator('.q')).toHaveCount(7);
+  await expect(page.locator('.q')).toHaveCount(9);
   await page.getByRole('radio', { name: 'All' }).click();
 
   await page.getByRole('button', { name: 'Settings' }).first().click();

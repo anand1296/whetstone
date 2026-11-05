@@ -44,7 +44,7 @@ test.describe('hosted artifact build', () => {
       await app.locator('.q').first().getByRole('button', { name: 'Reveal answer' }).click();
       await expect(app.locator('.q').first().locator('.callout-tldr')).toBeVisible();
       await app.locator('.q').first().getByRole('checkbox').check();
-      await expect(app.locator('.section-progress')).toContainText('1 of 6 done');
+      await expect(app.locator('.section-progress')).toContainText('1 of 8 done');
       expect(errors).toEqual([]);
     });
   }
