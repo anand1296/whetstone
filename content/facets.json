@@ -31,6 +31,18 @@
         {
           "id": "design",
           "label": "Design"
+        },
+        {
+          "id": "data",
+          "label": "Data engineering"
+        },
+        {
+          "id": "aiml",
+          "label": "AI / ML"
+        },
+        {
+          "id": "fde",
+          "label": "Forward deployed (FDE)"
         }
       ]
     },
@@ -178,6 +190,27 @@
       "label": "Design",
       "facets": [
         "design"
+      ]
+    },
+    {
+      "id": "data-engineering",
+      "label": "Data engineering",
+      "facets": [
+        "data"
+      ]
+    },
+    {
+      "id": "ai-ml",
+      "label": "AI / ML",
+      "facets": [
+        "aiml"
+      ]
+    },
+    {
+      "id": "fde",
+      "label": "Forward deployed (FDE)",
+      "facets": [
+        "fde"
       ]
     }
   ]
