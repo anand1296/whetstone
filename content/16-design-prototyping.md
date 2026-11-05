@@ -178,3 +178,91 @@ minutes: 12
 ### A fair evaluation
 
 Choose two or three representative tasks, time-box them, have designers and engineers use each candidate, and compare on the criteria above plus qualitative feedback. Record the decision, the review date and the exit plan, because this category changes quickly and the right answer in six months may differ.
+
+## Design tokens and CSS variables for beginners: what they are and why teams use them
+<!--
+id: design-tokens-css-variables-basics
+level: junior
+tags: design, design tokens, css variables, theming, dark mode, design system, fundamentals
+minutes: 8
+-->
+
+> [!PROMPT]
+> What is a design token? Show how CSS custom properties implement tokens for color and spacing, and how they make theming (dark mode) and consistency easier.
+
+> [!TLDR]
+> A design token is a named design decision (a color, a spacing step, a font size) stored as data so designers and engineers use the same values. In CSS, tokens are usually custom properties on `:root` (`--color-bg`, `--space-4`); components reference them instead of raw values, so changing the token changes every use. Theming works by redefining the same variables under a selector or media query (`prefers-color-scheme: dark`, `[data-theme="dark"]`). Use semantic names (`--color-text-muted`) on top of raw palette values so components say what the color is for, not what it looks like.
+
+### Example
+
+```css
+:root {
+  --palette-blue-600: #2563eb;
+  --color-bg: #ffffff;
+  --color-text: #111827;
+  --color-accent: var(--palette-blue-600);
+  --space-2: 0.5rem;
+  --space-4: 1rem;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { --color-bg: #0b1020; --color-text: #e5e7eb; }
+}
+
+.button { background: var(--color-accent); padding: var(--space-2) var(--space-4); border-radius: var(--radius); }
+```
+
+### Why it matters
+
+- **Consistency:** the same spacing scale everywhere.
+- **Theming:** swap variables, not components.
+- **Handoff:** the design tool and the code share names, which also helps AI-generated UI stay on-brand.
+- **Maintenance:** rebrand by editing one file.
+
+### Tips
+
+Two tiers (primitive palette, semantic roles), a small spacing and type scale, document usage, and check contrast for each theme.
+
+## Write a prototype brief an AI tool can build from: structure, constraints and acceptance checks
+<!--
+id: design-ai-prototype-brief
+level: senior
+tags: design, prompting, ai prototyping, specification, acceptance criteria, iteration, workflow
+minutes: 14
+-->
+
+> [!PROMPT]
+> You want an AI tool to generate a working prototype of a new onboarding flow. Write the brief. What do you include so the result is useful, on-brand and testable, and how do you iterate?
+
+> [!TLDR]
+> A good brief is a short product spec, not a vibe. State the user and goal, the flow step by step with states (empty, loading, error, success), the data and copy, constraints (design tokens, component library, accessibility level, supported viewports, no external dependencies), and acceptance checks you can verify by clicking and tabbing. Provide references (screenshots, tokens, examples) instead of adjectives, ask for one change per iteration, keep versions, and review the output for accessibility and fidelity before showing stakeholders. Treat the prototype as a learning tool and decide explicitly what is thrown away.
+
+### Brief template
+
+```
+Goal: New users connect their calendar and invite a teammate in under 2 minutes.
+Users: first-time team admins on laptop and phone.
+Flow: 1 Welcome -> 2 Connect calendar (loading, error: permission denied) -> 3 Invite (validation) -> 4 Done.
+Data and copy: [paste real copy; sample teammates list]
+Constraints: use only the CSS variables below; semantic HTML; keyboard operable; contrast AA;
+             works at 360px and 1280px; no external libraries.
+Tokens: [paste token list]
+Acceptance: I can complete the flow with keyboard only; error state is announced; no layout shift between steps.
+Out of scope: real authentication, persistence.
+```
+
+### Iterating
+
+1. Generate, then **review against the acceptance list** (tab through it, resize, trigger errors).
+2. Change one thing at a time ("make step 2's error state inline, not a modal").
+3. Keep the prompt and output versions so you can compare and roll back.
+4. Test with two or three users and capture what you learned before polishing.
+
+### Quality gates
+
+Run an automated accessibility check, check the use of tokens instead of hard-coded values, and note what is fake (data, network) so nobody mistakes it for production code.
+
+### Pitfalls
+
+Adjective-only prompts ("modern, clean"); asking for the whole product at once; skipping error and empty states; accepting visually polished output without checking behavior.

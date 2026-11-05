@@ -303,3 +303,93 @@ Triggers: schedule, drift threshold, performance drop or new data volume. Automa
 ### Pitfalls
 
 No baseline to compare to; alerts on drift that do not map to impact; retraining automatically on corrupted or biased recent data; unversioned features so a past model cannot be reproduced.
+
+## Supervised versus unsupervised learning, and why we split data into train, validation and test sets
+<!--
+id: ml-supervised-unsupervised-splits
+level: junior
+tags: ml, fundamentals, supervised learning, unsupervised learning, train test split, validation, overfitting
+minutes: 10
+-->
+
+> [!PROMPT]
+> What is the difference between supervised and unsupervised learning (with examples)? Why do we split data into training, validation and test sets, and what is data leakage?
+
+> [!TLDR]
+> Supervised learning learns from labeled examples to predict a label (classification such as spam or not spam; regression such as house price); unsupervised learning finds structure in unlabeled data (clustering customers, dimensionality reduction, anomaly detection). We split data so we can estimate how the model behaves on new data: train to fit parameters, validation to tune choices (hyperparameters, model type), and test, used once at the end, for an honest final estimate. Data leakage is when information from outside the training data (the test set, the future, or the label itself) influences training, producing optimistic results that collapse in production.
+
+### Examples
+
+| Type | Task | Example |
+| --- | --- | --- |
+| Supervised, classification | Predict a category | Spam detection, fraud flag |
+| Supervised, regression | Predict a number | Delivery time, price |
+| Unsupervised, clustering | Group similar items | Customer segments |
+| Unsupervised, dimensionality reduction | Compress features | PCA for visualization |
+| Self-supervised | Labels come from the data itself | Predict the next word (language models) |
+
+### Splits
+
+```python
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+```
+
+- **Train** (about 60-80%): fit the model.
+- **Validation** (about 10-20%, or cross-validation): choose models and hyperparameters.
+- **Test** (about 10-20%): final report, touched once.
+
+### Leakage examples
+
+- Scaling or imputing using statistics from the whole dataset before splitting.
+- A feature that is only known after the outcome (for example "refund issued" when predicting churn).
+- Random splits on time series (the model sees the future); split by time instead.
+- Duplicate rows or the same user in both train and test.
+
+### Overfitting
+
+Great training score, poor validation score. Fix with simpler models, more data, regularization or early stopping.
+
+## Tokens, context windows and sampling: what engineers must know about how LLMs generate text
+<!--
+id: ml-llm-tokens-context-sampling
+level: senior
+tags: ai, llm, tokens, context window, temperature, top p, determinism, cost, structured output
+minutes: 15
+-->
+
+> [!PROMPT]
+> Explain tokens, the context window, and the sampling parameters `temperature` and `top_p`. Why is the same prompt sometimes answered differently, why do costs depend on tokens, and how do you get reliable structured output?
+
+> [!TLDR]
+> LLMs read and write **tokens** (word pieces), not characters or words; pricing, latency and limits are measured in tokens. The **context window** is the maximum tokens of input plus output the model can attend to in one request, and quality can degrade with very long or poorly organized context. The model produces a probability distribution over the next token; **temperature** reshapes it (low is more deterministic, high more varied) and **top_p** restricts sampling to the smallest set of tokens whose probabilities sum to `p`. Output can vary even at low temperature (infrastructure and batching effects), so do not assume bitwise determinism. For reliable structure, use the provider's structured output or tool-calling features with a schema, validate the result, and retry or repair on failure.
+
+### Practical implications
+
+| Concept | What it means for you |
+| --- | --- |
+| Tokens | Roughly 3-4 characters of English per token; other languages and code can use more |
+| Input plus output budget | Long documents reduce room for the answer; set `max_tokens` deliberately |
+| Cost | Charged per input and output token; caching and shorter prompts save money |
+| Latency | Grows with output tokens; stream results for perceived speed |
+| Context window | Put the most important instructions and data clearly; do not assume the model uses everything equally well |
+
+### Sampling
+
+- **temperature near 0:** extraction, classification, code; **higher:** brainstorming, creative text.
+- Adjust temperature or `top_p`, generally not both aggressively at once.
+- Seed parameters, where offered, improve repeatability but do not guarantee it.
+
+### Reliable structured output
+
+```ts
+const schema = z.object({ sentiment: z.enum(['pos', 'neu', 'neg']), confidence: z.number().min(0).max(1) });
+const parsed = schema.safeParse(JSON.parse(modelText));
+if (!parsed.success) { /* retry with the validation error, or fall back */ }
+```
+
+Prefer native structured-output or tool-call schemas over asking nicely for JSON, validate every response, and keep a retry limit.
+
+### Pitfalls
+
+Estimating cost by words; assuming the full window is free to use; trusting model arithmetic or dates; ignoring that tokenization differs between models.

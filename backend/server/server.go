@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anand1296/whetstone/backend/ai"
 	"github.com/anand1296/whetstone/backend/auth"
 	"github.com/anand1296/whetstone/backend/catalog"
 	"github.com/anand1296/whetstone/backend/mail"
@@ -43,6 +44,7 @@ type Server struct {
 	log      *slog.Logger
 	now      func() time.Time
 	mailer   mail.Sender
+	ai       *ai.Client
 
 	mcp http.Handler
 
@@ -64,6 +66,7 @@ func New(cfg Config, st *store.Store, repo []catalog.Section, log *slog.Logger) 
 		limiter:  newLimiter(),
 		log:      log,
 		now:      time.Now,
+		ai:       ai.New(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL),
 		mailer: &mail.SMTP{Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUsername,
 			Password: cfg.SMTPPassword, From: cfg.EmailFrom},
 	}
@@ -185,6 +188,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 	admin("GET /api/admin/ideas", s.listIdeas)
 	admin("POST /api/admin/ideas/{id}/accept", s.acceptIdea)
 	admin("POST /api/admin/ideas/{id}/decline", s.declineIdea)
+
+	admin("GET /api/admin/ai", s.aiStatus)
+	admin("POST /api/admin/ai/answer", s.aiAnswer)
 
 	admin("GET /api/admin/settings", s.getSettings)
 	admin("PUT /api/admin/settings/{key}", s.putSetting)

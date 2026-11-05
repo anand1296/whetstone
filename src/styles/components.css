@@ -115,6 +115,11 @@
   line-height: 1.5;
 }
 
+.level-chip[data-level='junior'] {
+  border-color: var(--ok, #2f7d4f);
+  color: var(--ok, #2f7d4f);
+}
+
 .level-chip[data-level='lead'] {
   border-color: var(--accent);
   color: var(--accent);
@@ -747,9 +752,15 @@ button.action-card:hover {
 
 .level-split {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin: 4px 0 0;
+}
+
+@media (max-width: 640px) {
+  .level-split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .level-split > div {
@@ -1739,4 +1750,36 @@ button.action-card:hover {
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.more-coming {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin: 28px 0 8px;
+  padding: 16px 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius, 10px);
+  background: var(--paper-2, transparent);
+}
+
+.more-coming p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-2);
+  font-size: var(--step--1);
+}
+
+.growing-chip {
+  margin-inline-start: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 0.7rem;
+  font-weight: 600;
+  vertical-align: middle;
+  white-space: nowrap;
 }

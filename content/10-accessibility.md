@@ -829,3 +829,87 @@ Tie it to risk (legal), reach (users with disabilities, situational impairments,
 - [W3C: WCAG 2.2](https://www.w3.org/TR/WCAG22/)
 - [European Accessibility Act overview](https://commission.europa.eu/strategy-and-policy/policies/justice-and-fundamental-rights/disability/union-equality-strategy-rights-persons-disabilities-2021-2030/european-accessibility-act_en)
 - [GOV.UK Service Manual: Making your service accessible](https://www.gov.uk/service-manual/helping-people-to-use-your-service/making-your-service-accessible-an-introduction)
+
+## The ten-minute accessibility checklist: semantic HTML, alt text, labels, headings and keyboard
+<!--
+id: a11y-quick-checklist
+level: junior
+tags: accessibility, semantic html, alt text, labels, headings, keyboard, checklist
+minutes: 8
+-->
+
+> [!PROMPT]
+> You are handed a page and ten minutes. What do you check for accessibility, and what are the common fixes? Explain when `alt` should be empty.
+
+> [!TLDR]
+> Check the basics that cause most failures: use semantic elements (`button`, `a`, `nav`, `main`, `header`, `h1`-`h6`), give every image a meaningful `alt` (or `alt=""` if decorative), label every form control, keep a logical heading order, make everything operable with the keyboard with a visible focus indicator, ensure sufficient color contrast, do not rely on color alone, and set the page language. Then tab through the page, zoom to 200%, and run an automated scan (axe or Lighthouse) knowing it finds only a fraction of the issues.
+
+### Checklist
+
+1. **Semantics:** a clickable thing is a `<button>` or `<a href>`, not a `<div onclick>`.
+2. **Headings:** one `h1`, no skipped levels, headings describe sections.
+3. **Landmarks:** `header`, `nav`, `main`, `footer`; skip link at the top.
+4. **Images:** `alt` describes purpose; `alt=""` for decorative images so screen readers skip them.
+5. **Forms:** `<label for>` on every input; errors tied with `aria-describedby`.
+6. **Keyboard:** Tab reaches every control in a sensible order; Enter and Space activate; no keyboard traps.
+7. **Focus:** never remove the outline without a replacement (`:focus-visible`).
+8. **Contrast:** text at least 4.5:1 (3:1 for large text).
+9. **Color:** error states also use text or an icon.
+10. **Language and title:** `<html lang="en">` and a descriptive `<title>`.
+
+### Quick fixes
+
+```html
+<button type="button" aria-label="Close dialog">×</button>
+<img src="chart.png" alt="Sales rose 20% in Q3">
+<img src="divider.svg" alt="">
+<label for="email">Email</label><input id="email" type="email" autocomplete="email">
+```
+
+### Remember
+
+Automated tools catch roughly a third of issues; manual keyboard and screen-reader checks find the rest.
+
+## WCAG basics for engineers: contrast, target size, reduced motion, zoom and text spacing
+<!--
+id: a11y-wcag-contrast-motion-zoom
+level: senior
+tags: accessibility, wcag, contrast, target size, reduced motion, zoom, reflow, prefers-reduced-motion
+minutes: 14
+-->
+
+> [!PROMPT]
+> Beyond ARIA, which WCAG success criteria cause the most real-world defects for engineers, and how do you build them in? Cover contrast, touch target size, motion, zoom and reflow, and text spacing.
+
+> [!TLDR]
+> Build these into the design system so they are correct by default. Text contrast must be at least 4.5:1 (3:1 for large text and UI component boundaries), pointer targets should be at least 24 by 24 CSS pixels (WCAG 2.2; 44 by 44 is a better mobile target), animations must respect `prefers-reduced-motion` and avoid flashing, content must reflow at 320 CSS pixels wide and 400% zoom without horizontal scrolling, text spacing overrides must not clip content, and meaning cannot depend on color alone. Check with tooling in CI and manual passes for the rest.
+
+### Criteria and how to build them in
+
+| Area | Requirement | Engineering habit |
+| --- | --- | --- |
+| Contrast | 4.5:1 text, 3:1 large text and controls | Token pairs verified in the design system; test dark mode too |
+| Target size | At least 24x24 px (2.2) | Padding on icon buttons; spacing between targets |
+| Motion | No essential info only by animation; respect user setting | `@media (prefers-reduced-motion: reduce)` disables parallax and auto-play |
+| Flashing | Nothing flashes more than 3 times a second | Review video and animation assets |
+| Reflow and zoom | No two-way scrolling at 320px wide / 400% zoom | Fluid layouts, avoid fixed widths; use `rem` |
+| Text spacing | Content survives larger line height and letter spacing | Avoid fixed heights on text containers |
+| Focus appearance | Visible, adequate contrast | A consistent `:focus-visible` style |
+
+### Snippets
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+.icon-button { min-inline-size: 44px; min-block-size: 44px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+```
+
+### Verify
+
+Automated: axe in unit or E2E tests, contrast checks in the design tokens. Manual: zoom to 400%, turn on high-contrast and reduced-motion settings, test with a screen reader and keyboard, and test on a real phone.
+
+### Pitfalls
+
+Placeholder text as a label; low-contrast disabled or hint text assumed exempt when it is not; fixed-height containers; auto-playing carousels with no pause control.

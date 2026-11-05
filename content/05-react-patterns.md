@@ -1975,3 +1975,91 @@ Vue notes for the review: rendering a slot region only when `$slots.header` exis
 - [Radix: Composition](https://www.radix-ui.com/primitives/docs/guides/composition)
 - [Brad Frost: Atomic design](https://atomicdesign.bradfrost.com/)
 - [Material UI: API design approach](https://mui.com/material-ui/guides/api/)
+
+## Controlled inputs, lifting state up and form basics in React
+<!--
+id: react-controlled-inputs-lifting-state
+level: junior
+tags: react, forms, controlled components, lifting state up, inputs, fundamentals
+minutes: 8
+-->
+
+> [!PROMPT]
+> What is a controlled input? Build a small search box whose text is shared with a results list in a sibling component, and explain "lifting state up".
+
+> [!TLDR]
+> A controlled input has its `value` driven by React state and updates through `onChange`, so React is the single source of truth. When two components need the same data, move the state to their closest common parent and pass the value and a setter down as props (lifting state up). Uncontrolled inputs keep their value in the DOM and are read with a ref or `FormData`, which is fine for simple forms and file inputs. Controlled inputs make validation and instant feedback easy, but every keystroke re-renders the owner, so keep the state close to where it is used.
+
+### Example
+
+```jsx
+function Search({ items }) {
+  const [query, setQuery] = useState('');
+  const visible = items.filter(i => i.toLowerCase().includes(query.toLowerCase()));
+  return (
+    <>
+      <SearchBox value={query} onChange={setQuery} />
+      <Results items={visible} />
+    </>
+  );
+}
+
+function SearchBox({ value, onChange }) {
+  return <input value={value} onChange={e => onChange(e.target.value)} aria-label="Search" />;
+}
+```
+
+`Search` owns `query`; `SearchBox` and `Results` are siblings that both depend on it.
+
+### Common mistakes
+
+- `value` without `onChange` (read-only warning) or switching between controlled and uncontrolled (`value={undefined}` first).
+- Storing the filtered list in state as well as the query.
+- Putting every input into one giant parent state when most inputs are local.
+
+### When to go uncontrolled
+
+Large forms where per-keystroke renders hurt, or when you only read the value on submit: use `<form onSubmit>` with `new FormData(e.currentTarget)`.
+
+## React Context: when it helps, why it re-renders everything, and how to split it
+<!--
+id: react-context-rerenders
+level: senior
+tags: react, context, rerender, performance, state management, providers
+minutes: 14
+-->
+
+> [!PROMPT]
+> A team put the whole app state (user, theme, cart, filters) in one context and the app became slow: typing in a search box re-renders half the tree. Explain why and how you would fix it.
+>
+> **Cover**
+> - How context triggers re-renders.
+> - Splitting, memoizing value, and selectors.
+> - When to use an external store instead.
+
+> [!TLDR]
+> Every component that calls `useContext(X)` re-renders whenever the provider's `value` changes by reference, even if it reads only one field. Fix it by splitting contexts by concern and update rate (theme rarely changes; filters change constantly), splitting state from dispatch so components that only dispatch do not re-render, memoizing the `value` object, keeping fast-changing state local or lower in the tree, and, if you need selector-style subscriptions, using a store with selectors (`useSyncExternalStore` based libraries) instead of context. Context is excellent for low-frequency, widely needed values such as theme, locale or the current user.
+
+### Why it re-renders
+
+```jsx
+<AppContext.Provider value={{ user, cart, filters, setFilters }}>  {/* new object every render */}
+```
+
+A new object identity on each render means all consumers re-render, and `React.memo` on children does not stop a context consumer from updating.
+
+### Fixes, in order of effort
+
+1. **Memoize the value:** `useMemo(() => ({ user, setUser }), [user])`.
+2. **Split by concern:** `UserContext`, `ThemeContext`, `CartContext`, each with its own provider.
+3. **Split state and dispatch:** two contexts, one for the value and one for stable setters.
+4. **Move state down:** keep search text in the search component and pass only the result up on submit or debounce.
+5. **Use a selector store:** Zustand, Redux Toolkit or Jotai let a component subscribe to one slice.
+
+### Rule of thumb
+
+Use context for dependency injection and slow-changing global values; use a store or server-state library for frequently changing or large shared state.
+
+### Pitfalls
+
+A provider placed too high re-rendering everything below it; passing inline functions in the value; assuming `useMemo` on the consumer helps (it does not prevent the context-triggered render).

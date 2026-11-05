@@ -681,3 +681,89 @@ minutes: 12
 - [MDN: Subresource Integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity)
 - [npm: Generating provenance statements](https://docs.npmjs.com/generating-provenance-statements)
 - [SLSA framework](https://slsa.dev/)
+
+## Common web vulnerabilities in plain words: XSS, CSRF, injection, broken access control and the OWASP Top 10
+<!--
+id: security-owasp-basics
+level: junior
+tags: security, owasp, xss, csrf, sql injection, access control, fundamentals
+minutes: 10
+-->
+
+> [!PROMPT]
+> Explain XSS, CSRF, SQL injection and broken access control in simple terms, how each is prevented, and what the OWASP Top 10 is.
+
+> [!TLDR]
+> **XSS**: attacker-controlled text runs as script in a victim's page; prevent it by escaping or sanitizing output, avoiding `innerHTML` and `dangerouslySetInnerHTML` with untrusted data, and a Content Security Policy. **CSRF**: a malicious site makes the victim's browser send an authenticated request; prevent it with `SameSite` cookies and anti-CSRF tokens. **SQL injection**: user input becomes part of a query; prevent it with parameterized queries. **Broken access control**: the server does not check that the user may act on that resource (changing an ID in a URL reveals someone else's data); always authorize on the server, per request, per object. The OWASP Top 10 is a regularly updated list of the most critical web application risks that teams use as a baseline checklist.
+
+### Examples
+
+```js
+// XSS: unsafe vs safe
+el.innerHTML = userComment;        // unsafe
+el.textContent = userComment;      // safe
+
+// SQL injection: unsafe vs safe
+db.query(`SELECT * FROM users WHERE email = '${email}'`);      // unsafe
+db.query('SELECT * FROM users WHERE email = $1', [email]);       // safe
+```
+
+### Access control example
+
+`GET /api/orders/123` must check that order 123 belongs to the signed-in user (or that they are an admin). Hiding the button in the UI is not security.
+
+### Habits
+
+Validate on the server, never trust the client; use framework defaults (React escapes text by default); keep dependencies updated; store secrets outside the repo; log security events; use HTTPS everywhere.
+
+### Interview tip
+
+Name the attack, the root cause (untrusted data treated as code or authority) and the specific control. Show you know the frontend alone cannot enforce authorization.
+
+## Secrets in frontend builds: environment variables, API keys and what must never ship to the browser
+<!--
+id: security-frontend-secrets
+level: senior
+tags: security, secrets, environment variables, api keys, vite, nextjs, bff, git history
+minutes: 12
+-->
+
+> [!PROMPT]
+> A developer puts a payment secret key and an AI provider API key in `VITE_` and `NEXT_PUBLIC_` environment variables so the frontend can call those APIs directly. What is wrong, how do you fix it, and what do you do about the keys that already leaked?
+
+> [!TLDR]
+> Anything bundled into frontend code is public: variables with a `VITE_` or `NEXT_PUBLIC_` prefix are inlined into the JavaScript that every visitor can read. Only publishable identifiers (a public analytics ID, a publishable payments key, a maps key restricted by referrer) belong there. Secrets must stay on a server (a backend or serverless function) that authenticates the user, applies rate limits and calls the third party. If a secret has shipped or been committed, treat it as compromised: rotate it immediately, check usage logs, remove it from history if needed, and add secret scanning to CI so it cannot happen again.
+
+### Public versus secret
+
+| Value | Where it may live |
+| --- | --- |
+| Publishable key (restricted by domain or scope) | Frontend env |
+| Secret or admin API key, database URL, signing key | Server only, in a secret manager or platform settings |
+| Per-user token | Memory or a cookie set by your backend, with proper scope |
+
+### Fix the design
+
+```ts
+// Browser: calls your backend, not the vendor
+const res = await fetch('/api/summarize', { method: 'POST', body: JSON.stringify({ text }), credentials: 'include' });
+
+// Server: holds the key, checks the user, limits usage
+export async function POST(req: Request) {
+  const user = await requireUser(req);
+  await rateLimit(user.id);
+  return callVendor(process.env.VENDOR_API_KEY!, await req.json());
+}
+```
+
+### Incident response for a leaked key
+
+1. Rotate or revoke the key now (do not wait to understand the impact).
+2. Check provider logs for abuse and cost; contact the vendor if needed.
+3. Remove the key from code and, where practical, history; note that forks and caches may keep it.
+4. Add a pre-commit and CI secret scanner (gitleaks, GitHub secret scanning) and restrict keys by scope, IP or referrer.
+5. Write a short postmortem.
+
+### Pitfalls
+
+Assuming obfuscation or a `.env` file hides values in the bundle; committing `.env`; using one all-powerful key for everything; sharing keys in chat tools.

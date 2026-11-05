@@ -4,7 +4,7 @@
 
 **Try it: [frontend-loop-beta.vercel.app](https://frontend-loop-beta.vercel.app)** · sign in with GitHub to sync your progress, or just start studying.
 
-**Interview prep for senior, lead and principal engineers.** 165 deep, interview-grade questions across 21 topics, from JavaScript internals and system design to low-level design and AI-assisted design, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
+**Interview prep for engineers, from junior to principal.** 210 deep, interview-grade questions across 21 topics, from JavaScript internals and system design to low-level design and AI-assisted design, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 
 Version 2 adds a **Go + Postgres backend**: GitHub sign-in, synced progress across devices, invite links, roles (owner, admins, learners) and an **admin console** where you can add and edit topics and questions live (preview, drafts, history, trash), see learners' progress, switch features and post announcements, with no code changes or deploys.
 
@@ -44,7 +44,7 @@ The same frontend still runs **without** a backend: on any static host, as one H
 
 **For learners**
 
-- **Topics and accordions.** Each topic is a topic; each question is an accordion row showing the question, its level (Senior, Lead/Staff, Principal), study time and tags. Expand it for the full answer.
+- **Topics and accordions.** Each topic is a topic; each question is an accordion row showing the question, its level (Junior, Senior, Lead/Staff, Principal), study time and tags. Expand it for the full answer.
 - **Answers built for the room.** Every answer opens with *the 60-second answer*, then the mental model, correct code with a copy button, trade-offs, edge cases, follow-ups, common mistakes and primary references.
 - **React, Angular or Vue.** Answers with code (machine-coding builds, component APIs, forms, error handling, state, testing, security, streaming UIs and more) have a framework switch: pick React, Angular or Vue once and the code follows you across questions. Framework-neutral material is always shown.
 - **Tick it off; pick up where you left off.** Progress saves automatically; the overview reopens the question you were on.
@@ -226,7 +226,7 @@ whetstone/
 | --- | --- | --- |
 | Go unit | 15 | Markdown rendering and safety, every code language, content parsing/validation/export round-trip, progress merge properties |
 | Go integration (real Postgres) | 16 | Every API rule over HTTP: invites, roles, disabling, expiry, open/members-only, settings, full CMS lifecycle, revisions, trash, ETags, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth (fake provider), concurrent invite race, serverless entry, email reminders, community submissions |
-| Renderer parity | 165 answers | Go and TypeScript renderers produce the same documents |
+| Renderer parity | 210 answers | Go and TypeScript renderers produce the same documents |
 | TypeScript unit | 45 | Walkthrough compiler, content compiler, progress model, search, selectors, sync protocols (Artifact and HTTP), language-list parity |
 | E2E static | 12 | Study flows, How it's built, Contribute, hosted Artifact build in a sandboxed CSP frame, mobile |
 | E2E full stack | 4 | Owner edits content and settings and invites; learner joins, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves, it's credited |

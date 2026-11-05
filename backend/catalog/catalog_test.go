@@ -65,7 +65,7 @@ func TestParseErrorsPointAtTheProblem(t *testing.T) {
 	cases := map[string]string{
 		"no front matter":  "# hi",
 		"bad meta":         "---\nid: a\ntitle: A\ndescription: d\n---\n\n## Q\nno meta here",
-		"bad level":        "---\nid: a\ntitle: A\ndescription: d\n---\n\n## Q\n<!--\nid: q\nlevel: junior\ntags: x\nminutes: 3\n-->\n" + strings.Repeat("x", 300),
+		"bad level":        "---\nid: a\ntitle: A\ndescription: d\n---\n\n## Q\n<!--\nid: q\nlevel: expert\ntags: x\nminutes: 3\n-->\n" + strings.Repeat("x", 300),
 		"reserved id":      "---\nid: review\ntitle: A\ndescription: d\n---\n",
 		"empty section":    "---\nid: a\ntitle: A\ndescription: d\n---\n",
 		"duplicate key":    "---\nid: a\nid: b\ntitle: A\ndescription: d\n---\n",
@@ -82,7 +82,7 @@ func TestParseErrorsPointAtTheProblem(t *testing.T) {
 }
 
 func TestQuestionValidation(t *testing.T) {
-	q := Question{ID: "Bad Id", Title: "", Level: "junior", Minutes: 0, Tags: nil, Body: "short", Published: true}
+	q := Question{ID: "Bad Id", Title: "", Level: "expert", Minutes: 0, Tags: nil, Body: "short", Published: true}
 	q.Normalize()
 	fields := map[string]bool{}
 	for _, p := range q.Validate() {

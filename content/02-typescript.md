@@ -1019,3 +1019,90 @@ Plus `typescript-eslint` rules: `no-explicit-any`, `no-unsafe-assignment`, `no-u
 - [TypeScript FAQ: Why are function parameters bivariant?](https://github.com/microsoft/TypeScript/wiki/FAQ#why-are-function-parameters-bivariant)
 - [TSConfig reference: noUncheckedIndexedAccess](https://www.typescriptlang.org/tsconfig/#noUncheckedIndexedAccess)
 - [typescript-eslint: no-unsafe-* rules](https://typescript-eslint.io/rules/no-unsafe-assignment/)
+
+## `interface` versus `type`, and `any`, `unknown` and `never`: the basics you must get right
+<!--
+id: ts-interface-type-unknown
+level: junior
+tags: typescript, fundamentals, interface, type alias, any, unknown, never
+minutes: 10
+-->
+
+> [!PROMPT]
+> When do you use `interface` and when `type`? What are `any`, `unknown` and `never`, and why is `unknown` safer than `any`?
+
+> [!TLDR]
+> Use `interface` for object shapes that may be extended or merged (public APIs, class contracts), and `type` for everything an interface cannot express: unions, intersections, tuples, mapped and conditional types. In practice either works for plain object shapes; pick one convention. `any` turns off type checking, `unknown` is the type-safe "I don't know yet" (you must narrow before using it), and `never` is the type of values that cannot exist (a function that always throws, or the leftover case in an exhaustive `switch`). Prefer `unknown` for external data.
+
+### interface versus type
+
+```ts
+interface User { id: string; name: string }
+interface Admin extends User { permissions: string[] }       // extension
+interface User { email?: string }                             // declaration merging (interfaces only)
+
+type Id = string | number;                                    // union: type only
+type Point = [x: number, y: number];                          // tuple
+type Keys = keyof User;                                       // computed type
+```
+
+### `any`, `unknown`, `never`
+
+```ts
+function parse(json: string): unknown { return JSON.parse(json); }
+const data = parse('{"a":1}');
+data.a;                         // error: 'data' is of type 'unknown'
+if (typeof data === 'object' && data !== null && 'a' in data) { /* narrowed */ }
+
+function fail(message: string): never { throw new Error(message); }
+
+type Shape = { kind: 'circle' } | { kind: 'square' };
+function area(s: Shape) {
+  switch (s.kind) {
+    case 'circle': return 1;
+    case 'square': return 2;
+    default: { const _exhaustive: never = s; return _exhaustive; } // compile error if a case is missed
+  }
+}
+```
+
+### Advice
+
+Avoid `any` (it spreads silently); if you must, isolate it at a boundary. Prefer `unknown` plus a validator such as zod for API data. Turn on `strict` in `tsconfig`.
+
+## `tsconfig` settings that matter: `strict`, `noUncheckedIndexedAccess`, module resolution and `isolatedModules`
+<!--
+id: ts-tsconfig-that-matters
+level: senior
+tags: typescript, tsconfig, strict, noUncheckedIndexedAccess, moduleResolution, isolatedModules, build
+minutes: 14
+-->
+
+> [!PROMPT]
+> You inherit a TypeScript project with a loose `tsconfig`. Which options do you turn on first, which can bite during the migration, and how do `moduleResolution`, `isolatedModules` and `verbatimModuleSyntax` affect a Vite or Next.js build?
+
+> [!TLDR]
+> Turn on `strict` first (it enables `strictNullChecks`, `noImplicitAny`, `strictFunctionTypes` and friends), then add `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` if the team can handle the noise. Migrate incrementally: new code strict, old code fixed by folder or with `// @ts-expect-error` markers that you then burn down. For bundler-based apps use `moduleResolution: "bundler"` with `module: "ESNext"`, set `isolatedModules` (each file must be transpilable alone, which tools like esbuild and SWC need) and `verbatimModuleSyntax` so type-only imports are explicit. Let the bundler transpile and run `tsc --noEmit` in CI for type checking.
+
+### Options worth knowing
+
+| Option | Effect |
+| --- | --- |
+| `strict` | Umbrella for the safest checks; the baseline |
+| `noUncheckedIndexedAccess` | `arr[i]` becomes `T | undefined`, catching real bugs |
+| `exactOptionalPropertyTypes` | `{ a?: string }` no longer accepts explicit `undefined` |
+| `noImplicitOverride`, `noFallthroughCasesInSwitch` | Safer classes and switches |
+| `isolatedModules` | Forbids constructs that need whole-program info (for example re-exporting types without `export type`) |
+| `verbatimModuleSyntax` | `import type` stays type-only; others are preserved |
+| `skipLibCheck` | Faster builds; hides errors in `.d.ts` files |
+
+### Migration plan
+
+1. Add `strict` per package or directory using project references or a second tsconfig that includes only migrated folders.
+2. Fix `null` and implicit `any` errors first; they are the highest-value findings.
+3. Ratchet: a CI check that the count of suppressions never increases.
+4. Keep `tsc --noEmit` in CI even if the bundler (esbuild, SWC, Babel) does the emit, because those tools do not type check.
+
+### Pitfalls
+
+`moduleResolution: node` with ESM-only packages; path aliases that work in `tsc` but not in the bundler (or vice versa); `skipLibCheck` hiding conflicting duplicate type packages.

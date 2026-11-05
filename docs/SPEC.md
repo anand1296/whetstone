@@ -114,7 +114,7 @@ IDs are stable; tests and ADRs refer to them.
 | ID | Requirement |
 | --- | --- |
 | FR-1 | Topics listed in order in the sidebar and overview, with per-topic progress. |
-| FR-2 | Each question is an accordion: collapsed shows title, level (Senior, Lead/Staff, Principal), study minutes and the first three tags; expanded shows the answer. |
+| FR-2 | Each question is an accordion: collapsed shows title, level (Junior, Senior, Lead/Staff, Principal), study minutes and the first three tags; expanded shows the answer. |
 | FR-3 | Answers render Markdown with callouts (TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL), highlighted code with a copy button, scrollable tables. |
 | FR-4 | Tick done from the row or "Mark done & next" inside the answer. |
 | FR-5 | Resume: the overview's main action opens the last visited question if not done, else the next not-done question in order. |
@@ -388,6 +388,7 @@ recover → security headers → access log → CSRF guard → session → Serve
 | `PORT`, `STATIC_DIR` | binary only | Listen port; directory of the built frontend |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM` | for reminders | Any SMTP provider (Gmail app password, Resend, Brevo…); port 587 STARTTLS or 465 TLS |
 | `CRON_SECRET` | for reminders | Bearer secret the scheduler must present to `GET /cron/reminders` |
+| `ANTHROPIC_API_KEY` | optional | Turns on the admin **Generate answer with AI** button (drafts the Markdown answer for a question; the admin reviews and saves). Set only in the deployment's environment variables. Optional tuning: `AI_MODEL` (default `claude-sonnet-5-5`), `AI_DAILY_LIMIT` (default 40 drafts per rolling 24 h, across all admins), `AI_BASE_URL` (tests) |
 | `MCP_ENABLED=true` | optional | Turns on the read-only MCP endpoint `POST /api/mcp` (docs/MCP.md). Off by default; refused while content is members-only |
 
 ### 7.4 Startup and serverless behavior
@@ -484,6 +485,7 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `PUT /me/reminders {enabled, frequency}` | learner+ | 422 `no_email` without a verified address; 403 `disabled` when the admin switched the feature off |
 | `POST /me/reminders/test` | learner+ (3/hour) | Sends one reminder now; 503 `email_unconfigured`, 502 `send_failed` |
 | `GET /cron/reminders` | `Authorization: Bearer $CRON_SECRET` | Claims up to 50 due reminders, sends, releases failures; `{claimed, sent, failed}` or `{skipped}` |
+| `GET /admin/ai`, `POST /admin/ai/answer` | admin | Status (configured, model, usage; never the key) and draft generation: `{title, level, sectionId, tags, existingBody?, context?, guidance?}` returns `{body, model, warnings}`. 503 `ai_not_configured` without a key; 429 at the daily cap. The body is validated against the published-question bar with one corrective retry. Nothing is saved or published by this call |
 | `POST /mcp` | none (anonymous, public content only; needs `MCP_ENABLED=true`; Origin check; 120/min per IP; exempt from the CSRF header rule: no cookies involved) | JSON-RPC 2.0: `initialize`, `ping`, `tools/list`, `tools/call` (`list_rounds`, `search_questions`, `get_question`). 202 for notifications, 405 for GET |
 | `GET /reminders/unsubscribe?token=` | token | HTML confirmation page (never changes state) |
 | `POST /reminders/unsubscribe?token=` | token (exempt from the CSRF header rule: no cookies involved) | Turns reminders off; also the RFC 8058 one-click target |
@@ -539,7 +541,7 @@ content/*.md ──────▶│ build/content (marked + highlight.js) → 
 ```
 
 - **One format.** `content/*.md` (front matter + `## Question` + `<!-- id, level, tags, minutes -->` + answer) is the seed, the export format and the static build input. Export → parse is tested to round-trip exactly.
-- **Two renderers, one contract.** The TypeScript compiler (static builds) and the Go renderer (server mode) produce the same document structure. CI renders all 165 answers with both and compares them with highlighting spans stripped (`TestParityWithStaticBuild`), and a unit test asserts both accept exactly the same fence languages.
+- **Two renderers, one contract.** The TypeScript compiler (static builds) and the Go renderer (server mode) produce the same document structure. CI renders all 210 answers with both and compares them with highlighting spans stripped (`TestParityWithStaticBuild`), and a unit test asserts both accept exactly the same fence languages.
 - **Rendered at write time.** The server stores HTML next to the Markdown, so reads are a plain SELECT and the preview equals what learners will see.
 - **Languages:** ts, tsx, js, jsx, html, xml, css, bash/sh/shell, json, yaml/yml, graphql, diff, http, text/txt, plus go/golang, sql, python/py, dockerfile/docker, proto/protobuf, toml, ini, hcl/terraform/tf (ready for backend and cloud topics).
 
@@ -691,7 +693,7 @@ Admins see per-learner summaries computed on the server (done counts per topic, 
 | --- | --- | --- | --- |
 | Go unit | `go test` | Markdown rendering (callouts, safety, code figures, every language), catalog parse/validate/export round-trip, progress parse/merge/summary | 15 |
 | Go integration | `go test` + real Postgres (`TEST_DATABASE_URL`) | Every API flow through HTTP: bootstrap, invite policy, roles, disabling, expiry/revocation, open registration, members-only, settings, full CMS lifecycle, revisions and trash, ETag, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth against a fake GitHub, concurrent invite race, serverless entry, email reminders (cron, claim, retry, unsubscribe), community submissions (limits, invisibility, approve/credit/notify, double approval, reject, withdraw, pause) | 16 |
-| Renderer parity | `go test` + TS fixture | All 165 answers identical (modulo highlighting) between Go and TypeScript renderers | 1 |
+| Renderer parity | `go test` + TS fixture | All 210 answers identical (modulo highlighting) between Go and TypeScript renderers | 1 |
 | TS unit | `node --test` | Walkthrough compiler (symbol lookup, block extraction, links, excerpts, broken references, fences left alone), compiler, progress model, search, selectors, Artifact sync, summaries, server sync over HTTP (no redundant writes), language-list parity | 37 |
 | E2E static | Playwright | Studying flows, How it's built (index, walkthrough, deep link), Contribute without a backend, hosted Artifact build in a sandboxed CSP frame, mobile | 11 |
 | E2E full stack | Playwright + Go server + Postgres | Owner creates a topic and question with live preview, publishes, announces, switches a feature, invites; learner accepts, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves it, the learner sees it credited | 4 |

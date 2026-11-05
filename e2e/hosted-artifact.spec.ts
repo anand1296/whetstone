@@ -36,7 +36,7 @@ test.describe('hosted artifact build', () => {
       await page.goto('https://artifact.test/');
       const app = page.frameLocator('iframe');
       await expect(app.getByRole('heading', { level: 1 })).toHaveText(/Your interview loop/);
-      await expect(app.locator('.loop-ring')).toContainText('/165');
+      await expect(app.locator('.loop-ring')).toContainText('/210');
 
       // Core interaction works even when storage is blocked (no allow-same-origin).
       await app.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Accessibility' }).click();
@@ -44,7 +44,7 @@ test.describe('hosted artifact build', () => {
       await app.locator('.q').first().getByRole('button', { name: 'Reveal answer' }).click();
       await expect(app.locator('.q').first().locator('.callout-tldr')).toBeVisible();
       await app.locator('.q').first().getByRole('checkbox').check();
-      await expect(app.locator('.section-progress')).toContainText('1 of 6 done');
+      await expect(app.locator('.section-progress')).toContainText('1 of 8 done');
       expect(errors).toEqual([]);
     });
   }

@@ -27,6 +27,10 @@ const (
 	maxNewSectionTitle = 120
 )
 
+// questionOnlyStandIn satisfies the published-question bar so the other fields of a
+// question-only submission can be validated. It is never stored or shown.
+var questionOnlyStandIn = "> [!TLDR]\n> Placeholder summary for a submission that has no answer yet.\n\n" + strings.Repeat("Placeholder body text. ", 12)
+
 type submissionInput struct {
 	SectionID       string   `json:"sectionId"`
 	NewSectionTitle string   `json:"newSectionTitle"`
@@ -48,9 +52,21 @@ func (s *Server) checkSubmission(ctx context.Context, in *submissionInput) (cata
 	if in.Minutes == 0 {
 		in.Minutes = 10
 	}
-	q := catalog.Question{ID: "submission", SectionID: in.SectionID, Title: in.Title, Level: in.Level, Tags: in.Tags, Minutes: in.Minutes, Body: in.Body, Published: true}
+	// A question without an answer is welcome: a reviewer can draft the answer (by hand or with
+	// the AI tool). The rest of the submission is still validated, using a stand-in body.
+	questionOnly := strings.TrimSpace(in.Body) == ""
+	checked := in.Body
+	if questionOnly {
+		checked = questionOnlyStandIn
+	}
+	q := catalog.Question{ID: "submission", SectionID: in.SectionID, Title: in.Title, Level: in.Level, Tags: in.Tags, Minutes: in.Minutes, Body: checked, Published: true}
 	q.Normalize()
-	in.Title, in.Level, in.Tags, in.Body = q.Title, q.Level, q.Tags, q.Body
+	in.Title, in.Level, in.Tags = q.Title, q.Level, q.Tags
+	if questionOnly {
+		in.Body = ""
+	} else {
+		in.Body = q.Body
+	}
 	compiled, problems := s.compiler.Check(q)
 	switch {
 	case in.NewSectionTitle != "":

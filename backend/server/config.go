@@ -39,6 +39,12 @@ type Config struct {
 	CronSecret string
 	// MCPEnabled turns on the read-only MCP endpoint (POST /api/mcp). Off unless MCP_ENABLED=true.
 	MCPEnabled bool
+	// AIAPIKey (ANTHROPIC_API_KEY) enables admin "Generate answer with AI". Set it only in the
+	// deployment's Environment Variables. AIModel, AIBaseURL and AIDailyLimit are optional tuning.
+	AIAPIKey     string
+	AIModel      string
+	AIBaseURL    string
+	AIDailyLimit int
 }
 
 // ConfigFromEnv reads Config from environment variables.
@@ -52,6 +58,7 @@ func ConfigFromEnv() Config {
 		}
 	}
 	smtpPort, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
+	aiLimit, _ := strconv.Atoi(os.Getenv("AI_DAILY_LIMIT"))
 	return Config{
 		DatabaseURL:        firstEnv("DATABASE_URL", "POSTGRES_URL"),
 		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
@@ -69,6 +76,10 @@ func ConfigFromEnv() Config {
 		EmailFrom:          os.Getenv("EMAIL_FROM"),
 		CronSecret:         os.Getenv("CRON_SECRET"),
 		MCPEnabled:         os.Getenv("MCP_ENABLED") == "true" || os.Getenv("MCP_ENABLED") == "1",
+		AIAPIKey:           os.Getenv("ANTHROPIC_API_KEY"),
+		AIModel:            os.Getenv("AI_MODEL"),
+		AIBaseURL:          os.Getenv("AI_BASE_URL"),
+		AIDailyLimit:       aiLimit,
 	}
 }
 

@@ -187,6 +187,29 @@ export interface Submission {
   reviewedAt: string | null;
 }
 
+export interface AiStatus {
+  configured: boolean;
+  model?: string;
+  usedToday?: number;
+  dailyLimit?: number;
+}
+
+export interface AiAnswerRequest {
+  title: string;
+  level: Level;
+  sectionId: string;
+  tags: string[];
+  existingBody?: string;
+  context?: string;
+  guidance?: string;
+}
+
+export interface AiAnswer {
+  body: string;
+  model: string;
+  warnings: Array<{ field: string; message: string }>;
+}
+
 export interface SubmissionInput {
   sectionId: string;
   newSectionTitle: string;
@@ -285,6 +308,9 @@ export const consoleApi = {
   approveSubmission: (id: number, question: QuestionInput, note: string) =>
     api<Submission>(`/admin/submissions/${id}/approve`, json('POST', { question, note })),
   rejectSubmission: (id: number, note: string) => api<Submission>(`/admin/submissions/${id}/reject`, json('POST', { note })),
+
+  aiStatus: () => api<AiStatus>('/admin/ai'),
+  aiAnswer: (input: AiAnswerRequest) => api<AiAnswer>('/admin/ai/answer', json('POST', input)),
 
   ideas: (status: 'pending' | 'open' | 'all' = 'pending') => api<Idea[]>(`/admin/ideas?status=${status}`),
   acceptIdea: (id: number, input: AcceptIdeaInput) => api<Idea>(`/admin/ideas/${id}/accept`, json('POST', input)),

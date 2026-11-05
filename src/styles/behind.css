@@ -552,3 +552,43 @@
     grid-column: 2;
   }
 }
+
+.status-chip[data-status='needs-answer'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ai-answer {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.ai-answer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.ai-guidance {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.ai-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--step--1);
+}
+
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: var(--step--1);
+  font-weight: 400;
+}

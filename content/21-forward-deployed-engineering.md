@@ -511,3 +511,91 @@ They mostly come from prep sites that collect candidate write-ups. Wording is ap
 3. **Practice out loud** with a partner who plays an unhelpful, vague customer.
 4. **Review:** did you ask before answering, name assumptions, and finish with a plan?
 5. **Prepare four stories** (pushback, wrong, incident, impact) with numbers.
+
+## Early-career path into FDE: the skills to build and the projects that signal readiness
+<!--
+id: fde-early-career-preparation
+level: junior
+tags: fde, junior, preparation, projects, skills, portfolio, communication, career
+minutes: 10
+-->
+
+> [!PROMPT]
+> You are a junior or early-career engineer interested in forward deployed engineering. What skills matter, what projects would convince an interviewer, and how do you prepare for the loop?
+
+> [!TLDR]
+> FDE roles reward engineers who can code well and also understand customers. Build a base in a general-purpose language (Python or TypeScript), SQL, APIs and data wrangling, debugging and Git, then add applied AI basics (calling an LLM API, retrieval, evaluating outputs) and clear communication. Projects that signal readiness solve a messy real problem end to end: integrate two data sources, build a small tool for a real user (a club, a family business, a campus office), deploy it, measure whether it helped and write up what you learned. Practice explaining trade-offs aloud, running a discovery conversation, and breaking a vague problem into steps.
+
+### Skills to build
+
+| Area | Why it matters |
+| --- | --- |
+| Python or TypeScript, plus SQL | Daily tools for integration and analysis |
+| APIs and data formats (REST, JSON, CSV, webhooks) | Customers' systems are messy and varied |
+| Debugging and reading unfamiliar code | You work in someone else's environment |
+| Applied AI basics | Calling models, retrieval, evals, cost awareness |
+| Communication | Writing status updates, asking good questions, explaining trade-offs |
+
+### Projects that stand out
+
+1. **Messy-data integration:** pull from two real sources (a spreadsheet and an API), reconcile records, produce a dashboard; document the edge cases.
+2. **A tool for a real user:** talk to them first, write down what they actually needed, ship in small steps, collect feedback.
+3. **A small RAG app with evaluation:** a question set, a measured baseline, and one improvement you can show with numbers.
+4. **Write-ups:** a one-page case study per project (problem, constraints, decisions, result, what you would change).
+
+### Preparing for the loop
+
+- Practice the decomposition skeleton: clarify, metric, drivers, first slice, risks (see the decomposition question).
+- Do timed coding exercises on parsing, pagination, caching and SQL.
+- Prepare four stories about ownership, a mistake, a disagreement and impact.
+- Research the company's product and think about how a customer would use it.
+
+### Pitfalls
+
+Only tutorials with no real user; hiding what went wrong in a project; treating the role as pure consulting with no engineering depth.
+
+## Scope a customer pilot: success criteria, timeline, risks and the path to production
+<!--
+id: fde-scope-a-pilot
+level: lead
+tags: fde, pilot, scoping, success criteria, timeline, risk, stakeholders, production readiness
+minutes: 25
+-->
+
+> [!PROMPT]
+> A customer wants to "try AI" on their support operation and has agreed to a six-week pilot. How do you scope it so it can succeed and lead to a production decision?
+>
+> **Cover**
+> - Choosing the use case and defining success.
+> - The plan, owners and data access.
+> - Risks, stop conditions and the path to production.
+
+> [!TLDR]
+> A pilot should answer one question: is this worth deploying? Pick a narrow, high-volume, measurable use case, agree on success metrics and a baseline before building, name customer owners and data access dates, plan in weekly milestones with a usable version early, define what is out of scope, and set a decision meeting at the end with explicit criteria (continue, adjust or stop). Track risks weekly (data quality, access delays, security review, low adoption) and plan production needs (integration, monitoring, support, cost, compliance) during the pilot instead of after it.
+
+### The scoping checklist
+
+1. **Use case:** one workflow with enough volume to show an effect (for example, categorizing and drafting replies for the top five ticket types).
+2. **Success metrics and baseline:** handle time, first-response time, deflection rate, accuracy on a reviewed sample; measure the current numbers first.
+3. **Owners and cadence:** an executive sponsor, a day-to-day owner, a subject expert with scheduled hours, weekly demos.
+4. **Data and access:** what, from where, by when, with security approvals; a fallback sample if access slips.
+5. **Plan:** week 1 baseline and data access; weeks 2-3 first version on real examples; weeks 4-5 iterate with user feedback and evals; week 6 results and decision.
+6. **Out of scope:** write it down (new channels, full integration, other teams).
+
+### Risks and stop conditions
+
+| Risk | Mitigation |
+| --- | --- |
+| Data access delayed | Start with a sample; escalate early |
+| Accuracy not good enough | Evaluate on week 2; define a minimum bar and a stop rule |
+| Users do not adopt it | Involve them from week 1; put it in their tools |
+| Security or compliance blocks | Engage reviewers at kickoff |
+| Scope creep | Written scope and a change process |
+
+### From pilot to production
+
+Decide what must change: integration with real systems, monitoring and evaluation, cost per request, support ownership, fallback behavior, training and rollout. Present results with the baseline comparison, qualitative feedback, remaining gaps and a costed production plan.
+
+### Pitfalls
+
+Success defined as "users like it"; skipping the baseline; building a demo that cannot be productionized; letting the pilot drift without a decision date.

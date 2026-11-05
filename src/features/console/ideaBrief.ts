@@ -2,7 +2,7 @@ import type { Level } from '../../content/types.ts';
 import { facetLabel } from '../../content/facets.ts';
 import type { Idea } from './consoleApi.ts';
 
-const LEVEL_NAME: Record<Level, string> = { senior: 'senior', lead: 'lead / staff', principal: 'principal' };
+const LEVEL_NAME: Record<Level, string> = { junior: 'junior', senior: 'senior', lead: 'lead / staff', principal: 'principal' };
 
 /**
  * A ready-to-paste prompt for writing the answers of an accepted idea, in the

@@ -485,3 +485,81 @@ test('a slow earlier response does not overwrite a newer one', async () => {
 - [Testing Library: renderHook](https://testing-library.com/docs/react-testing-library/api/#renderhook)
 - [Vitest: Fake timers](https://vitest.dev/guide/mocking.html#timers)
 - [Kent C. Dodds: Fix the "not wrapped in act(...)" warning](https://kentcdodds.com/blog/fix-the-not-wrapped-in-act-warning)
+
+## Unit, integration and end-to-end tests: the testing pyramid, the trophy and what to test where
+<!--
+id: testing-levels-pyramid-trophy
+level: junior
+tags: testing, unit tests, integration tests, e2e, pyramid, trophy, fundamentals
+minutes: 8
+-->
+
+> [!PROMPT]
+> Explain the difference between unit, integration and end-to-end tests. Where does a frontend team get the most value, and what would you test for a login form?
+
+> [!TLDR]
+> Unit tests check small pieces (a function, a hook) in isolation and run fast; integration tests check several units working together (a component with its children, state and a mocked network); end-to-end tests drive a real browser through real flows and give the most confidence but are slower and more brittle. The classic pyramid prefers many units and few E2E; for UI work the "testing trophy" argues most value is in integration tests that render components the way users use them, backed by static analysis (TypeScript, ESLint) at the base and a few E2E tests for critical journeys. Choose the cheapest test that would catch the bug.
+
+### For a login form
+
+| Level | What to test |
+| --- | --- |
+| Unit | Email validation function, error message mapping |
+| Integration | Render the form; type credentials; submit; assert the API call (mocked) and the error or redirect UI; keyboard submission; disabled state while loading |
+| E2E | One happy path against a test environment: sign in and reach the dashboard; maybe one failure path |
+| Static | Types for the API response; lint for accessibility rules |
+
+### Guidelines
+
+- Test behavior users see, not implementation details (state variable names, internal calls).
+- Keep tests independent and deterministic; control time, randomness and the network.
+- A failing test should point to the cause quickly: smaller tests are better at that.
+- Do not chase 100% coverage; cover risk: money, auth, data loss and complex logic.
+
+### Pitfalls
+
+Only E2E tests (slow, flaky); only shallow unit tests that mock everything and pass while the app is broken; snapshot tests nobody reads.
+
+## Test doubles: mocks, stubs, spies and fakes, and when mocking hurts you
+<!--
+id: testing-test-doubles
+level: senior
+tags: testing, mocks, stubs, spies, fakes, jest, vitest, dependency injection
+minutes: 12
+-->
+
+> [!PROMPT]
+> Define stub, mock, spy and fake, and explain when you would use each. A teammate mocks every module in every test and the suite is green while production is broken. What went wrong and how do you fix the approach?
+
+> [!TLDR]
+> A **stub** returns canned answers, a **spy** records how it was called (while possibly calling through), a **mock** is a spy with pre-programmed expectations about calls, and a **fake** is a working lightweight implementation (an in-memory repository, a fake clock). Prefer fakes and boundary-level stubs (the network with MSW, time with fake timers) over mocking your own modules, because mocking internals ties tests to implementation and lets them pass when real integration is broken. Mock at the system boundary (HTTP, clock, randomness, third-party SDKs), inject dependencies so they can be swapped, and keep a small number of tests that use the real thing.
+
+### Quick reference
+
+| Double | Purpose | Example |
+| --- | --- | --- |
+| Stub | Provide fixed data | `getUser` always returns `{ id: 1 }` |
+| Spy | Verify calls | `expect(track).toHaveBeenCalledWith('clicked')` |
+| Mock | Spy with expectations built in | Library-specific; same idea |
+| Fake | Simplified real behavior | In-memory `Map` instead of a database |
+
+### What went wrong
+
+Over-mocking: every collaborator is replaced, so the test verifies that mocks were called, not that the system works. Changing an internal function breaks tests without a bug, and breaking the integration breaks nothing.
+
+### Better approach
+
+```ts
+// Boundary stub: realistic network behavior, no module mocking
+server.use(http.get('/api/user', () => HttpResponse.json({ id: 1, name: 'Ada' })));
+
+// Fake time
+vi.useFakeTimers(); vi.setSystemTime(new Date('2026-01-01'));
+
+// Dependency injection
+function createCheckout({ payments, clock }: Deps) { /* ... */ }
+```
+
+### Guidelines
+
+Assert outcomes (rendered UI, returned values) before interactions; reset mocks between tests; avoid asserting call counts unless the call itself is the requirement (analytics, payments); add contract tests where a service boundary exists.
