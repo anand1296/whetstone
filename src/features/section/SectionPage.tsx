@@ -150,7 +150,7 @@ export function SectionPage({ section, focusId, focusAt }: Props) {
     <article className="page section-page">
       <header className="page-header">
         <p className="eyebrow">
-          Round {position + 1} of {sections.length} · {plural(section.questions.length, 'question')} · about {formatMinutes(minutes)}
+          Topic {position + 1} of {sections.length} · {plural(section.questions.length, 'question')} · about {formatMinutes(minutes)}
         </p>
         <h1>
           {section.title}
@@ -205,8 +205,8 @@ export function SectionPage({ section, focusId, focusAt }: Props) {
       )}
 
       {nextSection ? (
-        <nav className="next-section" aria-label="Next round">
-          <span className="eyebrow">Next round</span>
+        <nav className="next-section" aria-label="Next topic">
+          <span className="eyebrow">Next topic</span>
           <button type="button" className="next-section-link" onClick={() => navigate({ name: 'section', sectionId: nextSection.id })}>
             {nextSection.title}
             <Icon name="arrowRight" />

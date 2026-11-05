@@ -234,14 +234,14 @@ func writeProblems(w http.ResponseWriter, problems catalog.Problems) {
 func (s *Server) storeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, store.ErrNoSection):
-		writeProblems(w, catalog.Problems{{Field: "sectionId", Message: "that round doesn't exist"}})
+		writeProblems(w, catalog.Problems{{Field: "sectionId", Message: "that topic doesn't exist"}})
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "That item doesn't exist (it may have been deleted).")
 	case errors.Is(err, store.ErrConflict):
 		writeError(w, http.StatusConflict, "conflict", "Someone saved this question after you opened it. Reload to see their version, then re-apply your change.")
 	case errors.Is(err, store.ErrIDTaken):
 		writeJSON(w, http.StatusConflict, map[string]apiError{"error": {Code: "id_taken", Message: err.Error(),
-			Problems: []catalog.FieldError{{Field: "id", Message: "is already used by another round or question"}}}})
+			Problems: []catalog.FieldError{{Field: "id", Message: "is already used by another topic or question"}}}})
 	case errors.Is(err, store.ErrInvalidList):
 		writeError(w, http.StatusBadRequest, "invalid_order", err.Error())
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):

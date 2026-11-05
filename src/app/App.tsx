@@ -103,7 +103,7 @@ function AppShell() {
       </a>
 
       <header className="topbar">
-        <button type="button" className="icon-btn" aria-label="Open rounds menu" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)}>
+        <button type="button" className="icon-btn" aria-label="Open topics menu" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)}>
           <Icon name="menu" />
         </button>
         <button type="button" className="brand brand-compact" onClick={() => navigate({ name: 'overview' })}>

@@ -1,5 +1,5 @@
 import type { Level } from '../../content/types.ts';
-import { topicLabel } from '../../content/topics.ts';
+import { facetLabel } from '../../content/facets.ts';
 import type { Idea } from './consoleApi.ts';
 
 const LEVEL_NAME: Record<Level, string> = { senior: 'senior', lead: 'lead / staff', principal: 'principal' };
@@ -12,8 +12,8 @@ const LEVEL_NAME: Record<Level, string> = { senior: 'senior', lead: 'lead / staf
  */
 export function authoringBrief(idea: Idea): string {
   const lines: string[] = [];
-  lines.push(`Write the model answers for a new round of the Whetstone interview-prep bank: "${idea.sectionTitle || idea.title}".`);
-  if (idea.topics.length > 0) lines.push(`Topics: ${idea.topics.map(topicLabel).join(', ')}.`);
+  lines.push(`Write the model answers for a new topic of the Whetstone interview-prep bank: "${idea.sectionTitle || idea.title}".`);
+  if (idea.facets.length > 0) lines.push(`Topics: ${idea.facets.map(facetLabel).join(', ')}.`);
   if (idea.details) lines.push(`Why it matters / scope (from the person who suggested it): ${idea.details}`);
   lines.push('');
   lines.push('Follow docs/CONTENT_GUIDE.md. For each question below, write one Markdown answer that:');

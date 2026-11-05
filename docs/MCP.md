@@ -31,11 +31,11 @@ Version negotiation: the client proposes a revision; if the server knows it, it 
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
-| `list_rounds` | none | Round ids, titles, descriptions and question counts |
+| `list_rounds` | none | Topic ids, titles, descriptions and question counts |
 | `search_questions` | `query` (required), `round`, `level`, `limit` (1-20) | Matching question metadata only (id, title, round, level, tags, minutes). Never answers |
 | `get_question` | `id` (required), `reveal_answer` (default false), `framework` (`react`, `angular`, `vue`) | The question prompt (scenario, requirements, test cases). With `reveal_answer=true`, the full Markdown answer; `framework` drops the other frameworks' code to save tokens |
 
-All tools carry `readOnlyHint: true` and touch only published content. Drafts and unpublished rounds are never served.
+All tools carry `readOnlyHint: true` and touch only published content. Drafts and unpublished topics are never served.
 
 Design choices worth being able to explain:
 
@@ -74,7 +74,7 @@ MCP has a second primitive besides tools: **prompts**, reusable starting points 
 
 | Argument | Meaning |
 | --- | --- |
-| `topic` | What to be quizzed on, e.g. "react rendering". Empty means a mixed round |
+| `topic` | What to be quizzed on, e.g. "react rendering". Empty means a mix |
 | `level` | `senior`, `lead` or `principal` (anything else is an error) |
 | `questions` | 1 to 10, default 3 (out-of-range values fall back to the default) |
 

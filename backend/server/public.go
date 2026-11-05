@@ -31,7 +31,7 @@ type readerSection struct {
 	Title       string           `json:"title"`
 	Description string           `json:"description"`
 	Published   bool             `json:"published"`
-	Topics      []string         `json:"topics"`
+	Facets      []string         `json:"facets"`
 	Questions   []readerQuestion `json:"questions"`
 }
 
@@ -43,7 +43,7 @@ type readerContent struct {
 func toReader(idx store.Index) readerContent {
 	out := readerContent{Version: idx.Version, Sections: make([]readerSection, 0, len(idx.Sections))}
 	for _, sec := range idx.Sections {
-		rs := readerSection{ID: sec.ID, Title: sec.Title, Description: sec.Description, Published: sec.Published, Topics: topicsOrEmpty(sec.Topics), Questions: make([]readerQuestion, 0, len(sec.Questions))}
+		rs := readerSection{ID: sec.ID, Title: sec.Title, Description: sec.Description, Published: sec.Published, Facets: facetsOrEmpty(sec.Facets), Questions: make([]readerQuestion, 0, len(sec.Questions))}
 		for _, q := range sec.Questions {
 			rs.Questions = append(rs.Questions, readerQuestion{q.ID, q.SectionID, q.Title, q.Level, q.Tags, q.Minutes, q.Summary, q.SearchText, q.Published, q.Contributor})
 		}
@@ -69,7 +69,7 @@ func (s *Server) canRead(r *http.Request) bool {
 }
 
 // bootstrap is the one request the app makes before its first render: who am
-// I, what is switched on, and the content outline. Answers load per round.
+// I, what is switched on, and the content outline. Answers load per topic.
 func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 	snap := s.settings(r.Context())
 	user, signedIn := currentUser(r)
@@ -109,7 +109,7 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, body)
 }
 
-// sectionAnswers serves one round's answer HTML, revalidated by content version (ETag).
+// sectionAnswers serves one topic's answer HTML, revalidated by content version (ETag).
 func (s *Server) sectionAnswers(w http.ResponseWriter, r *http.Request) {
 	if !s.canRead(r) {
 		writeError(w, http.StatusUnauthorized, "signed_out", "Sign in to read this content.")
@@ -215,7 +215,7 @@ func (s *Server) deleteMe(w http.ResponseWriter, r *http.Request, user store.Use
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-func topicsOrEmpty(t []string) []string {
+func facetsOrEmpty(t []string) []string {
 	if t == nil {
 		return []string{}
 	}

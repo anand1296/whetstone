@@ -2,7 +2,7 @@
 id: async-utilities
 title: Async Patterns & JS Machine Coding
 description: The utilities interviewers ask you to write from scratch, done properly: promises vs async/await, promise combinators, pools with cancellation, retries, debounce, caches and emitters.
-topics: frontend, javascript
+facets: frontend, javascript
 ---
 
 ## Promises vs async/await: what actually differs, with the ordering, error and parallelism traps

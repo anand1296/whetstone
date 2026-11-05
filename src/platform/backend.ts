@@ -72,7 +72,7 @@ export interface ServerState {
   locked: boolean;
   /** Admins only: community question submissions waiting for review. */
   pendingSubmissions: number;
-  /** Admins only: suggested topics waiting for review. */
+  /** Admins only: suggested facets waiting for review. */
   pendingIdeas: number;
 }
 
@@ -137,8 +137,8 @@ export function parseSections(value: unknown): SectionMeta[] {
   return value.flatMap((raw): SectionMeta[] => {
     if (!isRecord(raw) || typeof raw.id !== 'string') return [];
     const questions = Array.isArray(raw.questions) ? raw.questions.map(parseQuestion).filter((q): q is QuestionMeta => q !== null) : [];
-    const topics = Array.isArray(raw.topics) ? raw.topics.filter((t): t is string => typeof t === 'string') : [];
-    return [{ id: raw.id, title: str(raw.title), description: str(raw.description), published: raw.published !== false, topics, questions }];
+    const facets = Array.isArray(raw.facets) ? raw.facets.filter((t): t is string => typeof t === 'string') : [];
+    return [{ id: raw.id, title: str(raw.title), description: str(raw.description), published: raw.published !== false, facets, questions }];
   });
 }
 

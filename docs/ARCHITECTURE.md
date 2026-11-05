@@ -18,7 +18,7 @@ This document covers the frontend in depth. The backend, data model, API and ope
 │                      │                    │      │      └──▶ optional cloud doc                │
 │                      ▼                    │      │           (claude.ai Artifact `db`,         │
 │  virtual modules ──▶ Vite / esbuild ──────┼─────▶│            data/users/<uid>/progress)       │
-│  (index + per-round chunks)               │      └─────────────────────────────────────────────┘
+│  (index + per-topic chunks)               │      └─────────────────────────────────────────────┘
 └──────────────────────────────────────────┘
 
 server mode (run time)
@@ -48,7 +48,7 @@ virtual:content/section/<id>       export default { questionId: "<html>" }
 
 - **Pure core, thin adapters.** `build/content/compile.ts` has no bundler knowledge. `build/vite-plugin-content.ts` (dev server + production build) and `scripts/build-single-file.ts` (esbuild) are ~40-line adapters around it. `scripts/check-content.ts` uses it for CI validation.
 - **Fail the build, not the reader.** Missing TL;DR, unknown level, unsupported code language, duplicate ids, unknown callouts and malformed meta all throw `ContentError` with `file:line "Question"`.
-- **Code splitting by round.** The eager index holds only metadata and search text (small); each round's answer HTML is a separate chunk loaded on first visit, and pre-loaded on hover/focus of its navigation entry.
+- **Code splitting by topic.** The eager index holds only metadata and search text (small); each topic's answer HTML is a separate chunk loaded on first visit, and pre-loaded on hover/focus of its navigation entry.
 
 ## 3. Runtime modules
 
@@ -65,8 +65,8 @@ src/
   features/howItsBuilt/       "How it's built": walkthrough index + reader (virtual:walkthroughs, lazy bodies)
   features/contribute/        Contribute page: question submission form, my submissions, PR guide
   app/App.tsx                 shell: sidebar, mobile drawer, top bar, view switch, global shortcuts
-  app/Sidebar.tsx             navigation with per-round progress
-  features/overview/          resume card, review card, loop ring, rounds list
+  app/Sidebar.tsx             navigation with per-topic progress
+  features/overview/          resume card, review card, loop ring, topics list
   features/section/           SectionPage (filters, open set, scroll/focus), QuestionItem (accordion),
                               Answer (React 19 use() + Suspense), notes, practice gate
   features/review/            due list + upcoming
@@ -143,19 +143,19 @@ Hash routing with a single bare token (`#review`, `#react-internals`, `#oauth-pk
 | Pattern | Where | Why |
 | --- | --- | --- |
 | `useSyncExternalStore` | `state/useStore.ts` | Tear-free subscriptions to module stores |
-| React 19 `use(promise)` + Suspense | `features/section/Answer.tsx` | Lazy answer chunks with a cached promise per round |
+| React 19 `use(promise)` + Suspense | `features/section/Answer.tsx` | Lazy answer chunks with a cached promise per topic |
 | Error boundary with retry (cache eviction on failure) | `components/primitives.tsx`, `content/index.ts` | Failed chunk loads are recoverable |
 | Adjusting state during render | `SectionPage` (focus from navigation), `SearchDialog` (reset highlight) | Avoids effect-driven double renders |
 | Effects only for external sync | dialogs (`showModal`), scroll/focus, timers, global keydown | "Effects are synchronization" |
 | `memo` on accordion items + stable callbacks | `QuestionItem`, `SectionPage` | Toggling one item doesn't re-render all |
 | `useDeferredValue` | Search | Keeps typing responsive |
-| `key` to reset per-round state | `App` → `<SectionPage key={id}>` | Clean state when switching rounds |
+| `key` to reset per-topic state | `App` → `<SectionPage key={id}>` | Clean state when switching topics |
 | Native `<dialog>` | Search, settings, mobile drawer | Focus trap, Escape, inert background for free |
 
 ## 8. Performance
 
 - No markdown parser or highlighter in the client bundle (build-time HTML).
-- Answer HTML split per round; preloaded on intent.
+- Answer HTML split per topic; preloaded on intent.
 - Accordion panels mount content only when open.
 - CSS is plain, token-based, ~25 KB unminified.
 - Fonts: three Google families with `display=swap` and system fallbacks.
@@ -190,5 +190,5 @@ Hash routing with a single bare token (`#review`, `#react-internals`, `#oauth-pk
 
 - **Server optional:** local-only deployments have no cross-device sync outside hosts that provide a per-user store; export/import covers the rest. Deploy the Go backend for accounts and sync.
 - **Boot waits for one request** in the web build (the backend probe); the single-file build skips it.
-- **Content in the bundle:** ~1 MB of HTML in the single-file build (≈250 KB gzipped). Acceptable for a study app; the Vite build splits it per round.
+- **Content in the bundle:** ~1 MB of HTML in the single-file build (≈250 KB gzipped). Acceptable for a study app; the Vite build splits it per topic.
 - **Custom store and router:** less ecosystem tooling (no Redux DevTools), but tiny and fully understood. Swap in TanStack Router/Zustand if the app grows.

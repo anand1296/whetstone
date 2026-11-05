@@ -19,7 +19,7 @@ function Row({ me, person, rounds, now, onChanged }: { me: ServerUser; person: P
   const { busy, flash, run } = useAction();
   const [confirmRemove, setConfirmRemove] = useState(false);
   const { summary } = person;
-  const finished = rounds.filter((r) => r.total > 0 && (summary.byRound[r.id] ?? 0) >= r.total).length;
+  const finished = topics.filter((r) => r.total > 0 && (summary.byRound[r.id] ?? 0) >= r.total).length;
   const studying = rounds.find((r) => r.id === summary.lastSectionId)?.title ?? '—';
   const manageable = canManage(me, person);
 
@@ -48,7 +48,7 @@ function Row({ me, person, rounds, now, onChanged }: { me: ServerUser; person: P
           <span className="tabular">{percent(summary.doneCount, summary.total)}%</span>
         </span>
         <span className="cell-sub tabular">
-          {summary.doneCount}/{summary.total} · {finished} rounds finished · {summary.dueCount} due
+          {summary.doneCount}/{summary.total} · {finished} topics finished · {summary.dueCount} due
         </span>
       </td>
       <td>

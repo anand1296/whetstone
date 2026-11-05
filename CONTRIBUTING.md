@@ -19,7 +19,7 @@ The format is described in [docs/CONTENT_GUIDE.md](docs/CONTENT_GUIDE.md).
 
 ## 1b. Suggest a whole new topic
 
-Missing an area entirely (Kubernetes for SREs, Go concurrency, test automation)? Use **Suggest a topic** above the rounds in the app (or on **Contribute**), or open a [topic suggestion](https://github.com/anand1296/whetstone/issues/new?template=topic.yml) issue. Starter questions are optional; you don't need to write answers. If the owner accepts it, the answers are written in the same depth as the rest of the bank, and you can follow it from **Contribute** until it's live.
+Missing an area entirely (Kubernetes for SREs, Go concurrency, test automation)? Use **Suggest a topic** above the topics in the app (or on **Contribute**), or open a [topic suggestion](https://github.com/anand1296/whetstone/issues/new?template=topic.yml) issue. Starter questions are optional; you don't need to write answers. If the owner accepts it, the answers are written in the same depth as the rest of the bank, and you can follow it from **Contribute** until it's live.
 
 ## 2. Improve the code with a pull request
 

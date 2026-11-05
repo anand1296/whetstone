@@ -240,7 +240,7 @@ export function SettingsDialog({ open, onClose, onSignIn }: { open: boolean; onC
           </p>
           {role === 'learner' ? (
             <p className="settings-copy">
-              The person who shared this app can see a summary of your progress: questions done per round and when you were last
+              The person who shared this app can see a summary of your progress: questions done per topic and when you were last
               active. Your notes and review dates stay private to you.
             </p>
           ) : null}

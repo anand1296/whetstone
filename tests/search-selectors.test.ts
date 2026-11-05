@@ -15,14 +15,14 @@ const sections: SectionMeta[] = [
     id: 'js',
     title: 'JavaScript',
     description: '',
-    topics: [],
+    facets: [],
     questions: [q('loop', 'js', 'Explain the event loop', ['event loop']), q('closures', 'js', 'Closures and memory leaks', ['memory'])],
   },
   {
     id: 'react',
     title: 'React',
     description: '',
-    topics: [],
+    facets: [],
     questions: [
       q('effects', 'react', 'When you do not need `useEffect`', ['effects'], 'Effects synchronize with external systems'),
       q('memo', 'react', 'When does a component re-render?', ['memo', 'performance']),

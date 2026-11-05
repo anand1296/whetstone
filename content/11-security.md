@@ -2,7 +2,7 @@
 id: security
 title: Frontend Security
 description: XSS in React apps, CSP and Trusted Types, token storage and the BFF pattern, protected routes, CSRF with SameSite cookies, OAuth with PKCE, and supply-chain risk.
-topics: frontend
+facets: frontend
 ---
 
 ## XSS in React apps: where React protects you, where it doesn't, and how to sanitize

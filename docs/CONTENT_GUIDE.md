@@ -3,7 +3,7 @@
 Questions can be written in two places, with the same rules:
 
 - **The admin console** (deployments with the Go backend): Admin → Content. Live preview, drafts, history; changes are live immediately. See docs/ADMIN.md.
-- **`content/*.md` in the repository**, one file per round. They are compiled into static builds, seeded into a new database, and imported into an existing one with *Sync from repository*. `npm run content:check` validates everything and prints a summary table.
+- **`content/*.md` in the repository**, one file per topic. They are compiled into static builds, seeded into a new database, and imported into an existing one with *Sync from repository*. `npm run content:check` validates everything and prints a summary table.
 
 The console's *Export* produces exactly this file format, so content can move between the two in either direction.
 
@@ -14,7 +14,7 @@ The console's *Export* produces exactly this file format, so content can move be
 id: browser-platform
 title: Browser & Web Platform
 description: One line shown on the overview.
-topics: frontend, react
+facets: frontend, react
 ---
 
 ## The question exactly as an interviewer would ask it
@@ -32,11 +32,11 @@ minutes: 15
 ...
 ```
 
-**`topics`** (comma separated) tags the round with filter chips on the overview. The allowed ids are listed in [`content/topics.json`](../content/topics.json) (role, language, framework, platform). A chip is selectable as soon as one published round carries it; chips nobody carries yet show as "Coming soon". Rounds without topics are never matched by a chip filter, so always set at least one. In the console, pick topics in the round editor; **Sync from repository** refreshes topics on existing rounds.
+**`facets`** (comma separated) tags the topic for the overview filters: a role (`frontend`, `backend`, `sre`, `design`...), plus an optional language, framework or platform. The allowed ids are in [`content/facets.json`](../content/facets.json), which also defines the one-tap *tracks*. A track or facet is selectable as soon as one published topic carries it; the rest show as "Coming soon". A tag in a row narrows the list, but a topic with *no* tag in that row (a general topic, such as Accessibility under frameworks) always stays visible, so tag only what a topic is specifically about. Always set a role. In the console, pick facets in the topic editor; **Sync from repository** refreshes facets on existing topics.
 
 | Field | Rules |
 | --- | --- |
-| Round `id` | kebab-case, unique across rounds **and** questions (both are URL tokens) |
+| Topic `id` | kebab-case, unique across topics **and** questions (both are URL tokens) |
 | Question `id` | kebab-case, permanent: progress is keyed by it |
 | `level` | `senior`, `lead` or `principal` |
 | `tags` | comma-separated, lower-case; the first three show in the list |
@@ -44,7 +44,7 @@ minutes: 15
 
 Lines in these blocks are plain `key: value`; a line starting with `#` is a comment, but trailing comments on a value line are not supported.
 
-- File names sort the rounds (`01-…`, `02-…`). Questions appear in file order, which should go from foundational to advanced.
+- File names sort the topics (`01-…`, `02-…`). Questions appear in file order, which should go from foundational to advanced.
 - `##` starts a new question. Use `###`/`####` inside answers. `##` inside fenced code is ignored.
 - **Ids are permanent.** Renaming a question's title is fine; changing its `id` resets everyone's progress for it.
 
@@ -128,19 +128,19 @@ Use the parts that fit; not every question needs all of them.
 
 ## Rules enforced by the console (and, for repository files, by the Go tests in CI)
 
-- Ids: kebab-case, at most 80 characters, unique across rounds **and** questions, and not one of `review`, `admin`, `console`, `invite`, `api`.
-- Titles are one line, at most 200 characters; round descriptions at most 300.
+- Ids: kebab-case, at most 80 characters, unique across topics **and** questions, and not one of `review`, `admin`, `console`, `invite`, `api`.
+- Titles are one line, at most 200 characters; topic descriptions at most 300.
 - 1–12 tags, each at most 40 characters, no commas.
 - Inside an answer, use `###` or deeper: a `##` heading would start a new question in the file format.
 - Published answers need a `> [!TLDR]` callout and at least 200 characters. Drafts (console only) may be incomplete.
 
-## Adding a round
+## Adding a topic
 
-In the console: Admin → Content → *New round*, then *New question*.
+In the console: Admin → Content → *New topic*, then *New question*.
 
 In the repository:
 
-1. Create `content/16-your-round.md` with front matter.
+1. Create `content/16-your-topic.md` with front matter.
 2. Add questions.
 3. `npm run content:check`, then `npm run dev` and review in the browser.
-4. The new round appears in navigation, the overview ring, search and review automatically. On a deployment with the backend, open Admin → Content → *Sync from repository* → *Add what's missing* after the deploy.
+4. The new topic appears in navigation, the overview ring, search and review automatically. On a deployment with the backend, open Admin → Content → *Sync from repository* → *Add what's missing* after the deploy.

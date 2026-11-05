@@ -264,7 +264,7 @@ export function AccountSection({ onSignIn }: { onSignIn: () => void }) {
           <p className="settings-copy">
             {isAdminRole(user.role)
               ? 'You can manage content, people and features from Admin in the sidebar.'
-              : 'Admins see a summary of your progress (questions done per round, last active). Your notes and review dates stay private.'}
+              : 'Admins see a summary of your progress (questions done per topic, last active). Your notes and review dates stay private.'}
           </p>
           <div className="button-row">
             <button

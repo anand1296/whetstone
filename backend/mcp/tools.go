@@ -57,9 +57,9 @@ func (s *Server) buildTools() []tool {
 	return []tool{
 		{
 			Name:  "list_rounds",
-			Title: "List interview rounds",
-			Description: "List the rounds (topic groups) of the Whetstone frontend interview question bank, each with its id, title, " +
-				"description and number of questions. Use a round id to narrow search_questions.",
+			Title: "List interview topics",
+			Description: "List the topics of the Whetstone frontend interview question bank, each with its id, title, " +
+				"description and number of questions. Use a topic id to narrow search_questions.",
 			InputSchema: object(nil, nil),
 			Annotations: readOnly,
 			call:        s.listRounds,
@@ -71,7 +71,7 @@ func (s *Server) buildTools() []tool {
 				"Returns metadata only (id, title, round, level, tags, minutes), never answers. Pass an id to get_question to read one.",
 			InputSchema: object(map[string]any{
 				"query": map[string]any{"type": "string", "minLength": 1, "maxLength": 100, "description": "Keywords, e.g. \"react suspense\" or \"csrf cookies\". Every word must match."},
-				"round": map[string]any{"type": "string", "description": "Optional round id from list_rounds to search within."},
+				"round": map[string]any{"type": "string", "description": "Optional topic id from list_rounds to search within."},
 				"level": map[string]any{"type": "string", "enum": []string{"senior", "lead", "principal"}, "description": "Optional seniority filter."},
 				"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 20, "default": 10, "description": "Maximum results."},
 			}, []string{"query"}),
@@ -186,7 +186,7 @@ func (s *Server) searchQuestions(ctx context.Context, args json.RawMessage) (too
 		return toolResult{}, err
 	}
 	if in.Round != "" && !hasRound(rounds, in.Round) {
-		return toolResult{}, userError(fmt.Sprintf("Unknown round %q. Call list_rounds to see valid ids.", in.Round))
+		return toolResult{}, userError(fmt.Sprintf("Unknown topic %q. Call list_rounds to see valid ids.", in.Round))
 	}
 
 	type hit struct {

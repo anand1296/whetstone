@@ -2,7 +2,7 @@
 id: typescript
 title: TypeScript for Real Codebases
 description: Model data so the compiler does the work: narrowing without assertions, inference-friendly generics, type-level programming, React typing and runtime boundaries.
-topics: frontend, javascript, typescript
+facets: frontend, javascript, typescript
 ---
 
 ## Model your data so you never need `as`: unions, narrowing, type guards and `satisfies`

@@ -2,7 +2,7 @@
 id: react-internals
 title: React Rendering & Internals
 description: How React turns state into pixels, reconciliation and diffing, when components re-render, Fiber and concurrent rendering, SSR and hydration, effects as synchronization, concurrent rendering, React 19, Server Components and the compiler.
-topics: frontend, react
+facets: frontend, react
 ---
 
 ## What exactly happens between `setState` and pixels on screen?

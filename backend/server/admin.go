@@ -50,11 +50,11 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, _ store.User)
 	for _, lp := range all {
 		people = append(people, person{User: lp.User, Summary: progress.Summarize(lp.Doc, outline, now), ProgressUpdatedAt: lp.UpdatedAt})
 	}
-	rounds := make([]map[string]any, 0, len(idx.Sections))
+	topics := make([]map[string]any, 0, len(idx.Sections))
 	for _, sec := range idx.Sections {
-		rounds = append(rounds, map[string]any{"id": sec.ID, "title": sec.Title, "total": len(sec.Questions)})
+		topics = append(topics, map[string]any{"id": sec.ID, "title": sec.Title, "total": len(sec.Questions)})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"users": people, "rounds": rounds})
+	writeJSON(w, http.StatusOK, map[string]any{"users": people, "rounds": topics})
 }
 
 func pathID(r *http.Request) (int64, bool) {
@@ -242,7 +242,7 @@ type sectionInput struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
-	Topics      []string `json:"topics"`
+	Facets      []string `json:"facets"`
 	Published   *bool    `json:"published"`
 }
 
@@ -251,7 +251,7 @@ func (s *Server) createSection(w http.ResponseWriter, r *http.Request, actor sto
 	if !decode(w, r, &in) {
 		return
 	}
-	sec := catalog.Section{ID: in.ID, Title: in.Title, Description: in.Description, Topics: in.Topics, Published: in.Published == nil || *in.Published}
+	sec := catalog.Section{ID: in.ID, Title: in.Title, Description: in.Description, Facets: in.Facets, Published: in.Published == nil || *in.Published}
 	sec.Normalize()
 	if problems := sec.Validate(); len(problems) > 0 {
 		writeProblems(w, problems)
@@ -268,7 +268,7 @@ func (s *Server) updateSection(w http.ResponseWriter, r *http.Request, actor sto
 	var in struct {
 		Title       *string  `json:"title"`
 		Description *string  `json:"description"`
-		Topics      []string `json:"topics"`
+		Facets      []string `json:"facets"`
 		Published   *bool    `json:"published"`
 	}
 	if !decode(w, r, &in) {
@@ -285,8 +285,8 @@ func (s *Server) updateSection(w http.ResponseWriter, r *http.Request, actor sto
 	if in.Description != nil {
 		sec.Description = *in.Description
 	}
-	if in.Topics != nil {
-		sec.Topics = in.Topics
+	if in.Facets != nil {
+		sec.Facets = in.Facets
 	}
 	if in.Published != nil {
 		sec.Published = *in.Published
@@ -483,7 +483,7 @@ func (s *Server) restoreRevision(w http.ResponseWriter, r *http.Request, actor s
 	} else {
 		err = s.store.CreateQuestion(r.Context(), actor.ID, q, compiled)
 		if errors.Is(err, store.ErrNoSection) {
-			writeError(w, http.StatusConflict, "section_missing", fmt.Sprintf("Its round %q no longer exists. Create a round with that id first, then restore.", q.SectionID))
+			writeError(w, http.StatusConflict, "section_missing", fmt.Sprintf("Its topic %q no longer exists. Create a topic with that id first, then restore.", q.SectionID))
 			return
 		}
 	}
@@ -581,7 +581,7 @@ func (s *Server) exportSection(w http.ResponseWriter, r *http.Request, _ store.U
 		return
 	}
 	if len(sections) == 0 {
-		writeError(w, http.StatusNotFound, "not_found", "No published round with that id.")
+		writeError(w, http.StatusNotFound, "not_found", "No published topic with that id.")
 		return
 	}
 	idx, _ := s.store.Index(r.Context(), false)
@@ -596,7 +596,7 @@ func (s *Server) exportSection(w http.ResponseWriter, r *http.Request, _ store.U
 	_, _ = w.Write([]byte(catalog.ExportFile(sections[0])))
 }
 
-// exportAll returns every published round as content/*.md in a zip, ready to commit.
+// exportAll returns every published topic as content/*.md in a zip, ready to commit.
 func (s *Server) exportAll(w http.ResponseWriter, r *http.Request, _ store.User) {
 	sections, err := s.exportSections(r, "")
 	if err != nil {

@@ -1164,17 +1164,17 @@ func TestTopicIdeas(t *testing.T) {
 
 	// Validation: chips must exist, questions are one line.
 	expect(t, learner.do("POST", "/api/ideas", map[string]any{"title": "x"}), 422)
-	expect(t, learner.do("POST", "/api/ideas", map[string]any{"title": "Kubernetes for SREs", "topics": []string{"nope"}}), 422)
+	expect(t, learner.do("POST", "/api/ideas", map[string]any{"title": "Kubernetes for SREs", "facets": []string{"nope"}}), 422)
 	expect(t, learner.do("POST", "/api/ideas", map[string]any{"title": "Kubernetes for SREs", "questions": []string{"short"}}), 422)
 
 	r := learner.do("POST", "/api/ideas", map[string]any{
-		"title": "Kubernetes for SREs", "topics": []string{"sre", "kubernetes", "SRE"}, "details": "Pods, probes, rollouts",
+		"title": "Kubernetes for SREs", "facets": []string{"sre", "kubernetes", "SRE"}, "details": "Pods, probes, rollouts",
 		"questions": []string{"How do liveness and readiness probes differ?", "", "What happens during a rolling update?"}, "credit": true,
 	})
 	expect(t, r, 201)
 	var idea store.Idea
 	r.json(t, &idea)
-	if idea.Stage != "review" || len(idea.Questions) != 2 || len(idea.Topics) != 2 {
+	if idea.Stage != "review" || len(idea.Questions) != 2 || len(idea.Facets) != 2 {
 		t.Fatalf("new idea: %+v", idea)
 	}
 	if msgs := outbox.Messages(); len(msgs) != 1 || !strings.Contains(msgs[0].Subject, "New topic idea") {
@@ -1191,7 +1191,7 @@ func TestTopicIdeas(t *testing.T) {
 
 	// Accept: a draft round and one draft question; the other starter question is dropped.
 	accept := map[string]any{
-		"newSection": map[string]any{"id": "kubernetes-sre", "title": "Kubernetes for SREs", "description": "Operating clusters in production.", "topics": []string{"sre", "kubernetes"}},
+		"newSection": map[string]any{"id": "kubernetes-sre", "title": "Kubernetes for SREs", "description": "Operating clusters in production.", "facets": []string{"sre", "kubernetes"}},
 		"questions":  []map[string]any{{"ideaQuestionId": idea.Questions[0].ID, "title": "How do liveness and readiness probes differ?", "level": "lead"}},
 		"note":       "Great idea",
 	}
@@ -1227,17 +1227,17 @@ func TestTopicIdeas(t *testing.T) {
 		Content struct {
 			Sections []struct {
 				ID     string   `json:"id"`
-				Topics []string `json:"topics"`
+				Facets []string `json:"facets"`
 			} `json:"sections"`
 		} `json:"content"`
 	}
 	learner.do("GET", "/api/bootstrap", nil).json(t, &b)
 	found := false
 	for _, s := range b.Content.Sections {
-		found = found || (s.ID == "kubernetes-sre" && strings.Join(s.Topics, ",") == "sre,kubernetes")
+		found = found || (s.ID == "kubernetes-sre" && strings.Join(s.Facets, ",") == "sre,kubernetes")
 	}
 	if !found {
-		t.Fatalf("round should carry topics: %+v", b.Content.Sections)
+		t.Fatalf("round should carry facets: %+v", b.Content.Sections)
 	}
 
 	// Decline and withdraw.
