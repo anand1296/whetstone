@@ -65,7 +65,7 @@ Lines in these blocks are plain `key: value`; a line starting with `#` is a comm
 Supported fence languages:
 
 - Frontend: `ts`/`typescript`, `tsx`, `js`/`javascript`, `jsx`, `html`, `vue`, `xml`, `css`, `json`, `graphql`
-- Backend, data and cloud: `go`/`golang`, `sql`, `python`/`py`, `dockerfile`/`docker`, `proto`/`protobuf`, `hcl`/`terraform`/`tf`, `toml`, `ini`, `yaml`/`yml`
+- Backend, data and cloud: `go`/`golang`, `java`, `sql`, `python`/`py`, `dockerfile`/`docker`, `proto`/`protobuf`, `hcl`/`terraform`/`tf`, `toml`, `ini`, `yaml`/`yml`
 - General: `bash`/`sh`/`shell`, `diff`, `http`, `text`/`txt`
 
 Anything else fails the build and is refused by the console. To add a language, add it to **both** `build/content/markdown.ts` and `backend/markdown/highlight.go`; a unit test fails if the two lists differ. (highlight.js has no HCL grammar, so Terraform is plain text in static builds and highlighted in server mode.)
