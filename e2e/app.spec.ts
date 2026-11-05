@@ -215,3 +215,42 @@ test('"How it\'s built" walkthroughs and Contribute (no backend)', async ({ page
   await expect(page.getByRole('link', { name: 'Propose it on GitHub' })).toHaveAttribute('href', /issues\/new\?template=question\.yml/);
   expect(errors).toEqual([]);
 });
+
+test('topic chips filter the rounds; "coming soon" chips are inert; the choice is remembered', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  const filter = page.locator('.topic-filter');
+  const rounds = page.locator('.round-list .round');
+  await expect(filter).toBeVisible();
+  await expect(rounds).toHaveCount(15);
+
+  // Content that doesn't exist yet is visible but disabled, with a tooltip.
+  const backend = filter.getByRole('button', { name: 'Backend' });
+  await expect(backend).toHaveAttribute('aria-disabled', 'true');
+  await backend.hover();
+  await expect(filter.locator('.chip-wrap', { hasText: 'Backend' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
+  await backend.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
+  await expect(rounds).toHaveCount(15);
+
+  // Within a row chips widen the result; across rows they narrow it.
+  await filter.getByRole('button', { name: /^React/ }).click();
+  await expect(rounds).toHaveCount(6);
+  await filter.getByRole('button', { name: /^JavaScript/ }).click();
+  await expect(rounds).toHaveCount(1);
+  await expect(rounds.first()).toContainText('Machine Coding');
+  await expect(filter.getByRole('status')).toContainText('1 of 15 rounds');
+
+  await page.reload();
+  await expect(rounds).toHaveCount(1);
+
+  await filter.getByRole('button', { name: 'Clear' }).click();
+  await expect(rounds).toHaveCount(15);
+
+  // Without a backend, suggestions go through a GitHub issue form.
+  await filter.getByRole('button', { name: 'Suggest a topic' }).click();
+  await expect(page.getByRole('dialog', { name: 'Suggest a topic' }).getByRole('link', { name: /Suggest it on GitHub/ })).toHaveAttribute(
+    'href',
+    /issues\/new\?template=topic\.yml/,
+  );
+  expect(errors).toEqual([]);
+});

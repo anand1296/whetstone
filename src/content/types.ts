@@ -42,6 +42,8 @@ export interface SectionMeta {
   /** One-line description shown on the overview. */
   description: string;
   questions: QuestionMeta[];
+  /** Filter-chip ids from content/topics.json (frontend, react, ...). */
+  topics: string[];
   /** Server mode only: false for draft rounds, which only admins receive. */
   published?: boolean;
 }

@@ -2,6 +2,7 @@
 id: machine-coding
 title: Machine Coding
 description: Timed UI builds done to a senior bar: accessible typeahead, virtual list, modal, OTP input, undo/redo, infinite feed, accurate timers, an uploader, a kanban board and a queued progress bar.
+topics: frontend, javascript, react
 ---
 
 ## Build an accessible typeahead (combobox) with debounced search and race-safe results

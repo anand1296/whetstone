@@ -1148,3 +1148,102 @@ func TestQuestionSubmissions(t *testing.T) {
 		t.Fatalf("expected disabled, got %s", r.body)
 	}
 }
+
+func TestTopicIdeas(t *testing.T) {
+	e := newEnv(t)
+	outbox := &mail.Recorder{}
+	e.app.SetMailer(outbox)
+	owner := e.anon()
+	expect(t, owner.do("POST", "/api/auth/dev-login", map[string]string{"login": "owner", "email": "owner@example.com"}), 200)
+	var inv struct {
+		URL string `json:"url"`
+	}
+	owner.do("POST", "/api/admin/invites", map[string]any{"maxUses": 1}).json(t, &inv)
+	learner := e.anon()
+	expect(t, learner.do("POST", "/api/auth/dev-login", map[string]string{"login": "sam", "email": "sam@example.com", "invite": inv.URL[strings.Index(inv.URL, "=")+1:]}), 200)
+
+	// Validation: chips must exist, questions are one line.
+	expect(t, learner.do("POST", "/api/ideas", map[string]any{"title": "x"}), 422)
+	expect(t, learner.do("POST", "/api/ideas", map[string]any{"title": "Kubernetes for SREs", "topics": []string{"nope"}}), 422)
+	expect(t, learner.do("POST", "/api/ideas", map[string]any{"title": "Kubernetes for SREs", "questions": []string{"short"}}), 422)
+
+	r := learner.do("POST", "/api/ideas", map[string]any{
+		"title": "Kubernetes for SREs", "topics": []string{"sre", "kubernetes", "SRE"}, "details": "Pods, probes, rollouts",
+		"questions": []string{"How do liveness and readiness probes differ?", "", "What happens during a rolling update?"}, "credit": true,
+	})
+	expect(t, r, 201)
+	var idea store.Idea
+	r.json(t, &idea)
+	if idea.Stage != "review" || len(idea.Questions) != 2 || len(idea.Topics) != 2 {
+		t.Fatalf("new idea: %+v", idea)
+	}
+	if msgs := outbox.Messages(); len(msgs) != 1 || !strings.Contains(msgs[0].Subject, "New topic idea") {
+		t.Fatalf("owner should be notified: %+v", msgs)
+	}
+	expect(t, learner.do("GET", "/api/admin/ideas", nil), 403)
+	var boot struct {
+		Pending int `json:"pendingIdeas"`
+	}
+	owner.do("GET", "/api/bootstrap", nil).json(t, &boot)
+	if boot.Pending != 1 {
+		t.Fatalf("admin badge: %d", boot.Pending)
+	}
+
+	// Accept: a draft round and one draft question; the other starter question is dropped.
+	accept := map[string]any{
+		"newSection": map[string]any{"id": "kubernetes-sre", "title": "Kubernetes for SREs", "description": "Operating clusters in production.", "topics": []string{"sre", "kubernetes"}},
+		"questions":  []map[string]any{{"ideaQuestionId": idea.Questions[0].ID, "title": "How do liveness and readiness probes differ?", "level": "lead"}},
+		"note":       "Great idea",
+	}
+	r = owner.do("POST", fmt.Sprintf("/api/admin/ideas/%d/accept", idea.ID), accept)
+	expect(t, r, 200)
+	r.json(t, &idea)
+	if idea.Stage != "writing" || idea.SectionID == nil || len(idea.Questions) != 1 || idea.Questions[0].State != "writing" {
+		t.Fatalf("accepted idea should be being written: %+v", idea)
+	}
+	if r := owner.do("POST", fmt.Sprintf("/api/admin/ideas/%d/accept", idea.ID), accept); r.code() != "not_pending" {
+		t.Fatalf("double accept must fail: %s", r.body)
+	}
+	if contains(learner.bootstrap().questionIDs(), *idea.Questions[0].QuestionID) {
+		t.Fatal("draft question leaked to a learner")
+	}
+
+	// Publishing the draft in the normal editor moves the idea to live, with no extra step.
+	qid := *idea.Questions[0].QuestionID
+	expect(t, owner.do("PUT", "/api/admin/questions/"+qid, map[string]any{"id": qid, "sectionId": "kubernetes-sre", "title": "How do liveness and readiness probes differ?",
+		"level": "lead", "tags": []string{"kubernetes"}, "minutes": 9, "body": goodBody, "published": true, "revision": 1}), 200)
+	expect(t, owner.do("PATCH", "/api/admin/sections/kubernetes-sre", map[string]any{"published": true}), 200)
+	var mine []store.Idea
+	learner.do("GET", "/api/me/ideas", nil).json(t, &mine)
+	if len(mine) != 1 || mine[0].Stage != "live" || mine[0].Questions[0].State != "live" {
+		t.Fatalf("idea should be live: %+v", mine)
+	}
+	if msgs := outbox.Messages(); len(msgs) != 2 || msgs[1].To != "sam@example.com" {
+		t.Fatalf("submitter should hear about the acceptance: %+v", msgs)
+	}
+
+	// The new round carries its chips.
+	var b struct {
+		Content struct {
+			Sections []struct {
+				ID     string   `json:"id"`
+				Topics []string `json:"topics"`
+			} `json:"sections"`
+		} `json:"content"`
+	}
+	learner.do("GET", "/api/bootstrap", nil).json(t, &b)
+	found := false
+	for _, s := range b.Content.Sections {
+		found = found || (s.ID == "kubernetes-sre" && strings.Join(s.Topics, ",") == "sre,kubernetes")
+	}
+	if !found {
+		t.Fatalf("round should carry topics: %+v", b.Content.Sections)
+	}
+
+	// Decline and withdraw.
+	learner.do("POST", "/api/ideas", map[string]any{"title": "Perl for frontend"}).json(t, &idea)
+	expect(t, owner.do("POST", fmt.Sprintf("/api/admin/ideas/%d/decline", idea.ID), map[string]string{"note": "Out of scope"}), 200)
+	learner.do("POST", "/api/ideas", map[string]any{"title": "Perl for frontend"}).json(t, &idea)
+	expect(t, learner.do("DELETE", fmt.Sprintf("/api/me/ideas/%d", idea.ID), nil), 200)
+	expect(t, learner.do("DELETE", fmt.Sprintf("/api/me/ideas/%d", idea.ID), nil), 409)
+}

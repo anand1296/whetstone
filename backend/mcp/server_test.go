@@ -313,3 +313,44 @@ func TestExtractPromptWithoutPrompt(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestQuizPrompt(t *testing.T) {
+	srv := New(fakeCatalog{}, "whetstone", "test")
+	_, out := rpc(t, srv, `{"jsonrpc":"2.0","id":1,"method":"prompts/list"}`)
+	list, _ := out["result"].(map[string]any)["prompts"].([]any)
+	if len(list) != 1 || list[0].(map[string]any)["name"] != "quiz_me" {
+		t.Fatalf("prompts/list: %v", out)
+	}
+
+	_, out = rpc(t, srv, `{"jsonrpc":"2.0","id":2,"method":"prompts/get","params":{"name":"quiz_me","arguments":{"topic":"react rendering","level":"Lead","questions":"5"}}}`)
+	msgs, _ := out["result"].(map[string]any)["messages"].([]any)
+	if len(msgs) != 1 {
+		t.Fatalf("prompts/get: %v", out)
+	}
+	text := msgs[0].(map[string]any)["content"].(map[string]any)["text"].(string)
+	for _, want := range []string{"react rendering", "Level: lead", "exactly 5", "WITHOUT reveal_answer", "reveal_answer=true"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("prompt should mention %q:\n%s", want, text)
+		}
+	}
+
+	// Defaults, and bad input is a readable error rather than a crash.
+	_, out = rpc(t, srv, `{"jsonrpc":"2.0","id":3,"method":"prompts/get","params":{"name":"quiz_me"}}`)
+	if text := out["result"].(map[string]any)["messages"].([]any)[0].(map[string]any)["content"].(map[string]any)["text"].(string); !strings.Contains(text, "exactly 3") || !strings.Contains(text, "list_rounds") {
+		t.Fatalf("defaults: %s", text)
+	}
+	for _, body := range []string{
+		`{"jsonrpc":"2.0","id":4,"method":"prompts/get","params":{"name":"nope"}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"prompts/get","params":{"name":"quiz_me","arguments":{"level":"intern"}}}`,
+		`{"jsonrpc":"2.0","id":6,"method":"prompts/get","params":{}}`,
+	} {
+		if _, out := rpc(t, srv, body); out["error"] == nil {
+			t.Fatalf("expected an error for %s", body)
+		}
+	}
+	// The count is clamped, never trusted.
+	_, out = rpc(t, srv, `{"jsonrpc":"2.0","id":7,"method":"prompts/get","params":{"name":"quiz_me","arguments":{"questions":"9999"}}}`)
+	if text := out["result"].(map[string]any)["messages"].([]any)[0].(map[string]any)["content"].(map[string]any)["text"].(string); !strings.Contains(text, "exactly 3") {
+		t.Fatalf("out-of-range count should fall back to the default: %s", text)
+	}
+}

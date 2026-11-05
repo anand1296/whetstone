@@ -2,6 +2,7 @@
 id: testing-quality
 title: Testing & Quality
 description: A testing strategy you can defend, Testing Library done right, network mocking with MSW, flaky E2E and CI speed, visual and accessibility testing, and testing async hooks.
+topics: frontend, react
 ---
 
 ## Design a frontend testing strategy for a large product

@@ -48,7 +48,7 @@ func TestExportRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", s.ID, err)
 		}
-		if again.ID != s.ID || again.Title != s.Title || again.Description != s.Description || len(again.Questions) != len(s.Questions) {
+		if again.ID != s.ID || again.Title != s.Title || again.Description != s.Description || strings.Join(again.Topics, ",") != strings.Join(s.Topics, ",") || len(again.Questions) != len(s.Questions) {
 			t.Fatalf("%s: section changed in round trip", s.ID)
 		}
 		for i, q := range s.Questions {
@@ -157,7 +157,8 @@ func TestParityWithStaticBuild(t *testing.T) {
 	}
 	var fixture struct {
 		Sections []struct {
-			ID        string `json:"id"`
+			ID        string   `json:"id"`
+			Topics    []string `json:"topics"`
 			Questions []struct {
 				ID      string `json:"id"`
 				Summary string `json:"summary"`
@@ -193,6 +194,11 @@ func TestParityWithStaticBuild(t *testing.T) {
 		}
 	}
 	for _, s := range fixture.Sections {
+		for _, gs := range sections {
+			if gs.ID == s.ID && strings.Join(gs.Topics, ",") != strings.Join(s.Topics, ",") {
+				t.Errorf("%s topics differ: go %v, ts %v", s.ID, gs.Topics, s.Topics)
+			}
+		}
 		for _, q := range s.Questions {
 			for _, gs := range sections {
 				for _, gq := range gs.Questions {
@@ -241,4 +247,23 @@ func excerpt(s string, i int) string {
 	start := max(0, i-80)
 	end := min(len(s), i+80)
 	return s[start:end]
+}
+
+func TestTopics(t *testing.T) {
+	sections, err := ParseFS(content.Files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range sections {
+		if len(s.Topics) == 0 {
+			t.Errorf("%s: round has no topics", s.ID)
+		}
+	}
+	bad := "---\nid: a\ntitle: A\ndescription: d\ntopics: frontend, nope\n---\n\n## Q\n<!--\nid: q\nlevel: lead\ntags: x\nminutes: 3\n-->\n" + strings.Repeat("x", 300)
+	if _, err := ParseFile("x.md", bad); err == nil {
+		t.Fatal("unknown topic accepted")
+	}
+	if len(Taxonomy()) == 0 || !ValidTopic("react") || ValidTopic("") {
+		t.Fatal("taxonomy not loaded")
+	}
 }

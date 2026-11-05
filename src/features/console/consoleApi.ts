@@ -69,6 +69,7 @@ export interface AdminSection {
   id: string;
   title: string;
   description: string;
+  topics: string[];
   published: boolean;
   updatedAt: string;
   questions: AdminQuestionMeta[];
@@ -198,6 +199,52 @@ export interface SubmissionInput {
   credit: boolean;
 }
 
+/** Where a suggested topic is in its life. Derived by the server from the content itself. */
+export type IdeaStage = 'review' | 'writing' | 'live' | 'declined' | 'withdrawn';
+
+export interface IdeaQuestion {
+  id: number;
+  title: string;
+  questionId: string | null;
+  level?: Level;
+  state: 'queued' | 'writing' | 'live';
+}
+
+/** A topic suggested by a community member (backend/store/ideas.go). */
+export interface Idea {
+  id: number;
+  submitter: string;
+  submitterName: string;
+  title: string;
+  topics: string[];
+  details: string;
+  credit: boolean;
+  status: 'pending' | 'accepted' | 'declined' | 'withdrawn';
+  stage: IdeaStage;
+  reviewNote: string;
+  reviewer: string | null;
+  sectionId: string | null;
+  sectionTitle: string;
+  questions: IdeaQuestion[];
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface IdeaInput {
+  title: string;
+  topics: string[];
+  details: string;
+  questions: string[];
+  credit: boolean;
+}
+
+export interface AcceptIdeaInput {
+  sectionId?: string;
+  newSection?: { id: string; title: string; description: string; topics: string[] };
+  questions: Array<{ ideaQuestionId: number; title: string; level: Level }>;
+  note: string;
+}
+
 const json = (method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown) => ({ method, body });
 
 export const consoleApi = {
@@ -211,8 +258,8 @@ export const consoleApi = {
   revokeInvite: (id: number) => api(`/admin/invites/${id}`, json('DELETE')),
 
   content: () => api<AdminContent>('/admin/content'),
-  createSection: (input: { id: string; title: string; description: string; published: boolean }) => api('/admin/sections', json('POST', input)),
-  updateSection: (id: string, patch: { title?: string; description?: string; published?: boolean }) =>
+  createSection: (input: { id: string; title: string; description: string; topics: string[]; published: boolean }) => api('/admin/sections', json('POST', input)),
+  updateSection: (id: string, patch: { title?: string; description?: string; topics?: string[]; published?: boolean }) =>
     api(`/admin/sections/${encodeURIComponent(id)}`, json('PATCH', patch)),
   deleteSection: (id: string) => api(`/admin/sections/${encodeURIComponent(id)}`, json('DELETE')),
   reorderSections: (ids: string[]) => api('/admin/sections/order', json('PUT', { ids })),
@@ -238,6 +285,10 @@ export const consoleApi = {
   approveSubmission: (id: number, question: QuestionInput, note: string) =>
     api<Submission>(`/admin/submissions/${id}/approve`, json('POST', { question, note })),
   rejectSubmission: (id: number, note: string) => api<Submission>(`/admin/submissions/${id}/reject`, json('POST', { note })),
+
+  ideas: (status: 'pending' | 'open' | 'all' = 'pending') => api<Idea[]>(`/admin/ideas?status=${status}`),
+  acceptIdea: (id: number, input: AcceptIdeaInput) => api<Idea>(`/admin/ideas/${id}/accept`, json('POST', input)),
+  declineIdea: (id: number, note: string) => api<Idea>(`/admin/ideas/${id}/decline`, json('POST', { note })),
 
   settings: () => api<SettingsResponse>('/admin/settings'),
   putSetting: (key: 'site' | 'features' | 'announcement', value: unknown) => api(`/admin/settings/${key}`, json('PUT', value)),

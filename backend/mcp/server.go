@@ -102,6 +102,10 @@ func (s *Server) dispatch(ctx context.Context, req request) response {
 		return ok(req.ID, map[string]any{"tools": s.tools})
 	case "tools/call":
 		return s.callTool(ctx, req)
+	case "prompts/list":
+		return s.listPrompts(req)
+	case "prompts/get":
+		return s.getPrompt(req)
 	default:
 		return fail(req.ID, codeMethodNotFound, "Method not found: "+req.Method)
 	}
@@ -116,8 +120,8 @@ func (s *Server) initialize(req request) response {
 	}
 	return ok(req.ID, map[string]any{
 		"protocolVersion": negotiate(params.ProtocolVersion),
-		// Only tools, and the list never changes while the server runs.
-		"capabilities": map[string]any{"tools": map[string]any{"listChanged": false}},
+		// Tools and prompts; neither list changes while the server runs.
+		"capabilities": map[string]any{"tools": map[string]any{"listChanged": false}, "prompts": map[string]any{"listChanged": false}},
 		"serverInfo":   map[string]any{"name": s.name, "title": "Whetstone interview questions", "version": s.version},
 		"instructions": "Whetstone is a bank of senior, lead and principal frontend interview questions. To quiz someone: " +
 			"find a question with search_questions, show them only the prompt from get_question, let them answer in their own words, " +

@@ -2,6 +2,7 @@
 id: javascript-internals
 title: JavaScript Internals
 description: The runtime model under every framework: event loop, closures and memory, this, prototypes, modules, and the meta-programming APIs.
+topics: frontend, javascript
 ---
 
 ## Walk through the event loop: tasks, microtasks, and where rendering fits

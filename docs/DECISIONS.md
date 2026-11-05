@@ -513,3 +513,25 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 - (−) We support protocol revisions 2025-03-26 to 2025-11-25. The 2026-07-28 revision removes the `initialize` handshake in favour of per-request metadata and `server/discover`; clients that only speak it will need that added.
 - (−) No per-user tools yet (my due reviews, my progress): those need authentication, which comes with the OAuth work.
 - (−) Question text reaches the model's context. Anything an admin or an approved submitter writes is therefore model input, so treat question content as untrusted-ish and never give these tools write access without a review of that risk.
+
+---
+
+## ADR-032: Topic chips derived from content; suggestions create drafts and report derived progress
+
+**Status:** Accepted
+
+**Context.** The bank is frontend-only today but should grow into backend, SRE, QE and cloud. We want a filter that shows that direction without promising content that does not exist, and a way for people to suggest categories that does not make the owner maintain a status field by hand.
+
+**Decision.**
+- *Taxonomy in one file.* `content/topics.json` lists the chips (role, language, framework, platform). The browser, the content compiler and the Go backend read the same file; rounds carry `topics:` in their front matter and in `sections.topics`.
+- *Availability is derived.* A chip is selectable only while at least one **published** round carries its topic; otherwise it renders disabled with a "Coming soon" tooltip. Publishing a round tagged `angular` lights up the Angular chip with no UI change. Filtering is OR within a group and AND across groups.
+- *Suggestions become drafts.* Accepting a `topic_idea` creates a draft round and draft questions in one transaction (starter questions the reviewer did not keep are dropped). The idea's stage (in review, writing, live, not added) is computed from the status and the drafts' `published` flags, so there is nothing to keep in sync and "live" happens the moment the content is published.
+- *Authoring stays human-reviewed.* The console offers a copy-ready authoring brief; the answers are pasted into the normal editor, which keeps validation, preview and revision history.
+
+**Alternatives considered.** Hard-coded enabled chips (drifts from content; needs a deploy to enable a chip); tags per question instead of per round (the overview lists rounds, and per-question chips would multiply the editing work); a stored status the admin updates (easy to forget; two sources of truth); generating answers automatically on accept (unreviewed model output reaching learners, and a cost and secret-handling decision that belongs to the AI roadmap, not this change).
+
+**Consequences.**
+- (+) Adding backend/SRE/QE content is a content change: write rounds, tag them, publish.
+- (+) The suggestion pipeline reuses the submissions patterns (limits, emails, transactional review).
+- (−) Chips on a round are a coarse signal; a round that mixes areas needs several topics.
+- (−) A deleted draft question silently stops counting toward "live" for its idea.

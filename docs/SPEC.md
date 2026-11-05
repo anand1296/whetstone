@@ -435,6 +435,9 @@ erDiagram
 | `audit_log` | `actor_id`, `action`, `target`, `detail` (JSONB), `at` | Append-only |
 | `reminder_prefs` | `user_id` (PK), `enabled` (default false), `frequency` (`daily`/`every3days`/`weekly`), `unsubscribe_token` (unique), `last_sent_at`, `last_error` | Claimed with `FOR UPDATE SKIP LOCKED` before sending; minimum gaps 20 h / 68 h / 164 h absorb the cron's within-the-hour jitter |
 | `submissions` | `id`, `user_id` (FK, cascade), `section_id` or `new_section_title`, `title`, `level`, `tags[]`, `minutes`, `body`, `context`, `credit`, `status` (`pending`/`approved`/`rejected`/`withdrawn`), `reviewer_id`, `review_note`, `question_id`, timestamps | Separate from `questions`, so no reader query can see unreviewed content; approval inserts the question and closes the submission in one transaction with the row locked |
+| `sections.topics` | `TEXT[]`, default `{}` | Filter-chip ids (taxonomy in `content/topics.json`, validated by `catalog.Section.Validate`); refreshed by repository sync; migration 005 backfills the shipped rounds |
+| `topic_ideas` | `id`, `user_id` (FK, cascade), `title`, `topics[]`, `details`, `credit`, `status` (`pending`/`accepted`/`declined`/`withdrawn`), `reviewer_id`, `review_note`, `section_id`, timestamps | A suggested category. The person-facing stage (in review / writing / live / not added) is **derived**, not stored: an accepted idea is "live" when its kept draft questions (or its round) are published |
+| `topic_idea_questions` | `id`, `idea_id` (FK, cascade), `position`, `title`, `question_id` | Starter questions; `question_id` is set when accepting creates the draft |
 | `questions.contributed_by` | FK to `users`, `ON DELETE SET NULL` | Set on approval only when the submitter asked for credit |
 | `schema_migrations` | `version` | Migrations in `backend/store/migrations/NNN_name.sql`, applied once, in order, in one transaction |
 
@@ -488,6 +491,8 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `POST /submissions` | learner+ (5/day, 10 pending) | Body: `{sectionId \| newSectionTitle, title, level, tags, minutes, body, context, credit}`. 201 with the submission; 422 problems; 429 limits; 403 `disabled` when the `contribute` flag is off. Emails the owner |
 | `GET /me/submissions` | learner+ | The caller's submissions, newest first |
 | `DELETE /me/submissions/{id}` | learner+ | Withdraw a pending submission (409 `not_pending` otherwise) |
+| `POST /ideas` | learner+ (5/day, 10 pending) | Body: `{title, topics[], details, questions[≤5], credit}`. 201 with the idea; 422 problems; 429 limits; 403 `disabled` when `contribute` is off. Emails the owner |
+| `GET /me/ideas` · `DELETE /me/ideas/{id}` | learner+ | The caller's ideas with derived `stage` and per-question `state`; withdraw a pending one (409 `not_pending`) |
 
 ### 9.2 Admin (admin or owner)
 
@@ -512,6 +517,9 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `GET /admin/submissions?status=pending\|all\|approved\|rejected\|withdrawn` · `GET /admin/submissions/{id}` | Review queue (default pending) |
 | `POST /admin/submissions/{id}/approve {question, note}` | Creates `question` (same validation as `POST /admin/questions`), credits the author if asked, closes the submission, emails the author; 409 `not_pending` |
 | `POST /admin/submissions/{id}/reject {note}` | Closes the submission with a note (≤1000 chars) and emails the author |
+| `GET /admin/ideas?status=pending\|open\|all\|accepted\|declined\|withdrawn` | Review queue (default pending; `open` = accepted but not yet live) |
+| `POST /admin/ideas/{id}/accept {newSection \| sectionId, questions[{ideaQuestionId,title,level}], note}` | One transaction: creates the draft round (or uses an existing one) and a draft question per kept starter question, drops the rest, credits the author if asked, closes the idea, emails the author; 409 `not_pending` |
+| `POST /admin/ideas/{id}/decline {note}` | Closes the idea with a note and emails the author |
 
 ---
 
@@ -729,6 +737,7 @@ Full records with context and consequences: [DECISIONS.md](DECISIONS.md).
 | 021 | CMS safety: optimistic concurrency, revisions, trash, audit log |
 | 024 | "How it's built": walkthroughs quote code by symbol at build time and link to the built commit; broken references fail CI |
 | 025 | Community contributions: a separate submissions table and transactional approval; GitHub branch protection + CODEOWNERS for code |
+| 032 | Topic chips are derived from content (selectable iff a published round carries the topic); suggestions create drafts and their progress is derived, not stored |
 
 ---
 

@@ -2,6 +2,7 @@
 id: architecture-at-scale
 title: Architecture at Scale
 description: Lead and principal territory: micro-frontends, monorepos, incremental migrations, rendering architecture, state ownership, design system governance, API layers, observability and feature flags.
+topics: frontend
 ---
 
 ## Micro-frontends and Module Federation: when do they pay off, and how do they fail?

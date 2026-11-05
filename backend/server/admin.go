@@ -239,10 +239,11 @@ func (s *Server) adminContent(w http.ResponseWriter, r *http.Request, _ store.Us
 }
 
 type sectionInput struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Published   *bool  `json:"published"`
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Topics      []string `json:"topics"`
+	Published   *bool    `json:"published"`
 }
 
 func (s *Server) createSection(w http.ResponseWriter, r *http.Request, actor store.User) {
@@ -250,7 +251,7 @@ func (s *Server) createSection(w http.ResponseWriter, r *http.Request, actor sto
 	if !decode(w, r, &in) {
 		return
 	}
-	sec := catalog.Section{ID: in.ID, Title: in.Title, Description: in.Description, Published: in.Published == nil || *in.Published}
+	sec := catalog.Section{ID: in.ID, Title: in.Title, Description: in.Description, Topics: in.Topics, Published: in.Published == nil || *in.Published}
 	sec.Normalize()
 	if problems := sec.Validate(); len(problems) > 0 {
 		writeProblems(w, problems)
@@ -265,9 +266,10 @@ func (s *Server) createSection(w http.ResponseWriter, r *http.Request, actor sto
 
 func (s *Server) updateSection(w http.ResponseWriter, r *http.Request, actor store.User) {
 	var in struct {
-		Title       *string `json:"title"`
-		Description *string `json:"description"`
-		Published   *bool   `json:"published"`
+		Title       *string  `json:"title"`
+		Description *string  `json:"description"`
+		Topics      []string `json:"topics"`
+		Published   *bool    `json:"published"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -282,6 +284,9 @@ func (s *Server) updateSection(w http.ResponseWriter, r *http.Request, actor sto
 	}
 	if in.Description != nil {
 		sec.Description = *in.Description
+	}
+	if in.Topics != nil {
+		sec.Topics = in.Topics
 	}
 	if in.Published != nil {
 		sec.Published = *in.Published

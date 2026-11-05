@@ -8,6 +8,8 @@
 //	ping           liveness
 //	tools/list     what can the model call?
 //	tools/call     call one tool
+//	prompts/list   reusable starting points (quiz_me)
+//	prompts/get    expand one into messages for the model
 //
 // Everything else answers "method not found". There is no session state, no
 // server-to-client streaming and no server-initiated requests, which keeps the

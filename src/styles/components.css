@@ -1438,3 +1438,215 @@ button.action-card:hover {
   font-size: 0.875rem;
   color: var(--ink-2);
 }
+
+/* ---------- Topic chips (overview filter, pickers) ---------- */
+.btn-small {
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.chip:hover:not(:disabled):not([aria-disabled='true']) {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.chip[aria-pressed='true'] .chip-count {
+  background: color-mix(in srgb, var(--accent-ink) 22%, transparent);
+  color: inherit;
+}
+
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chip-count {
+  min-width: 1.4em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+/* "Coming soon": visible, focusable (so keyboard users reach the tooltip), but inert. */
+.chip.is-soon {
+  border-style: dashed;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.chip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.chip-tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  z-index: 5;
+}
+
+.chip-wrap:hover .chip-tip,
+.chip-wrap:focus-within .chip-tip,
+.chip-wrap[data-pinned='true'] .chip-tip {
+  opacity: 1;
+}
+
+.topic-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.topic-filter-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.topic-filter-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--step-0);
+}
+
+.topic-filter-status {
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+
+.topic-suggest {
+  margin-left: auto;
+}
+
+.topic-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.topic-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 12px;
+}
+
+.topic-row-label,
+.topic-picker-label {
+  padding-top: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.topic-row-chips,
+.topic-picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.rounds-empty {
+  padding: 18px;
+  margin-bottom: 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--ink-2);
+}
+
+.rounds-empty p {
+  margin: 0 0 10px;
+}
+
+.topic-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.topic-picker legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.topic-picker-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 8px 12px;
+}
+
+@media (max-width: 560px) {
+  .topic-row,
+  .topic-picker-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .topic-row-label,
+  .topic-picker-label {
+    padding-top: 0;
+  }
+
+  .topic-suggest {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip,
+  .chip-tip {
+    transition: none;
+  }
+}

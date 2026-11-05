@@ -2,6 +2,8 @@
 
 > Formerly "Frontend Loop". Sharpen your skills for interviews and exams.
 
+**Try it: [frontend-loop-beta.vercel.app](https://frontend-loop-beta.vercel.app)** · sign in with GitHub to sync your progress, or just start studying.
+
 **Interview prep for senior, lead and principal engineers.** 119 deep, interview-grade questions across 15 "rounds" of a real frontend interview loop, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 
 Version 2 adds a **Go + Postgres backend**: GitHub sign-in, synced progress across devices, invite links, roles (owner, admins, learners) and an **admin console** where you can add and edit rounds and questions live (preview, drafts, history, trash), see learners' progress, switch features and post announcements, with no code changes or deploys.
@@ -46,6 +48,8 @@ The same frontend still runs **without** a backend: on any static host, as one H
 - **Answers built for the room.** Every answer opens with *the 60-second answer*, then the mental model, correct code with a copy button, trade-offs, edge cases, follow-ups, common mistakes and primary references.
 - **React, Angular or Vue.** Answers with code (machine-coding builds, component APIs, forms, error handling, state, testing, security, streaming UIs and more) have a framework switch: pick React, Angular or Vue once and the code follows you across questions. Framework-neutral material is always shown.
 - **Tick it off; pick up where you left off.** Progress saves automatically; the overview reopens the question you were on.
+- **Topic chips.** Filter the rounds by role (Frontend, Backend, SRE, QE…), language, framework or platform. Frontend, JavaScript, TypeScript and React are live today; the rest are visibly "Coming soon" and light up automatically when a round carrying that topic is published.
+- **Suggest a topic.** Missing a whole area? Suggest it with a few starter questions, then follow it from the Contribute page until it's live.
 - **Email reminders** (opt-in, daily / every 3 days / weekly): progress, reviews due, the next question with a link, and a motivational nudge.
 - **Spaced review** (2, 5, 12, 30, 75 days), **practice mode** (answer out loud first, with a stopwatch), **private notes**, **search** (`/` or Ctrl/⌘ K), filters, deep links (`#oauth-pkce-flow`), light/dark, phone-friendly, keyboard and screen-reader friendly.
 - **Sign in with GitHub** (server mode) and your progress follows you to every device. Anything you did before signing in is kept.
@@ -61,6 +65,7 @@ The same frontend still runs **without** a backend: on any static host, as one H
 - **People:** invite links (single-use or group, with expiry), roles, a learner dashboard (progress, rounds finished, reviews due, last active), disable/remove.
 - **Features and settings:** switch built-in features on or off, post an announcement, set the app name, headline, who can register and who can read.
 - **Submissions:** review community questions (edit, pick the round and id, publish or draft, note), approve or reject; authors are credited and emailed.
+- **Topic ideas:** review suggested categories (with starter questions), accept them into a new or existing round as drafts, copy an authoring brief to write the answers, and publish. The person follows "In review → Accepted → Writing answers → Live" on their own.
 - **Activity log** of every change.
 
 ## The question bank
@@ -245,8 +250,9 @@ From frontend prep to full-stack prep (details in [docs/SPEC.md §18](docs/SPEC.
 
 ## Contributing
 
-Two ways, both reviewed by the owner before anything goes live:
+The repository is open for contributions, and everything is reviewed by the owner before it goes live:
 
+- **Suggest a new topic or category:** in the app, *Suggest a topic* (above the rounds, or on *Contribute*), or a [topic suggestion issue](https://github.com/anand1296/whetstone/issues/new?template=topic.yml). Accepted ideas are written up and published, and you can follow their progress.
 - **Share a question from your interviews:** in the app, *Behind the scenes → Contribute* (members), or a [question proposal issue](https://github.com/anand1296/whetstone/issues/new?template=question.yml).
 - **Improve the code:** fork, branch, `npm run check`, open a pull request. `main` is protected: every PR needs the owner's approval (CODEOWNERS) and green CI.
 

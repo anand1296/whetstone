@@ -31,6 +31,7 @@ type readerSection struct {
 	Title       string           `json:"title"`
 	Description string           `json:"description"`
 	Published   bool             `json:"published"`
+	Topics      []string         `json:"topics"`
 	Questions   []readerQuestion `json:"questions"`
 }
 
@@ -42,7 +43,7 @@ type readerContent struct {
 func toReader(idx store.Index) readerContent {
 	out := readerContent{Version: idx.Version, Sections: make([]readerSection, 0, len(idx.Sections))}
 	for _, sec := range idx.Sections {
-		rs := readerSection{ID: sec.ID, Title: sec.Title, Description: sec.Description, Published: sec.Published, Questions: make([]readerQuestion, 0, len(sec.Questions))}
+		rs := readerSection{ID: sec.ID, Title: sec.Title, Description: sec.Description, Published: sec.Published, Topics: topicsOrEmpty(sec.Topics), Questions: make([]readerQuestion, 0, len(sec.Questions))}
 		for _, q := range sec.Questions {
 			rs.Questions = append(rs.Questions, readerQuestion{q.ID, q.SectionID, q.Title, q.Level, q.Tags, q.Minutes, q.Summary, q.SearchText, q.Published, q.Contributor})
 		}
@@ -88,6 +89,9 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 		if user.IsAdmin() {
 			if n, err := s.store.CountPendingSubmissions(r.Context(), 0); err == nil {
 				body["pendingSubmissions"] = n
+			}
+			if n, err := s.store.CountPendingIdeas(r.Context(), 0); err == nil {
+				body["pendingIdeas"] = n
 			}
 		}
 	}
@@ -209,4 +213,11 @@ func (s *Server) deleteMe(w http.ResponseWriter, r *http.Request, user store.Use
 	}
 	s.clearCookie(w, r, s.sessionCookieName(r))
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func topicsOrEmpty(t []string) []string {
+	if t == nil {
+		return []string{}
+	}
+	return t
 }

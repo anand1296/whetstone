@@ -17,6 +17,7 @@ import { api, ApiError } from '../../platform/api.ts';
 import { useServer } from '../../platform/backend.ts';
 import { navigate } from '../../state/route.ts';
 import type { Submission, SubmissionInput } from '../console/consoleApi.ts';
+import { MyIdeas, SuggestTopicDialog, useMyIdeas } from './SuggestTopic.tsx';
 
 const TEMPLATE = `> [!TLDR]
 > The answer you'd give in the first 60 seconds: the core idea, the key trade-off, one concrete detail.
@@ -50,6 +51,8 @@ export function ContributePage() {
   const canSubmit = server.mode === 'server' && server.user !== null;
   const [writing, setWriting] = useState(false);
   const [mine, setMine] = useState<Submission[] | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const ideas = useMyIdeas(canSubmit);
 
   const loadMine = useCallback(async () => {
     if (!canSubmit) return;
@@ -101,6 +104,22 @@ export function ContributePage() {
           </div>
         </section>
 
+        <section className="contrib-card" aria-labelledby="contrib-topic">
+          <h2 id="contrib-topic">
+            <Icon name="megaphone" /> Suggest a topic
+          </h2>
+          <p>
+            Is a whole area missing, say Kubernetes for SREs, or Go concurrency for backend? Suggest it, with a few starter questions if
+            you have them. If it fits, we write the answers in the same depth as the rest of the bank, and you can follow it here until
+            it&rsquo;s live.
+          </p>
+          <div className="button-row">
+            <button type="button" className="btn btn-primary" onClick={() => setSuggesting(true)}>
+              Suggest a topic
+            </button>
+          </div>
+        </section>
+
         <section className="contrib-card" aria-labelledby="contrib-code">
           <h2 id="contrib-code">
             <Icon name="pullRequest" /> Improve the app
@@ -136,7 +155,17 @@ export function ContributePage() {
         />
       ) : null}
 
+      {canSubmit && ideas.items && ideas.items.length > 0 ? <MyIdeas items={ideas.items} onChange={ideas.reload} /> : null}
+
       {canSubmit && mine && mine.length > 0 ? <MySubmissions items={mine} onChange={loadMine} /> : null}
+
+      <SuggestTopicDialog
+        open={suggesting}
+        onClose={() => {
+          setSuggesting(false);
+          void ideas.reload();
+        }}
+      />
     </article>
   );
 }
