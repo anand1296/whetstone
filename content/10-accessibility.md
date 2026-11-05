@@ -2,7 +2,7 @@
 id: accessibility
 title: Accessibility
 description: Semantics and the rules of ARIA, focus management in SPAs, keyboard patterns, live regions, accessible forms, and making accessibility stick across an organization.
-topics: frontend
+facets: frontend
 ---
 
 ## The rules of ARIA: semantic HTML first, roles, states, properties and accessible names

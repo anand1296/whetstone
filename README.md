@@ -4,9 +4,9 @@
 
 **Try it: [frontend-loop-beta.vercel.app](https://frontend-loop-beta.vercel.app)** · sign in with GitHub to sync your progress, or just start studying.
 
-**Interview prep for senior, lead and principal engineers.** 119 deep, interview-grade questions across 15 "rounds" of a real frontend interview loop, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
+**Interview prep for senior, lead and principal engineers.** 123 deep, interview-grade questions across 16 topics, from JavaScript internals to system design and AI-assisted design, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 
-Version 2 adds a **Go + Postgres backend**: GitHub sign-in, synced progress across devices, invite links, roles (owner, admins, learners) and an **admin console** where you can add and edit rounds and questions live (preview, drafts, history, trash), see learners' progress, switch features and post announcements, with no code changes or deploys.
+Version 2 adds a **Go + Postgres backend**: GitHub sign-in, synced progress across devices, invite links, roles (owner, admins, learners) and an **admin console** where you can add and edit topics and questions live (preview, drafts, history, trash), see learners' progress, switch features and post announcements, with no code changes or deploys.
 
 The same frontend still runs **without** a backend: on any static host, as one HTML file, or as a claude.ai Artifact (https://claude.ai/artifact/WXur8AanHGrgRZpkh4Jg9i).
 
@@ -44,11 +44,11 @@ The same frontend still runs **without** a backend: on any static host, as one H
 
 **For learners**
 
-- **Rounds and accordions.** Each topic is a round; each question is an accordion row showing the question, its level (Senior, Lead/Staff, Principal), study time and tags. Expand it for the full answer.
+- **Topics and accordions.** Each topic is a topic; each question is an accordion row showing the question, its level (Senior, Lead/Staff, Principal), study time and tags. Expand it for the full answer.
 - **Answers built for the room.** Every answer opens with *the 60-second answer*, then the mental model, correct code with a copy button, trade-offs, edge cases, follow-ups, common mistakes and primary references.
 - **React, Angular or Vue.** Answers with code (machine-coding builds, component APIs, forms, error handling, state, testing, security, streaming UIs and more) have a framework switch: pick React, Angular or Vue once and the code follows you across questions. Framework-neutral material is always shown.
 - **Tick it off; pick up where you left off.** Progress saves automatically; the overview reopens the question you were on.
-- **Topic chips.** Filter the rounds by role (Frontend, Backend, SRE, QE…), language, framework or platform. Frontend, JavaScript, TypeScript and React are live today; the rest are visibly "Coming soon" and light up automatically when a round carrying that topic is published.
+- **Tracks.** "What are you preparing for?" offers one-tap tracks (Frontend, Frontend · React, Backend, Full-stack, SRE, QE, Cloud, Design), and the topic list, progress ring, "up next" and sidebar all follow the track. "Fine-tune" combines role, language, framework and platform; general topics (like Accessibility) stay visible when you narrow by language or framework. Tracks without content yet are visibly "Coming soon" and light up automatically when a topic tagged for them is published.
 - **Suggest a topic.** Missing a whole area? Suggest it with a few starter questions, then follow it from the Contribute page until it's live.
 - **Email reminders** (opt-in, daily / every 3 days / weekly): progress, reviews due, the next question with a link, and a motivational nudge.
 - **Spaced review** (2, 5, 12, 30, 75 days), **practice mode** (answer out loud first, with a stopwatch), **private notes**, **search** (`/` or Ctrl/⌘ K), filters, deep links (`#oauth-pkce-flow`), light/dark, phone-friendly, keyboard and screen-reader friendly.
@@ -61,16 +61,16 @@ The same frontend still runs **without** a backend: on any static host, as one H
 
 **For the owner and admins** (server mode)
 
-- **Content manager:** create, edit, reorder, publish/hide and delete rounds and questions in the browser; Markdown editor with a live, server-rendered preview; drafts visible only to admins; revision history; trash; sync with and export to the repository's Markdown.
-- **People:** invite links (single-use or group, with expiry), roles, a learner dashboard (progress, rounds finished, reviews due, last active), disable/remove.
+- **Content manager:** create, edit, reorder, publish/hide and delete topics and questions in the browser; Markdown editor with a live, server-rendered preview; drafts visible only to admins; revision history; trash; sync with and export to the repository's Markdown.
+- **People:** invite links (single-use or group, with expiry), roles, a learner dashboard (progress, topics finished, reviews due, last active), disable/remove.
 - **Features and settings:** switch built-in features on or off, post an announcement, set the app name, headline, who can register and who can read.
-- **Submissions:** review community questions (edit, pick the round and id, publish or draft, note), approve or reject; authors are credited and emailed.
-- **Topic ideas:** review suggested categories (with starter questions), accept them into a new or existing round as drafts, copy an authoring brief to write the answers, and publish. The person follows "In review → Accepted → Writing answers → Live" on their own.
+- **Submissions:** review community questions (edit, pick the topic and id, publish or draft, note), approve or reject; authors are credited and emailed.
+- **Topic ideas:** review suggested categories (with starter questions), accept them into a new or existing topic as drafts, copy an authoring brief to write the answers, and publish. The person follows "In review → Accepted → Writing answers → Live" on their own.
 - **Activity log** of every change.
 
 ## The question bank
 
-| # | Round | Questions | Highlights |
+| # | Topic | Questions | Highlights |
 | --- | --- | --- | --- |
 | 01 | JavaScript Internals | 8 | Event loop and rendering, memory leaks, ESM vs CJS, Proxy reactivity, WeakRef |
 | 02 | TypeScript for Real Codebases | 7 | Narrowing without `as`, generics inference, conditional/mapped types, unsoundness |
@@ -88,7 +88,7 @@ The same frontend still runs **without** a backend: on any static host, as one H
 | 14 | AI-Powered Frontends | 6 | Streaming LLM UI, streaming Markdown, generative UI, RAG UX, cost, evals |
 | 15 | Leadership & Behavioral | 8 | Story bank, migration story, disagreement, mentoring, tech debt, RFCs, influence |
 
-About 30 hours of study. Code fences already support Go, SQL, Terraform, Python, Dockerfile and Protobuf for the backend and cloud rounds on the roadmap.
+About 30 hours of study. Code fences already support Go, SQL, Terraform, Python, Dockerfile and Protobuf for the backend and cloud topics on the roadmap.
 
 ## Quick start
 
@@ -165,7 +165,7 @@ Every decision, with context and consequences: [docs/DECISIONS.md](docs/DECISION
 Browser (React)
   boot: GET /api/bootstrap ── server mode ──▶ content, user, flags, settings from the API
                            └─ otherwise ───▶ local-only mode (bundled content, browser storage)
-  ├─ Study views: overview · round (accordion) · review · search · settings
+  ├─ Study views: overview · topic (accordion) · review · search · settings
   ├─ Account: sign in, invite, account settings
   └─ Admin console: content manager + editor · learners · invites · features & settings · activity
 
@@ -186,14 +186,14 @@ The full specification (requirements, data model, API, flows, security, operatio
 - **Always local-first:** progress is saved in the browser instantly (validated on read) and merged across tabs.
 - **Signed in (server mode):** progress syncs to your account; the server merges devices per question (last writer wins), so ticking on phone and laptop both count. Signing out clears the device's copy.
 - **claude.ai Artifact:** syncs to a private per-user document there.
-- **Admins see a summary only** (done per round, reviews due, last active). Notes and review dates stay private. You can delete your account from Settings.
+- **Admins see a summary only** (done per topic, reviews due, last active). Notes and review dates stay private. You can delete your account from Settings.
 - No analytics or trackers.
 
 ## Admin: content, people, features
 
 You (`OWNER_GITHUB_LOGIN=anand1296`) are the **owner**: everything an admin can do, plus roles, admin invites and site settings.
 
-- **Content without deploys:** Admin → Content → *New round* / *New question*, write Markdown with a live preview, save as draft or publish. Edits are versioned; deleted questions go to Trash; *Export all* gives you `content/*.md` to commit.
+- **Content without deploys:** Admin → Content → *New topic* / *New question*, write Markdown with a live preview, save as draft or publish. Edits are versioned; deleted questions go to Trash; *Export all* gives you `content/*.md` to commit.
 - **Invite people:** Admin → Invites → create a link (once or for a group, with expiry) → send it. Registration can be invite-only (default) or open.
 - **Features:** switch Spaced review, Search, Notes, Filters, Export/import and the Level breakdown on or off for everyone. Brand-new features are code changes: push to `main` and Vercel deploys them (ideally behind a new flag).
 
@@ -226,7 +226,7 @@ whetstone/
 | --- | --- | --- |
 | Go unit | 15 | Markdown rendering and safety, every code language, content parsing/validation/export round-trip, progress merge properties |
 | Go integration (real Postgres) | 16 | Every API rule over HTTP: invites, roles, disabling, expiry, open/members-only, settings, full CMS lifecycle, revisions, trash, ETags, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth (fake provider), concurrent invite race, serverless entry, email reminders, community submissions |
-| Renderer parity | 119 answers | Go and TypeScript renderers produce the same documents |
+| Renderer parity | 123 answers | Go and TypeScript renderers produce the same documents |
 | TypeScript unit | 45 | Walkthrough compiler, content compiler, progress model, search, selectors, sync protocols (Artifact and HTTP), language-list parity |
 | E2E static | 12 | Study flows, How it's built, Contribute, hosted Artifact build in a sandboxed CSP frame, mobile |
 | E2E full stack | 4 | Owner edits content and settings and invites; learner joins, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves, it's credited |
@@ -243,7 +243,7 @@ Start with **How it's built** inside the app (or [`walkthroughs/`](walkthroughs/
 
 From frontend prep to full-stack prep (details in [docs/SPEC.md §18](docs/SPEC.md#18-roadmap-from-frontend-prep-to-full-stack-prep)):
 
-1. **Tracks** of rounds: Frontend, Backend & Go, Data (Postgres, Redis), Cloud & AWS, Infrastructure as Code (Terraform), System Design, AI Engineering, Leadership.
+1. **Tracks** of topics: Frontend, Backend & Go, Data (Postgres, Redis), Cloud & AWS, Infrastructure as Code (Terraform), System Design, AI Engineering, Leadership.
 2. **Redis**: shared rate limits, caches, leaderboards, pub/sub; **live updates** with Server-Sent Events.
 3. **Mock interviews**, confidence ratings, **AI follow-ups and feedback**, semantic search (pgvector).
 4. **AWS with Terraform**: ECS Fargate or Lambda, RDS, ElastiCache, S3 + CloudFront, OIDC CI/CD; OpenTelemetry and SLOs.
@@ -252,7 +252,7 @@ From frontend prep to full-stack prep (details in [docs/SPEC.md §18](docs/SPEC.
 
 The repository is open for contributions, and everything is reviewed by the owner before it goes live:
 
-- **Suggest a new topic or category:** in the app, *Suggest a topic* (above the rounds, or on *Contribute*), or a [topic suggestion issue](https://github.com/anand1296/whetstone/issues/new?template=topic.yml). Accepted ideas are written up and published, and you can follow their progress.
+- **Suggest a new topic or category:** in the app, *Suggest a topic* (above the topics, or on *Contribute*), or a [topic suggestion issue](https://github.com/anand1296/whetstone/issues/new?template=topic.yml). Accepted ideas are written up and published, and you can follow their progress.
 - **Share a question from your interviews:** in the app, *Behind the scenes → Contribute* (members), or a [question proposal issue](https://github.com/anand1296/whetstone/issues/new?template=question.yml).
 - **Improve the code:** fork, branch, `npm run check`, open a pull request. `main` is protected: every PR needs the owner's approval (CODEOWNERS) and green CI.
 

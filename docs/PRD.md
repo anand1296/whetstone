@@ -6,7 +6,7 @@
 
 ## 1. Problem
 
-Senior, lead and principal frontend interviews cover a wide surface: JavaScript and TypeScript internals, React at depth, machine coding, browser and performance, testing, accessibility, security, system design, architecture, AI features and behavioral rounds. Preparation material is scattered across blogs, docs, courses and chat transcripts. It is usually either shallow (definitions and trivia) or long-form (books) with no way to track what you've actually mastered or to keep it fresh in the weeks before interviews.
+Senior, lead and principal frontend interviews cover a wide surface: JavaScript and TypeScript internals, React at depth, machine coding, browser and performance, testing, accessibility, security, system design, architecture, AI features and behavioral topics. Preparation material is scattered across blogs, docs, courses and chat transcripts. It is usually either shallow (definitions and trivia) or long-form (books) with no way to track what you've actually mastered or to keep it fresh in the weeks before interviews.
 
 ## 2. Users
 
@@ -37,12 +37,12 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 
 | # | As a… | I want to… | So that… | Priority |
 | --- | --- | --- | --- | --- |
-| U1 | learner | browse questions grouped by topic ("rounds") | I can study one area at a time | Must |
+| U1 | learner | browse questions grouped by topic ("topics") | I can study one area at a time | Must |
 | U2 | learner | see only the question until I expand it | I can try answering first | Must |
 | U3 | learner | read a detailed answer with code and references | I understand it deeply enough for follow-ups | Must |
 | U4 | learner | tick a question as done from the list or the answer | my progress is saved | Must |
 | U5 | learner | return later and continue where I left off | I don't hunt for my place | Must |
-| U6 | learner | see progress per round and overall | I know what's left | Must |
+| U6 | learner | see progress per topic and overall | I know what's left | Must |
 | U7 | learner | search all questions by keyword | I can jump to a topic before an interview | Should |
 | U8 | learner | filter by status and level | I can focus on gaps or my target level | Should |
 | U9 | learner | get done answers back for review on a schedule | I don't forget them | Should |
@@ -53,7 +53,7 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 | U14 | mentor | share a link to one question | others land directly on it | Could |
 | U15 (v2) | learner | sign in once and have progress on every device | I can switch between laptop and phone | Must |
 | U16 (v2) | owner | invite people with a link and decide who may join | the group stays the people I chose | Must |
-| U17 (v2) | admin | add or edit rounds and questions in the browser, with a preview, drafts and history | the bank grows without deploys or mistakes | Must |
+| U17 (v2) | admin | add or edit topics and questions in the browser, with a preview, drafts and history | the bank grows without deploys or mistakes | Must |
 | U18 (v2) | admin | see each learner's progress (not their notes) | I can help people who are stuck | Should |
 | U19 (v2) | admin | switch features on or off and post announcements | I can tailor the app to the group | Should |
 | U20 (v2) | owner | export content back to Markdown | the repository stays the long-term record | Should |
@@ -61,17 +61,17 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 ## 5. Functional requirements
 
 1. **Content**
-   - 15 rounds, ~110 questions, tagged by level (Senior, Lead/Staff, Principal), estimated study minutes and topic tags.
+   - 16 topics, ~120 questions, tagged by level (Senior, Lead/Staff, Principal), estimated study minutes and topic tags.
    - Every answer starts with a "60-second answer" summary.
    - Code is syntax-highlighted with a copy button; tables scroll horizontally on small screens.
-2. **Accordion list** per round; panels lazy-render their content; expand/collapse all.
+2. **Accordion list** per topic; panels lazy-render their content; expand/collapse all.
 3. **Progress**: per-question done state, done time, review stage and due date, notes; last visited question.
 4. **Resume**: Overview's primary action opens the last visited question if not done, otherwise the next not-done question in the learning path.
 5. **Spaced review**: done answers come back after 2, 5, 12, 30, 75 days; "Still solid" advances, "Needs another pass" un-marks.
 6. **Search**: keyboard shortcut (`/`, Ctrl/⌘+K), weighted multi-token search across titles, tags, summaries and opening text, accessible combobox.
 7. **Practice mode**: answer gated behind "Reveal the answer" with a stopwatch.
 8. **Settings**: theme (system/light/dark), practice mode, export (copy/download JSON), import (merge/replace), reset with confirmation.
-9. **Deep links**: `#<round-id>` and `#<question-id>` open the right round and question.
+9. **Deep links**: `#<topic-id>` and `#<question-id>` open the right topic and question.
 10. **Persistence**: survives reloads; syncs across tabs; syncs across devices where the host provides per-user storage.
 
 ## 6. Non-functional requirements
@@ -98,13 +98,13 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 
 | Version | Scope |
 | --- | --- |
-| **v1.0** (this release) | Everything in §5, 119 questions across 15 rounds, docs, unit tests, CI |
+| **v1.0** (this release) | Everything in §5, 123 questions across 16 topics, docs, unit tests, CI |
 | v1.1 | Component tests (Testing Library) and Playwright E2E in CI; Lighthouse CI budgets |
 | v1.2 | Offline support (service worker), installable PWA |
 | **v2.0** (this release) | Go + Postgres backend; GitHub sign-in; owner/admin/learner roles; invite links; synced progress; admin console (content CMS with preview, drafts, revisions, trash, repository sync and export; learners; invites; feature flags; site settings; announcements; activity log); full-stack CI |
 | **v2.2** | Email reminders (opt-in, daily cron, SMTP) |
 | **v2.3** | "How it's built" walkthroughs with live code; community question submissions with owner review; contribution guide and protected `main` |
-| v2.4 | Tracks (groups of rounds) and the first backend/Go, data and cloud rounds |
+| v2.4 | Tracks (groups of topics) and the first backend/Go, data and cloud topics |
 | v2.5 | Redis (shared rate limits, caches), live updates via Server-Sent Events |
 | v3.0 | Mock-interview mode, confidence ratings, AI follow-ups and feedback, semantic search; optional AWS deployment with Terraform (SPEC §18) |
 
@@ -112,4 +112,4 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 
 - Should practice mode record time-to-answer per question to suggest weak areas?
 - Should notes be exportable as a personal "story bank" document?
-- Should rounds be reorderable to fit a specific company's loop?
+- Should topics be reorderable to fit a specific company's loop?

@@ -15,7 +15,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 **Consequences.**
 - (+) Deploys as static files anywhere (Vercel, Netlify, GitHub Pages, a single HTML file).
 - (+) Familiar stack, fast dev server, tiny config.
-- (−) First paint waits for JS. Mitigated by a small framework footprint and no network round trips for content. If SEO ever matters, pre-render round pages at build time (the content compiler already produces HTML).
+- (−) First paint waits for JS. Mitigated by a small framework footprint and no network round trips for content. If SEO ever matters, pre-render topic pages at build time (the content compiler already produces HTML).
 
 ---
 
@@ -25,7 +25,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 **Context.** ~110 long answers with code, tables and callouts need to be easy to write, review in PRs, and validate. Rendering Markdown and highlighting code in the browser would add ~100 KB of JS and per-open work.
 
-**Decision.** One Markdown file per round under `content/`, with front matter and an HTML-comment meta block per question. A pure compiler (`build/content/compile.ts`) validates and converts them to HTML at build time; bundler adapters expose them as virtual modules (index + one chunk per round).
+**Decision.** One Markdown file per topic under `content/`, with front matter and an HTML-comment meta block per question. A pure compiler (`build/content/compile.ts`) validates and converts them to HTML at build time; bundler adapters expose them as virtual modules (index + one chunk per topic).
 
 **Consequences.**
 - (+) No parser or highlighter in the client; answers render instantly.
@@ -39,9 +39,9 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 **Status:** Accepted
 
-**Context.** Three views (overview, review, round) plus deep links to questions. Some hosts (sandboxed iframes) only pass a plain `#token` through, not paths or query strings.
+**Context.** Three views (overview, review, topic) plus deep links to questions. Some hosts (sandboxed iframes) only pass a plain `#token` through, not paths or query strings.
 
-**Decision.** A ~40-line router: `#review`, `#<round-id>`, `#<question-id>`. Round and question ids share a namespace, enforced unique by the compiler.
+**Decision.** A ~40-line router: `#review`, `#<topic-id>`, `#<question-id>`. Topic and question ids share a namespace, enforced unique by the compiler.
 
 **Consequences.**
 - (+) Works on any static host with no rewrite rules, and inside sandboxed hosts.
@@ -190,7 +190,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 **Status:** Accepted (v2)
 
-**Context.** Data is relational (users, sessions, invites, rounds, questions, revisions) with a few documents (progress, settings). Free hosting exists (Neon, Supabase). We need transactions, row locks and JSON.
+**Context.** Data is relational (users, sessions, invites, topics, questions, revisions) with a few documents (progress, settings). Free hosting exists (Neon, Supabase). We need transactions, row locks and JSON.
 
 **Decision.** Postgres via `database/sql` + `lib/pq`, hand-written SQL in `backend/store`, one transaction per store method. Migrations are numbered `.sql` files embedded in the binary and applied at startup in one transaction under `pg_advisory_xact_lock`, recorded in `schema_migrations`. Migrations are additive and forward-only.
 
@@ -238,7 +238,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 **Context.** Admins must add and change questions without a deploy, but the repository's Markdown bank has value: reviewable diffs, the static/Artifact builds, and a backup.
 
-**Decision.** In server mode, Postgres is the source of truth. The repository files are embedded in the binary, seeded once into an empty database, and can be re-imported ("Sync from repository": add missing or overwrite changed, never delete console content). Any round can be exported in the exact file format (zip for everything) to commit back. The Go renderer (goldmark + chroma, with highlight.js class names) renders Markdown to safe HTML when saving; a CI parity test compares its output on every answer with the TypeScript build renderer.
+**Decision.** In server mode, Postgres is the source of truth. The repository files are embedded in the binary, seeded once into an empty database, and can be re-imported ("Sync from repository": add missing or overwrite changed, never delete console content). Any topic can be exported in the exact file format (zip for everything) to commit back. The Go renderer (goldmark + chroma, with highlight.js class names) renders Markdown to safe HTML when saving; a CI parity test compares its output on every answer with the TypeScript build renderer.
 
 **Consequences.**
 - (+) Live editing with drafts, history and preview, and still a git-friendly format both ways.
@@ -404,7 +404,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 **Consequences.**
 - (+) Unreviewed content is invisible by construction; approval can't half-happen or happen twice.
 - (+) Review effort is low: contributions already meet the publishing bar and the reviewer edits in place.
-- (−) A suggested new round must be created by the admin before approving into it.
+- (−) A suggested new topic must be created by the admin before approving into it.
 - (−) Branch protection lives in GitHub settings, not in the repository, so it must be set (and re-checked) manually; the owner, as a repository admin, can still bypass it unless "Do not allow bypassing" is enabled.
 
 ---
@@ -413,7 +413,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 **Status:** Accepted (v2.4)
 
-**Context.** Question titles are one-liners ("Build a typeahead…"). Real interview prompts carry a scenario, constraints and, for coding rounds, the cases the interviewer will try. Practice mode hides the answer until revealed, so the extra detail has to be visible *before* that.
+**Context.** Question titles are one-liners ("Build a typeahead…"). Real interview prompts carry a scenario, constraints and, for coding topics, the cases the interviewer will try. Practice mode hides the answer until revealed, so the extra detail has to be visible *before* that.
 
 **Decision.** A new optional callout kind, `> [!PROMPT]` ("The full question"), written as the first block of a question body in both renderers (the TypeScript build-time one and the Go write-time one; the parity test covers it). The reader splits it off the compiled HTML (`splitPrompt`) and always shows it; the "answer it out loud first" gate stands in only for the rest. Coding questions list **Test cases** in it; conceptual ones list what a good answer should cover. All 109 questions have one.
 
@@ -473,7 +473,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 **Consequences.**
 - (+) Switching is instant and works offline in the static build, the single-file build and the server build; the parity test covers the variants too.
 - (+) Neutral content is written once.
-- (−) The HTML for every framework ships with the answer chunk (answers are loaded per round, and gzip handles the repeated structure well).
+- (−) The HTML for every framework ships with the answer chunk (answers are loaded per topic, and gzip handles the repeated structure well).
 - (−) Search indexes all variants, so a search can match text that is hidden for the current framework; the match opens the question, where the switch is one click.
 - (−) Authors must keep the variants equivalent as questions evolve; the content guide says what stays shared.
 
@@ -516,22 +516,22 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 ---
 
-## ADR-032: Topic chips derived from content; suggestions create drafts and report derived progress
+## ADR-032: Facets and tracks derived from content; suggestions create drafts and report derived progress
 
 **Status:** Accepted
 
 **Context.** The bank is frontend-only today but should grow into backend, SRE, QE and cloud. We want a filter that shows that direction without promising content that does not exist, and a way for people to suggest categories that does not make the owner maintain a status field by hand.
 
 **Decision.**
-- *Taxonomy in one file.* `content/topics.json` lists the chips (role, language, framework, platform). The browser, the content compiler and the Go backend read the same file; rounds carry `topics:` in their front matter and in `sections.topics`.
-- *Availability is derived.* A chip is selectable only while at least one **published** round carries its topic; otherwise it renders disabled with a "Coming soon" tooltip. Publishing a round tagged `angular` lights up the Angular chip with no UI change. Filtering is OR within a group and AND across groups.
-- *Suggestions become drafts.* Accepting a `topic_idea` creates a draft round and draft questions in one transaction (starter questions the reviewer did not keep are dropped). The idea's stage (in review, writing, live, not added) is computed from the status and the drafts' `published` flags, so there is nothing to keep in sync and "live" happens the moment the content is published.
+- *Taxonomy in one file.* `content/facets.json` lists the facets (role, language, framework, platform) and the one-tap *tracks* (Frontend, Frontend · React, Backend, SRE, Design...). The browser, the content compiler and the Go backend read the same file; topics carry `facets:` in their front matter and in `sections.facets`. ("Rounds" were renamed "topics" in the UI; the old per-topic tags became "facets" to avoid the collision.)
+- *Availability is derived.* A facet or track is selectable only while at least one **published** topic carries it (a track needs all its facets covered); otherwise it renders disabled with a "Coming soon" tooltip. Publishing a topic tagged `angular` lights up the Angular facet with no UI change. Filtering is OR within a group and AND across groups, except that **general topics** (no tag in a group) are kept when another group narrows, so an Accessibility topic still appears for a React-only learner. Role is strict. The selected track also drives progress, "up next" and the sidebar.
+- *Suggestions become drafts.* Accepting a `topic_idea` creates a draft topic and draft questions in one transaction (starter questions the reviewer did not keep are dropped). The idea's stage (in review, writing, live, not added) is computed from the status and the drafts' `published` flags, so there is nothing to keep in sync and "live" happens the moment the content is published.
 - *Authoring stays human-reviewed.* The console offers a copy-ready authoring brief; the answers are pasted into the normal editor, which keeps validation, preview and revision history.
 
-**Alternatives considered.** Hard-coded enabled chips (drifts from content; needs a deploy to enable a chip); tags per question instead of per round (the overview lists rounds, and per-question chips would multiply the editing work); a stored status the admin updates (easy to forget; two sources of truth); generating answers automatically on accept (unreviewed model output reaching learners, and a cost and secret-handling decision that belongs to the AI roadmap, not this change).
+**Alternatives considered.** Hard-coded enabled chips (drifts from content; needs a deploy to enable a chip); tags per question instead of per topic (the overview lists topics, and per-question chips would multiply the editing work); a stored status the admin updates (easy to forget; two sources of truth); generating answers automatically on accept (unreviewed model output reaching learners, and a cost and secret-handling decision that belongs to the AI roadmap, not this change).
 
 **Consequences.**
-- (+) Adding backend/SRE/QE content is a content change: write rounds, tag them, publish.
+- (+) Adding backend/SRE/QE content is a content change: write topics, tag them, publish.
 - (+) The suggestion pipeline reuses the submissions patterns (limits, emails, transactional review).
-- (−) Chips on a round are a coarse signal; a round that mixes areas needs several topics.
+- (−) Facets on a topic are a coarse signal; a topic that mixes areas needs several topics.
 - (−) A deleted draft question silently stops counting toward "live" for its idea.

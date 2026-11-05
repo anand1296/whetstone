@@ -48,7 +48,7 @@ function Row({ me, person, rounds, now, onChanged }: { me: ServerUser; person: P
           <span className="tabular">{percent(summary.doneCount, summary.total)}%</span>
         </span>
         <span className="cell-sub tabular">
-          {summary.doneCount}/{summary.total} · {finished} rounds finished · {summary.dueCount} due
+          {summary.doneCount}/{summary.total} · {finished} topics finished · {summary.dueCount} due
         </span>
       </td>
       <td>

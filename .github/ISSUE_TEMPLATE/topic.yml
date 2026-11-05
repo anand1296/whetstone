@@ -17,12 +17,12 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: chips
+    id: filters
     attributes:
       label: Where does it belong?
-      description: The closest filter chip.
+      description: The closest filter.
       multiple: true
-      options: [Frontend, Backend, Full-stack, SRE, QE / SDET, Cloud, JavaScript, TypeScript, Go, Node.js, Java, Python, React, Angular, Vue, AWS, Azure, GCP, Kubernetes]
+      options: [Frontend, Backend, Full-stack, SRE, QE / SDET, Cloud, Design, JavaScript, TypeScript, Go, Node.js, Java, Python, React, Angular, Vue, AWS, Azure, GCP, Kubernetes]
   - type: textarea
     id: why
     attributes:

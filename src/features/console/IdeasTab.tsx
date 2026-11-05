@@ -2,7 +2,7 @@
  * Topic ideas: new categories people suggested, with optional starter questions.
  *
  * The workflow is deliberately short:
- *   1. Review: accept (create a draft round and a draft question per starter
+ *   1. Review: accept (create a draft topic and a draft question per starter
  *      question) or decline with a note.
  *   2. Write: copy the authoring brief, produce the answers, paste each into its
  *      draft in Content, and publish.
@@ -11,8 +11,8 @@
  */
 import { useCallback, useId, useMemo, useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
-import { TopicPicker } from '../../components/TopicPicker.tsx';
-import { topicLabel } from '../../content/topics.ts';
+import { FacetPicker } from '../../components/FacetPicker.tsx';
+import { facetLabel } from '../../content/facets.ts';
 import { LEVELS, LEVEL_LABEL, type Level } from '../../content/types.ts';
 import { ApiError } from '../../platform/api.ts';
 import { refreshBootstrap } from '../../platform/backend.ts';
@@ -31,7 +31,7 @@ const FILTERS: ReadonlyArray<{ value: Filter; label: string }> = [
 
 const EMPTY_COPY: Record<Filter, string> = {
   pending: 'Nothing waiting. 🎉',
-  open: 'No accepted topics are waiting for answers.',
+  open: 'No accepted facets are waiting for answers.',
   all: 'No topic ideas yet.',
 };
 
@@ -69,7 +69,7 @@ export function IdeasTab({ onOpenContent }: { onOpenContent: () => void }) {
       }
     >
       <p className="admin-note">
-        New categories people suggested, with optional starter questions. Accept one to create a draft round and draft questions;
+        New categories people suggested, with optional starter questions. Accept one to create a draft topic and draft questions;
         then write the answers (copy the brief) and publish. The person follows the progress on their own, and is emailed when you
         decide.
       </p>
@@ -102,7 +102,7 @@ function IdeaRow({ idea, canReview, onReview, onOpenContent }: { idea: Idea; can
       <span className="contrib-title">
         {idea.title}
         <span className="contrib-sub">
-          @{idea.submitter} · {idea.topics.length > 0 ? idea.topics.map(topicLabel).join(', ') : 'no chips'} ·{' '}
+          @{idea.submitter} · {idea.facets.length > 0 ? idea.facets.map(facetLabel).join(', ') : 'no chips'} ·{' '}
           {idea.questions.length === 0 ? 'no starter questions' : `${idea.questions.length} starter question${idea.questions.length === 1 ? '' : 's'}`} ·{' '}
           {formatDate(idea.createdAt)}
         </span>
@@ -136,7 +136,7 @@ function IdeaRow({ idea, canReview, onReview, onOpenContent }: { idea: Idea; can
         <IdeaQuestions idea={idea} />
         {idea.stage === 'writing' && idea.sectionTitle ? (
           <p className="admin-note">
-            Drafts live in the round <strong>{idea.sectionTitle}</strong> (Content tab). Publishing the questions, then the round,
+            Drafts live in the topic <strong>{idea.sectionTitle}</strong> (Content tab). Publishing the questions, then the topic,
             makes it live.
           </p>
         ) : null}
@@ -168,7 +168,7 @@ function Review({
   const [id, setId] = useState('');
   const [idTouched, setIdTouched] = useState(false);
   const [description, setDescription] = useState(idea.details.slice(0, 300));
-  const [topics, setTopics] = useState<string[]>(idea.topics);
+  const [facets, setFacets] = useState<string[]>(idea.facets);
   const [existing, setExisting] = useState(sections[0]?.id ?? '');
   const [keep, setKeep] = useState<Record<number, { on: boolean; title: string; level: Level }>>(() =>
     Object.fromEntries(idea.questions.map((q) => [q.id, { on: true, title: q.title, level: 'senior' as Level }])),
@@ -187,7 +187,7 @@ function Review({
       .map((q) => ({ ideaQuestionId: q.id, title: keep[q.id]?.title ?? q.title, level: keep[q.id]?.level ?? ('senior' as Level) }));
     try {
       await consoleApi.acceptIdea(idea.id, {
-        ...(target === 'new' ? { newSection: { id: effectiveId, title, description, topics } } : { sectionId: existing }),
+        ...(target === 'new' ? { newSection: { id: effectiveId, title, description, facets } } : { sectionId: existing }),
         questions,
         note,
       });
@@ -228,23 +228,23 @@ function Review({
         {idea.credit ? 'They asked to be credited on the questions.' : 'They asked not to be credited.'}
       </p>
       <h3 className="idea-title">{idea.title}</h3>
-      {idea.topics.length > 0 ? <p className="admin-note">Suggested chips: {idea.topics.map(topicLabel).join(', ')}</p> : null}
+      {idea.facets.length > 0 ? <p className="admin-note">Suggested chips: {idea.facets.map(facetLabel).join(', ')}</p> : null}
       {idea.details ? <blockquote className="admin-quote">{idea.details}</blockquote> : null}
 
       <fieldset className="review-target">
         <legend>Where does it go?</legend>
         <label className="switch-inline">
-          <input type="radio" name={`${formId}-target`} checked={target === 'new'} onChange={() => setTarget('new')} /> A new round
+          <input type="radio" name={`${formId}-target`} checked={target === 'new'} onChange={() => setTarget('new')} /> A new topic
         </label>
         <label className="switch-inline">
-          <input type="radio" name={`${formId}-target`} checked={target === 'existing'} onChange={() => setTarget('existing')} /> An existing round
+          <input type="radio" name={`${formId}-target`} checked={target === 'existing'} onChange={() => setTarget('existing')} /> An existing topic
         </label>
       </fieldset>
 
       {target === 'new' ? (
         <div className="form-grid">
           <label htmlFor={`${formId}-title`} className="span-2">
-            Round title
+            Topic title
             <input id={`${formId}-title`} value={title} maxLength={200} required onChange={(e) => setTitle(e.target.value)} />
             {fieldError('newSection.title')}
           </label>
@@ -268,14 +268,14 @@ function Review({
             {fieldError('newSection.description')}
           </label>
           <div className="span-2">
-            <TopicPicker value={topics} onChange={setTopics} label="Chips for this round" />
-            {fieldError('newSection.topics')}
-            <p className="admin-note">A chip becomes selectable on the overview as soon as a published round carries it.</p>
+            <FacetPicker value={facets} onChange={setFacets} label="Filters for this topic" />
+            {fieldError('newSection.facets')}
+            <p className="admin-note">A chip becomes selectable on the overview as soon as a published topic carries it.</p>
           </div>
         </div>
       ) : (
         <label htmlFor={`${formId}-existing`}>
-          Round
+          Topic
           <select id={`${formId}-existing`} value={existing} onChange={(e) => setExisting(e.target.value)}>
             {sections.map((s) => (
               <option key={s.id} value={s.id}>
@@ -310,7 +310,7 @@ function Review({
           {fieldError('questions.title')}
         </fieldset>
       ) : (
-        <p className="admin-note">No starter questions came with this one. You can add questions to the round in Content after accepting.</p>
+        <p className="admin-note">No starter questions came with this one. You can add questions to the topic in Content after accepting.</p>
       )}
 
       <label htmlFor={`${formId}-note`} className="field-label">

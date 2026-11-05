@@ -173,7 +173,7 @@ export function ContributePage() {
 function QuestionForm({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
   const { sections } = useContent();
   const formId = useId();
-  const [round, setRound] = useState(sections[0]?.id ?? NEW_ROUND);
+  const [topic, setRound] = useState(sections[0]?.id ?? NEW_ROUND);
   const [newRound, setNewRound] = useState('');
   const [title, setTitle] = useState('');
   const [level, setLevel] = useState<Level>('senior');
@@ -188,8 +188,8 @@ function QuestionForm({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
 
   const input = (): SubmissionInput => ({
-    sectionId: round === NEW_ROUND ? '' : round,
-    newSectionTitle: round === NEW_ROUND ? newRound : '',
+    sectionId: topic === NEW_ROUND ? '' : topic,
+    newSectionTitle: topic === NEW_ROUND ? newRound : '',
     title,
     level,
     minutes,
@@ -248,21 +248,21 @@ function QuestionForm({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
           <input id={`${formId}-title`} required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="How would you design an offline-first editor?" aria-invalid={Boolean(problems.title)} />
           {fieldError('title')}
         </label>
-        <label htmlFor={`${formId}-round`}>
-          Round
-          <select id={`${formId}-round`} value={round} onChange={(e) => setRound(e.target.value)}>
+        <label htmlFor={`${formId}-topic`}>
+          Topic
+          <select id={`${formId}-topic`} value={topic} onChange={(e) => setRound(e.target.value)}>
             {sections.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.title}
               </option>
             ))}
-            <option value={NEW_ROUND}>Suggest a new round…</option>
+            <option value={NEW_ROUND}>Suggest a new topic…</option>
           </select>
           {fieldError('sectionId')}
         </label>
-        {round === NEW_ROUND ? (
+        {topic === NEW_ROUND ? (
           <label htmlFor={`${formId}-newround`}>
-            New round name
+            New topic name
             <input id={`${formId}-newround`} required maxLength={120} value={newRound} onChange={(e) => setNewRound(e.target.value)} aria-invalid={Boolean(problems.newSectionTitle)} />
             {fieldError('newSectionTitle')}
           </label>
@@ -293,7 +293,7 @@ function QuestionForm({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
           {fieldError('body')}
         </label>
         <label htmlFor={`${formId}-context`} className="span-2">
-          Interview context <span className="you">(optional, only the reviewer sees it: kind of company, level, round)</span>
+          Interview context <span className="you">(optional, only the reviewer sees it: kind of company, level, topic)</span>
           <textarea id={`${formId}-context`} rows={3} maxLength={1000} value={context} onChange={(e) => setContext(e.target.value)} />
           {fieldError('context')}
         </label>

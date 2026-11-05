@@ -45,7 +45,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
   await expect(resume.locator('.action-title')).toContainText('When does a component re-render');
-  await expect(page.locator('.loop-ring')).toContainText('2/119');
+  await expect(page.locator('.loop-ring')).toContainText('2/123');
 
   await resume.click();
   const third = page.locator('.q').nth(2);
@@ -175,7 +175,7 @@ test('import, spaced review and reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Yes, clear it' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.goto('/');
-  await expect(page.locator('.loop-ring')).toContainText('0/119');
+  await expect(page.locator('.loop-ring')).toContainText('0/123');
 });
 
 test('filters, theme and keyboard basics', async ({ page }) => {
@@ -216,38 +216,46 @@ test('"How it\'s built" walkthroughs and Contribute (no backend)', async ({ page
   expect(errors).toEqual([]);
 });
 
-test('topic chips filter the rounds; "coming soon" chips are inert; the choice is remembered', async ({ page }) => {
+test('tracks narrow the topics; "coming soon" tracks are inert; the choice is remembered', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/');
-  const filter = page.locator('.topic-filter');
-  const rounds = page.locator('.round-list .round');
-  await expect(filter).toBeVisible();
-  await expect(rounds).toHaveCount(15);
+  const picker = page.locator('.track-picker');
+  const topics = page.locator('.round-list .round');
+  const sidebarTopics = page.locator('.nav-rounds .nav-round');
+  await expect(picker).toBeVisible();
+  await expect(topics).toHaveCount(16);
+  await expect(sidebarTopics).toHaveCount(16);
 
-  // Content that doesn't exist yet is visible but disabled, with a tooltip.
-  const backend = filter.getByRole('button', { name: 'Backend' });
+  // Tracks with no content yet are visible but disabled, with a tooltip.
+  const backend = picker.getByRole('group', { name: 'Tracks' }).getByRole('button', { name: 'Backend' });
   await expect(backend).toHaveAttribute('aria-disabled', 'true');
   await backend.hover();
-  await expect(filter.locator('.chip-wrap', { hasText: 'Backend' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
+  await expect(picker.locator('.chip-wrap', { hasText: 'Backend' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
   await backend.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
-  await expect(rounds).toHaveCount(15);
+  await expect(topics).toHaveCount(16);
 
-  // Within a row chips widen the result; across rows they narrow it.
-  await filter.getByRole('button', { name: /^React/ }).click();
-  await expect(rounds).toHaveCount(6);
-  await filter.getByRole('button', { name: /^JavaScript/ }).click();
-  await expect(rounds).toHaveCount(1);
-  await expect(rounds.first()).toContainText('Machine Coding');
-  await expect(filter.getByRole('status')).toContainText('1 of 15 rounds');
+  // The Design track shows just the design topic, in the page and in the sidebar.
+  await picker.getByRole('button', { name: /^Design/ }).click();
+  await expect(topics).toHaveCount(1);
+  await expect(topics.first()).toContainText('Design and AI Prototyping');
+  await expect(sidebarTopics).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /15 more topics hidden/ })).toBeVisible();
+  await expect(picker.getByRole('status')).toContainText('Showing 1 of 16 topics');
 
   await page.reload();
-  await expect(rounds).toHaveCount(1);
+  await expect(topics).toHaveCount(1);
 
-  await filter.getByRole('button', { name: 'Clear' }).click();
-  await expect(rounds).toHaveCount(15);
+  // Fine-tune: individual facets live under the disclosure.
+  await picker.getByRole('button', { name: 'Clear' }).click();
+  await expect(topics).toHaveCount(16);
+  await picker.getByText('Fine-tune by role').click();
+  await picker.getByRole('button', { name: /^Design/ }).last().click();
+  await expect(topics).toHaveCount(1);
+  await picker.getByRole('button', { name: 'Clear' }).click();
+  await expect(topics).toHaveCount(16);
 
   // Without a backend, suggestions go through a GitHub issue form.
-  await filter.getByRole('button', { name: 'Suggest a topic' }).click();
+  await picker.getByRole('button', { name: 'Suggest a topic' }).click();
   await expect(page.getByRole('dialog', { name: 'Suggest a topic' }).getByRole('link', { name: /Suggest it on GitHub/ })).toHaveAttribute(
     'href',
     /issues\/new\?template=topic\.yml/,

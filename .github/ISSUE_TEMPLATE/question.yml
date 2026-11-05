@@ -23,9 +23,9 @@ body:
     validations:
       required: true
   - type: input
-    id: round
+    id: topic
     attributes:
-      label: Round or topic
+      label: Topic or topic
       placeholder: React internals, system design, performance, leadership…
     validations:
       required: true
@@ -41,7 +41,7 @@ body:
     id: context
     attributes:
       label: Interview context (optional)
-      description: Kind of company, which round, anything that helps the reviewer.
+      description: Kind of company, which topic, anything that helps the reviewer.
   - type: checkboxes
     id: credit
     attributes:

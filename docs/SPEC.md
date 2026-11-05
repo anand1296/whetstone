@@ -32,14 +32,14 @@ This is the single, self-contained specification of the system: what it does (pr
 
 ## 1. Summary
 
-Whetstone is a study app for senior, lead and principal engineering interviews. Questions are grouped into **rounds** (topics). Each question is an accordion row; expanding it shows a deep answer (a 60-second spoken answer, mental model, code, trade-offs, follow-ups, mistakes, references). Learners tick questions done, resume where they left off, review done answers on a spaced schedule and keep private notes.
+Whetstone is a study app for senior, lead and principal engineering interviews. Questions are grouped into **topics** (topics). Each question is an accordion row; expanding it shows a deep answer (a 60-second spoken answer, mental model, code, trade-offs, follow-ups, mistakes, references). Learners tick questions done, resume where they left off, review done answers on a spaced schedule and keep private notes.
 
 Version 2 adds a **Go backend** with **Postgres**:
 
 - **Accounts** via GitHub sign-in; progress syncs across devices.
 - **Roles**: one **owner** (super admin, set by configuration), **admins**, **learners**.
 - **Invites**: single- or multi-use links with expiry; registration can be invite-only or open.
-- **Admin console**: create, edit, reorder, publish/unpublish and delete rounds and questions with a live preview, revision history, trash and restore; sync with and export to the repository's Markdown; learner dashboard; invites; feature flags; site settings; announcements; audit log.
+- **Admin console**: create, edit, reorder, publish/unpublish and delete topics and questions with a live preview, revision history, trash and restore; sync with and export to the repository's Markdown; learner dashboard; invites; feature flags; site settings; announcements; audit log.
 
 The same frontend still runs **without** a backend (static hosting, a single HTML file, or the claude.ai Artifact). One request at boot decides the mode.
 
@@ -89,7 +89,7 @@ Comments and social features, payments, native mobile apps, real-time collaborat
 | Local progress, notes, review, search | ✓ | ✓ | ✓ | ✓ |
 | Synced progress across devices | | ✓ | ✓ | ✓ |
 | See drafts in the app | | | ✓ | ✓ |
-| Create/edit/reorder/publish/delete rounds and questions, restore revisions, sync, export | | | ✓ | ✓ |
+| Create/edit/reorder/publish/delete topics and questions, restore revisions, sync, export | | | ✓ | ✓ |
 | Learner dashboard (summaries only, never notes) | | | ✓ | ✓ |
 | Create learner invites, revoke invites | | | ✓ | ✓ |
 | Create admin invites | | | | ✓ |
@@ -113,7 +113,7 @@ IDs are stable; tests and ADRs refer to them.
 
 | ID | Requirement |
 | --- | --- |
-| FR-1 | Rounds listed in order in the sidebar and overview, with per-round progress. |
+| FR-1 | Topics listed in order in the sidebar and overview, with per-topic progress. |
 | FR-2 | Each question is an accordion: collapsed shows title, level (Senior, Lead/Staff, Principal), study minutes and the first three tags; expanded shows the answer. |
 | FR-3 | Answers render Markdown with callouts (TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL), highlighted code with a copy button, scrollable tables. |
 | FR-4 | Tick done from the row or "Mark done & next" inside the answer. |
@@ -122,8 +122,8 @@ IDs are stable; tests and ADRs refer to them.
 | FR-7 | Practice mode hides answers behind "answer out loud first" with a stopwatch. |
 | FR-8 | Private notes per question, autosaved, 2,000 characters. *(flag `notes`)* |
 | FR-9 | Search with `/` or Ctrl/⌘+K across titles, tags, summaries and opening text; accessible combobox. *(flag `search`)* |
-| FR-10 | Status and level filters per round. *(flag `filters`)* |
-| FR-11 | Deep links `#<round-id>` and `#<question-id>`. |
+| FR-10 | Status and level filters per topic. *(flag `filters`)* |
+| FR-11 | Deep links `#<topic-id>` and `#<question-id>`. |
 | FR-12 | Export/import progress as JSON; reset with confirmation. *(flag `progressTransfer`)* |
 | FR-13 | Light/dark/system theme; responsive to small phones. |
 | FR-14 | Level breakdown on the overview. *(flag `levelOverview`)* |
@@ -147,16 +147,16 @@ IDs are stable; tests and ADRs refer to them.
 
 | ID | Requirement |
 | --- | --- |
-| FR-30 | Create a round (id, title, description); edit title/description; publish/hide; reorder; delete (its questions go to trash). |
-| FR-31 | Create a question (title, permanent id auto-derived from the title, round, level, minutes, tags, Markdown answer) as a draft or published; edit; move between rounds; reorder; delete to trash. |
+| FR-30 | Create a topic (id, title, description); edit title/description; publish/hide; reorder; delete (its questions go to trash). |
+| FR-31 | Create a question (title, permanent id auto-derived from the title, topic, level, minutes, tags, Markdown answer) as a draft or published; edit; move between topics; reorder; delete to trash. |
 | FR-32 | Live server-rendered preview of the answer with every validation problem listed; field-level errors on save. |
 | FR-33 | Publishing requires the full quality bar (TL;DR callout, ≥200 characters, known code languages and callouts, no `##` headings inside answers). Drafts may be incomplete. |
 | FR-34 | Optimistic concurrency: a save based on an outdated revision is rejected with a clear message and an option to load the newer version. |
 | FR-35 | Every edit and delete keeps the previous version; any version can be loaded into the editor; deleted questions can be restored (as drafts). |
 | FR-36 | Drafts are visible to admins inside the app, marked "Draft"; never to learners. |
 | FR-37 | Sync from repository: compare the database with the `content/*.md` deployed with the app; add what's missing, or overwrite changed questions (with history kept). Console-created content is never deleted by sync. |
-| FR-38 | Export one round as Markdown or everything as a zip of `content/*.md`, in the exact repository format (round-trips through the parser). |
-| FR-39 | Learner dashboard: people, roles, % complete, rounds finished, reviews due, last active, current round; filter; role changes, disable/enable, remove (per permissions). |
+| FR-38 | Export one topic as Markdown or everything as a zip of `content/*.md`, in the exact repository format (round-trips through the parser). |
+| FR-39 | Learner dashboard: people, roles, % complete, topics finished, reviews due, last active, current topic; filter; role changes, disable/enable, remove (per permissions). |
 | FR-40 | Feature flags switch built-in features for everyone instantly. |
 | FR-41 | Announcement banner with tone (info, good news, heads-up) and optional link; dismissible per user. |
 | FR-42 | Site settings: app name, overview headline, registration policy, content access. |
@@ -170,7 +170,7 @@ IDs are stable; tests and ADRs refer to them.
 | FR-50 | Settings has an **Email reminders** switch, **off by default**, per user. |
 | FR-51 | Frequency: daily, every 3 days or weekly. Changes save immediately. |
 | FR-52 | Reminders go to the user's **primary verified GitHub email** (read with the `user:email` scope at sign-in). Users without one are told to sign in again; the switch can't be turned on without an address. Email addresses are never shown to admins. |
-| FR-53 | Each email contains: overall progress (done/total, %), rounds finished, reviews due (linked to `#review`), up to three rounds in progress, the **next question** (same rule as "Continue") with a deep link, a **motivational line** chosen for the learner's situation (not started, all done, away 7+ days, reviews due, nearly done, otherwise a rotating line), and a link to the app. Plain-text and HTML parts. |
+| FR-53 | Each email contains: overall progress (done/total, %), topics finished, reviews due (linked to `#review`), up to three topics in progress, the **next question** (same rule as "Continue") with a deep link, a **motivational line** chosen for the learner's situation (not started, all done, away 7+ days, reviews due, nearly done, otherwise a rotating line), and a link to the app. Plain-text and HTML parts. |
 | FR-54 | Every email has an unsubscribe link (confirmation page; GET never changes anything) and RFC 8058 one-click headers (`List-Unsubscribe`, `List-Unsubscribe-Post`). |
 | FR-55 | "Send me a test email" sends one immediately (max 3 per hour). |
 | FR-56 | A scheduler sends due reminders once a day (Vercel Cron, ~09:00 IST). Nobody gets two emails in one period, even if runs overlap; a failed send is retried on the next run. |
@@ -191,10 +191,10 @@ IDs are stable; tests and ADRs refer to them.
 | ID | Requirement |
 | --- | --- |
 | FR-70 | A **Behind the scenes → Contribute** page explains the two ways to contribute: share an interview question, or improve the code with a pull request (steps, guide, issues). *(flag `contribute`)* |
-| FR-71 | Signed-in members submit a question: round (or a suggested new round), question, level, minutes, tags, Markdown answer, optional interview context (reviewer-only), and whether to be credited. A preview validates it against the same bar as published questions. |
+| FR-71 | Signed-in members submit a question: topic (or a suggested new topic), question, level, minutes, tags, Markdown answer, optional interview context (reviewer-only), and whether to be credited. A preview validates it against the same bar as published questions. |
 | FR-72 | Submissions are **never visible to other learners** until approved. Limits: 5 per day and 10 pending per person. The owner is emailed about each new submission. |
 | FR-73 | Members see their own submissions with status (waiting, added, not added, withdrawn), the reviewer's note, a link to the question once added, and can withdraw pending ones. |
-| FR-74 | Admins review in **Admin → Submissions** (with a pending-count badge on Admin and on the tab): edit any field, choose the round and permanent id, publish now or add as a draft, add a note, then **approve** (creates the question and closes the submission atomically) or **reject**. The submitter is emailed either way. A second approval of the same submission is refused. |
+| FR-74 | Admins review in **Admin → Submissions** (with a pending-count badge on Admin and on the tab): edit any field, choose the topic and permanent id, publish now or add as a draft, add a note, then **approve** (creates the question and closes the submission atomically) or **reject**. The submitter is emailed either way. A second approval of the same submission is refused. |
 | FR-75 | Approved questions credit the contributor ("Contributed by @login") when they asked for it. |
 | FR-76 | Without a backend, "share a question" opens a GitHub issue form instead. |
 | FR-77 | Code contributions: the repository has a contributing guide, pull request and issue templates, a code of conduct and a security policy; `CODEOWNERS` plus branch protection on `main` make the owner's approval and green CI mandatory for every merge. |
@@ -205,7 +205,7 @@ IDs are stable; tests and ADRs refer to them.
 
 | Area | Requirement | How it is met |
 | --- | --- | --- |
-| Performance | Static mode: no network for content. Server mode: one boot request; answers fetched per round and cached; repeat fetches revalidate with ETag (304). | §13 |
+| Performance | Static mode: no network for content. Server mode: one boot request; answers fetched per topic and cached; repeat fetches revalidate with ETag (304). | §13 |
 | Latency budgets | API p95 < 300 ms warm on Vercel + Neon in the same region; cold start < 3 s including migrations check. | Pool limits, lazy init, small queries |
 | Availability | A backend outage or missing configuration must not break studying, and must be visible rather than silent. | The API answers `503` with a setup checklist (`not_configured` / `unavailable`); the app shows the setup screen with a "Study offline for now" escape hatch |
 | Security | OWASP ASVS L1 intent: no stored XSS, CSRF, session fixation, open redirects, credential storage. | §12 |
@@ -329,7 +329,7 @@ All client state lives in small external stores (`createStore`, read with `useSy
 | `syncStatusStore` | local · connecting · saving · synced · readonly · error |
 | `announcementStore`, `launchStore` | banner; one-shot launch params |
 
-Components read content with `useContent()` and flags with `useFeature(key)` / `useServer()`. When an admin saves, `refreshBootstrap()` replaces the content and settings; every subscribed view updates without a reload. Answers are cached per `(source, version, round)`, so a content change invalidates exactly what changed.
+Components read content with `useContent()` and flags with `useFeature(key)` / `useServer()`. When an admin saves, `refreshBootstrap()` replaces the content and settings; every subscribed view updates without a reload. Answers are cached per `(source, version, topic)`, so a content change invalidates exactly what changed.
 
 ### 6.3 Progress sync
 
@@ -435,8 +435,8 @@ erDiagram
 | `audit_log` | `actor_id`, `action`, `target`, `detail` (JSONB), `at` | Append-only |
 | `reminder_prefs` | `user_id` (PK), `enabled` (default false), `frequency` (`daily`/`every3days`/`weekly`), `unsubscribe_token` (unique), `last_sent_at`, `last_error` | Claimed with `FOR UPDATE SKIP LOCKED` before sending; minimum gaps 20 h / 68 h / 164 h absorb the cron's within-the-hour jitter |
 | `submissions` | `id`, `user_id` (FK, cascade), `section_id` or `new_section_title`, `title`, `level`, `tags[]`, `minutes`, `body`, `context`, `credit`, `status` (`pending`/`approved`/`rejected`/`withdrawn`), `reviewer_id`, `review_note`, `question_id`, timestamps | Separate from `questions`, so no reader query can see unreviewed content; approval inserts the question and closes the submission in one transaction with the row locked |
-| `sections.topics` | `TEXT[]`, default `{}` | Filter-chip ids (taxonomy in `content/topics.json`, validated by `catalog.Section.Validate`); refreshed by repository sync; migration 005 backfills the shipped rounds |
-| `topic_ideas` | `id`, `user_id` (FK, cascade), `title`, `topics[]`, `details`, `credit`, `status` (`pending`/`accepted`/`declined`/`withdrawn`), `reviewer_id`, `review_note`, `section_id`, timestamps | A suggested category. The person-facing stage (in review / writing / live / not added) is **derived**, not stored: an accepted idea is "live" when its kept draft questions (or its round) are published |
+| `sections.facets` | `TEXT[]`, default `{}` | Facet ids (taxonomy and tracks in `content/facets.json`, validated by `catalog.Section.Validate`); refreshed by repository sync; migrations 005/006 backfill the shipped topics (006 renames the column from `topics`) |
+| `topic_ideas` | `id`, `user_id` (FK, cascade), `title`, `facets[]`, `details`, `credit`, `status` (`pending`/`accepted`/`declined`/`withdrawn`), `reviewer_id`, `review_note`, `section_id`, timestamps | A suggested category. The person-facing stage (in review / writing / live / not added) is **derived**, not stored: an accepted idea is "live" when its kept draft questions (or its topic) are published |
 | `topic_idea_questions` | `id`, `idea_id` (FK, cascade), `position`, `title`, `question_id` | Starter questions; `question_id` is set when accepting creates the draft |
 | `questions.contributed_by` | FK to `users`, `ON DELETE SET NULL` | Set on approval only when the submitter asked for credit |
 | `schema_migrations` | `version` | Migrations in `backend/store/migrations/NNN_name.sql`, applied once, in order, in one transaction |
@@ -457,7 +457,7 @@ Merge: per question the entry with the larger `updatedAt` wins (ties keep the st
 
 ### 8.4 Content version and caching
 
-Every content write increments `settings.content_version` in the same transaction. The bootstrap returns it; per-round answer responses carry `ETag: "c<version>-<p|d>-<round>"` (`d` = includes drafts) with `Cache-Control: private, no-cache`, so browsers revalidate cheaply and never see stale answers.
+Every content write increments `settings.content_version` in the same transaction. The bootstrap returns it; per-topic answer responses carry `ETag: "c<version>-<p|d>-<topic>"` (`d` = includes drafts) with `Cache-Control: private, no-cache`, so browsers revalidate cheaply and never see stale answers.
 
 ---
 
@@ -491,7 +491,7 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `POST /submissions` | learner+ (5/day, 10 pending) | Body: `{sectionId \| newSectionTitle, title, level, tags, minutes, body, context, credit}`. 201 with the submission; 422 problems; 429 limits; 403 `disabled` when the `contribute` flag is off. Emails the owner |
 | `GET /me/submissions` | learner+ | The caller's submissions, newest first |
 | `DELETE /me/submissions/{id}` | learner+ | Withdraw a pending submission (409 `not_pending` otherwise) |
-| `POST /ideas` | learner+ (5/day, 10 pending) | Body: `{title, topics[], details, questions[≤5], credit}`. 201 with the idea; 422 problems; 429 limits; 403 `disabled` when `contribute` is off. Emails the owner |
+| `POST /ideas` | learner+ (5/day, 10 pending) | Body: `{title, facets[], details, questions[≤5], credit}`. 201 with the idea; 422 problems; 429 limits; 403 `disabled` when `contribute` is off. Emails the owner |
 | `GET /me/ideas` · `DELETE /me/ideas/{id}` | learner+ | The caller's ideas with derived `stage` and per-question `state`; withdraw a pending one (409 `not_pending`) |
 
 ### 9.2 Admin (admin or owner)
@@ -503,9 +503,9 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `DELETE /admin/users/{id}` | Remove a user (per §2.5) |
 | `GET /admin/invites` · `POST /admin/invites {role, note, maxUses, expiresInDays}` · `DELETE /admin/invites/{id}` | List (with status), create (returns `url`), revoke; the list includes `url` for the owner only |
 | `GET /admin/content` | Full outline including drafts, revisions and timestamps |
-| `POST /admin/sections` `{id, title, description, published?}` | Create a round (409 `id_taken`, 422 problems) |
+| `POST /admin/sections` `{id, title, description, published?}` | Create a topic (409 `id_taken`, 422 problems) |
 | `PATCH /admin/sections/{id}` `{title?, description?, published?}` · `DELETE /admin/sections/{id}` | Edit / delete (questions snapshotted to trash) |
-| `PUT /admin/sections/order {ids}` · `PUT /admin/sections/{id}/order {ids}` | Reorder rounds / a round's questions; must be a full permutation |
+| `PUT /admin/sections/order {ids}` · `PUT /admin/sections/{id}/order {ids}` | Reorder topics / a topic's questions; must be a full permutation |
 | `POST /admin/questions` · `GET/PUT/DELETE /admin/questions/{id}` | Create; read with Markdown body; update (`revision` required, 409 `conflict` if stale); delete |
 | `GET /admin/questions/{id}/revisions` · `GET …/revisions/{rev}` · `POST …/revisions/{rev}/restore` | History, one snapshot, restore (re-creates as draft if deleted) |
 | `GET /admin/trash` | Deleted questions not re-created |
@@ -518,7 +518,7 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | `POST /admin/submissions/{id}/approve {question, note}` | Creates `question` (same validation as `POST /admin/questions`), credits the author if asked, closes the submission, emails the author; 409 `not_pending` |
 | `POST /admin/submissions/{id}/reject {note}` | Closes the submission with a note (≤1000 chars) and emails the author |
 | `GET /admin/ideas?status=pending\|open\|all\|accepted\|declined\|withdrawn` | Review queue (default pending; `open` = accepted but not yet live) |
-| `POST /admin/ideas/{id}/accept {newSection \| sectionId, questions[{ideaQuestionId,title,level}], note}` | One transaction: creates the draft round (or uses an existing one) and a draft question per kept starter question, drops the rest, credits the author if asked, closes the idea, emails the author; 409 `not_pending` |
+| `POST /admin/ideas/{id}/accept {newSection \| sectionId, questions[{ideaQuestionId,title,level}], note}` | One transaction: creates the draft topic (or uses an existing one) and a draft question per kept starter question, drops the rest, credits the author if asked, closes the idea, emails the author; 409 `not_pending` |
 | `POST /admin/ideas/{id}/decline {note}` | Closes the idea with a note and emails the author |
 
 ---
@@ -539,9 +539,9 @@ content/*.md ──────▶│ build/content (marked + highlight.js) → 
 ```
 
 - **One format.** `content/*.md` (front matter + `## Question` + `<!-- id, level, tags, minutes -->` + answer) is the seed, the export format and the static build input. Export → parse is tested to round-trip exactly.
-- **Two renderers, one contract.** The TypeScript compiler (static builds) and the Go renderer (server mode) produce the same document structure. CI renders all 119 answers with both and compares them with highlighting spans stripped (`TestParityWithStaticBuild`), and a unit test asserts both accept exactly the same fence languages.
+- **Two renderers, one contract.** The TypeScript compiler (static builds) and the Go renderer (server mode) produce the same document structure. CI renders all 123 answers with both and compares them with highlighting spans stripped (`TestParityWithStaticBuild`), and a unit test asserts both accept exactly the same fence languages.
 - **Rendered at write time.** The server stores HTML next to the Markdown, so reads are a plain SELECT and the preview equals what learners will see.
-- **Languages:** ts, tsx, js, jsx, html, xml, css, bash/sh/shell, json, yaml/yml, graphql, diff, http, text/txt, plus go/golang, sql, python/py, dockerfile/docker, proto/protobuf, toml, ini, hcl/terraform/tf (ready for backend and cloud rounds).
+- **Languages:** ts, tsx, js, jsx, html, xml, css, bash/sh/shell, json, yaml/yml, graphql, diff, http, text/txt, plus go/golang, sql, python/py, dockerfile/docker, proto/protobuf, toml, ini, hcl/terraform/tf (ready for backend and cloud topics).
 
 Authoring rules: [CONTENT_GUIDE.md](CONTENT_GUIDE.md).
 
@@ -576,7 +576,7 @@ sequenceDiagram
   B->>A: GET /api/invites/T
   A->>D: find invite by sha256(T)
   A-->>B: {status: active, role: learner, invitedBy}
-  B->>A: GET /api/auth/github/start?invite=T&next=#round
+  B->>A: GET /api/auth/github/start?invite=T&next=#topic
   A-->>B: 302 github.com/login/oauth/authorize?state=S; Set-Cookie fl_oauth={S,T,next}
   B->>G: authorize app
   G-->>B: 302 /api/auth/github/callback?code=C&state=S
@@ -585,7 +585,7 @@ sequenceDiagram
   A->>G: POST access_token(C) ; GET /user
   A->>D: BEGIN; find user; lock invite FOR UPDATE; insert user; uses+1; audit; COMMIT
   A->>D: insert session(sha256(token))
-  A-->>B: 302 /#round; Set-Cookie __Host-fl_session=token (HttpOnly, Secure, Lax)
+  A-->>B: 302 /#topic; Set-Cookie __Host-fl_session=token (HttpOnly, Secure, Lax)
 ```
 
 ### 11.2 Edit and publish a question
@@ -620,7 +620,7 @@ Claim-then-send gives at-most-once per period even when two runs overlap; restor
 ```text
 member: #contribute form ──POST /api/submissions──▶ checkSubmission (same bar as publishing) + limits
           └─▶ submissions (pending) ──email──▶ owner
-owner: Admin → Submissions → Review (edit, pick round + id) ──POST …/approve──▶ ApproveSubmission (one tx):
+owner: Admin → Submissions → Review (edit, pick topic + id) ──POST …/approve──▶ ApproveSubmission (one tx):
           lock content + submission row → must be pending → insert question → contributed_by → status approved
           → bump content version → audit ──▶ email the author (best effort, after commit)
 ```
@@ -656,13 +656,13 @@ owner: Admin → Submissions → Review (edit, pick round + id) ──POST …/a
 
 ### 12.2 Privacy
 
-Admins see per-learner summaries computed on the server (done counts per round, due count, last activity, current round). Notes and per-question timestamps never leave the learner's document. Email addresses are stored only to send reminders the user opted into and are never shown to admins. No analytics, no third-party scripts except Google Fonts CSS. Users can delete their account. Sign-out clears the device's local copy.
+Admins see per-learner summaries computed on the server (done counts per topic, due count, last activity, current topic). Notes and per-question timestamps never leave the learner's document. Email addresses are stored only to send reminders the user opted into and are never shown to admins. No analytics, no third-party scripts except Google Fonts CSS. Users can delete their account. Sign-out clears the device's local copy.
 
 ---
 
 ## 13. Performance, reliability and consistency
 
-- **Frontend:** bundled metadata (~70 KB) for instant static mode; answers lazy per round; in server mode a single bootstrap then per-round answer fetches with ETag revalidation; hover/focus prefetch of a round's answers.
+- **Frontend:** bundled metadata (~70 KB) for instant static mode; answers lazy per topic; in server mode a single bootstrap then per-topic answer fetches with ETag revalidation; hover/focus prefetch of a topic's answers.
 - **Database access:** small pool (3 on Vercel, 10 elsewhere), idle timeout 2 min; the outline is read in one `REPEATABLE READ` read-only transaction so content and version are consistent.
 - **Concurrency controls:**
   - content writes take `pg_advisory_xact_lock(content)`: positions, the shared id namespace and the version counter can't race;
@@ -691,10 +691,10 @@ Admins see per-learner summaries computed on the server (done counts per round, 
 | --- | --- | --- | --- |
 | Go unit | `go test` | Markdown rendering (callouts, safety, code figures, every language), catalog parse/validate/export round-trip, progress parse/merge/summary | 15 |
 | Go integration | `go test` + real Postgres (`TEST_DATABASE_URL`) | Every API flow through HTTP: bootstrap, invite policy, roles, disabling, expiry/revocation, open registration, members-only, settings, full CMS lifecycle, revisions and trash, ETag, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth against a fake GitHub, concurrent invite race, serverless entry, email reminders (cron, claim, retry, unsubscribe), community submissions (limits, invisibility, approve/credit/notify, double approval, reject, withdraw, pause) | 16 |
-| Renderer parity | `go test` + TS fixture | All 119 answers identical (modulo highlighting) between Go and TypeScript renderers | 1 |
+| Renderer parity | `go test` + TS fixture | All 123 answers identical (modulo highlighting) between Go and TypeScript renderers | 1 |
 | TS unit | `node --test` | Walkthrough compiler (symbol lookup, block extraction, links, excerpts, broken references, fences left alone), compiler, progress model, search, selectors, Artifact sync, summaries, server sync over HTTP (no redundant writes), language-list parity | 37 |
 | E2E static | Playwright | Studying flows, How it's built (index, walkthrough, deep link), Contribute without a backend, hosted Artifact build in a sandboxed CSP frame, mobile | 11 |
-| E2E full stack | Playwright + Go server + Postgres | Owner creates a round and question with live preview, publishes, announces, switches a feature, invites; learner accepts, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves it, the learner sees it credited | 4 |
+| E2E full stack | Playwright + Go server + Postgres | Owner creates a topic and question with live preview, publishes, announces, switches a feature, invites; learner accepts, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves it, the learner sees it credited | 4 |
 
 CI runs everything on every push and pull request, Go tests with `-race`.
 
@@ -737,7 +737,7 @@ Full records with context and consequences: [DECISIONS.md](DECISIONS.md).
 | 021 | CMS safety: optimistic concurrency, revisions, trash, audit log |
 | 024 | "How it's built": walkthroughs quote code by symbol at build time and link to the built commit; broken references fail CI |
 | 025 | Community contributions: a separate submissions table and transactional approval; GitHub branch protection + CODEOWNERS for code |
-| 032 | Topic chips are derived from content (selectable iff a published round carries the topic); suggestions create drafts and their progress is derived, not stored |
+| 032 | Facets and tracks are derived from content (selectable iff a published topic carries them; general topics stay visible); suggestions create drafts and their progress is derived, not stored |
 
 ---
 
@@ -745,19 +745,19 @@ Full records with context and consequences: [DECISIONS.md](DECISIONS.md).
 
 The goal is a full-stack interview loop (frontend, backend and Go, cloud and AWS, infrastructure as code, system design, data and caching, AI), where **each addition to the product is also built in this codebase**, so the code keeps illustrating what the questions ask.
 
-### 18.1 Content: tracks of rounds
+### 18.1 Content: tracks of topics
 
-Today an admin can already add rounds such as "Go Backend", "AWS", "Terraform" or "Redis" from the console, and fences for Go, SQL, Terraform/HCL, Python, Dockerfile, Protobuf and TOML render in both pipelines. As the bank grows past ~25 rounds, group rounds into **tracks**:
+Today an admin can already add topics such as "Go Backend", "AWS", "Terraform" or "Redis" from the console, and fences for Go, SQL, Terraform/HCL, Python, Dockerfile, Protobuf and TOML render in both pipelines. As the bank grows past ~25 topics, group topics into **tracks**:
 
-- Migration `002_tracks.sql`: `tracks(id, title, description, position, published)`; `sections.track_id` (FK, default `frontend`); backfill existing rounds into `frontend`.
-- Repository format: `track: backend` in a round's front matter (default `frontend`), so files stay backward compatible.
+- Migration `002_tracks.sql`: `tracks(id, title, description, position, published)`; `sections.track_id` (FK, default `frontend`); backfill existing topics into `frontend`.
+- Repository format: `track: backend` in a topic's front matter (default `frontend`), so files stay backward compatible.
 - API: tracks in `/bootstrap`; `CRUD /admin/tracks`; reorder.
-- UI: a track switcher above "Rounds" in the sidebar; overview ring per track; filters by track in search; per-track progress in the dashboard.
+- UI: a track switcher above "Topics" in the sidebar; overview ring per track; filters by track in search; per-track progress in the dashboard.
 - Rename the product (site name is already a setting).
 
-Suggested tracks and first rounds:
+Suggested tracks and first topics:
 
-| Track | Rounds |
+| Track | Topics |
 | --- | --- |
 | Frontend (today) | the current 15 |
 | Backend & Go | Go language and runtime (goroutines, scheduler, memory model), concurrency patterns, HTTP services and middleware, testing in Go, API design (REST, gRPC, pagination, idempotency), auth (OAuth, sessions vs JWT) |
@@ -766,7 +766,7 @@ Suggested tracks and first rounds:
 | Infrastructure as Code | Terraform (state, modules, workspaces, drift, plan/apply in CI), Docker and image hardening, CI/CD and progressive delivery |
 | System Design | Full-stack designs: URL shortener, feed, chat, notifications, rate limiter, search, payments, collaborative editing, multi-region |
 | AI Engineering | LLM APIs and streaming, prompt and tool design, RAG (chunking, embeddings, pgvector), evals, guardrails, cost and latency |
-| Leadership | the current behavioral round, expanded |
+| Leadership | the current behavioral topic, expanded |
 
 ### 18.2 Platform evolution (each step is also study material)
 
@@ -790,9 +790,9 @@ The progress document, the content file format and the HTTP contract are version
 
 | Term | Meaning |
 | --- | --- |
-| Round / section | A topic, e.g. "React Rendering & Internals". `section` in code. |
+| Topic / section | A topic, e.g. "React Rendering & Internals". `section` in code. |
 | Question | One interview question with a Markdown answer; id is permanent. |
-| Draft | Unpublished round or question; visible to admins only. |
+| Draft | Unpublished topic or question; visible to admins only. |
 | Owner | The super admin, set by `OWNER_GITHUB_LOGIN`. |
 | Bootstrap | The one request the app makes before rendering in server mode. |
 | Content version | Counter incremented on every content change; used for caching. |

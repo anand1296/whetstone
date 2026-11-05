@@ -59,7 +59,7 @@ func (s *Server) checkSubmission(ctx context.Context, in *submissionInput) (cata
 			problems = append(problems, catalog.FieldError{Field: "newSectionTitle", Message: fmt.Sprintf("must be 3 to %d characters", maxNewSectionTitle)})
 		}
 	case in.SectionID == "":
-		problems = append(problems, catalog.FieldError{Field: "sectionId", Message: "pick a round, or suggest a new one"})
+		problems = append(problems, catalog.FieldError{Field: "sectionId", Message: "pick a topic, or suggest a new one"})
 	default:
 		idx, err := s.store.Index(ctx, false)
 		if err != nil {
@@ -70,7 +70,7 @@ func (s *Server) checkSubmission(ctx context.Context, in *submissionInput) (cata
 			found = found || sec.ID == in.SectionID
 		}
 		if !found {
-			problems = append(problems, catalog.FieldError{Field: "sectionId", Message: "that round doesn't exist"})
+			problems = append(problems, catalog.FieldError{Field: "sectionId", Message: "that topic doesn't exist"})
 		}
 	}
 	if utf8.RuneCountInString(in.Context) > maxContext {
@@ -210,7 +210,7 @@ func (s *Server) getSubmission(w http.ResponseWriter, r *http.Request, _ store.U
 }
 
 // approveSubmission turns a submission into a question. The reviewer sends the
-// final question (they may have edited the wording, picked the round, set the
+// final question (they may have edited the wording, picked the topic, set the
 // id, or kept it as a draft); the store creates it and closes the submission
 // in one transaction.
 func (s *Server) approveSubmission(w http.ResponseWriter, r *http.Request, actor store.User) {
@@ -307,13 +307,13 @@ func (s *Server) notifyOwnerOfSubmission(r *http.Request, sub store.Submission) 
 	if err != nil || email == "" {
 		return
 	}
-	round := sub.SectionID
+	topic := sub.SectionID
 	if sub.NewSectionTitle != "" {
-		round = "new round: " + sub.NewSectionTitle
+		topic = "new topic: " + sub.NewSectionTitle
 	}
 	s.send(r, email, "New question to review: "+sub.Title, notice{
 		Heading: "@" + sub.SubmitterLogin + " submitted a question",
-		Lines:   []string{"“" + sub.Title + "” (" + sub.Level + ", " + round + ")", "It's waiting in Admin → Submissions. Nothing is published until you approve it."},
+		Lines:   []string{"“" + sub.Title + "” (" + sub.Level + ", " + topic + ")", "It's waiting in Admin → Submissions. Nothing is published until you approve it."},
 		URL:     s.appURL(r) + "/#admin",
 		Button:  "Review it",
 	})

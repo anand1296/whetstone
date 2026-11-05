@@ -58,7 +58,7 @@ export function ReviewPage() {
         </ol>
       ) : (
         <div className="empty">
-          <p>Nothing is due. Mark answers as done in any round and they will show up here when it is time to revisit them.</p>
+          <p>Nothing is due. Mark answers as done in any topic and they will show up here when it is time to revisit them.</p>
         </div>
       )}
 

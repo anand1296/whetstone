@@ -1,7 +1,7 @@
 /**
- * "Suggest a topic": propose a new category (a round) with a few optional
+ * "Suggest a topic": propose a new category (a topic) with a few optional
  * starter questions. An admin reviews it (Admin → Topic ideas); accepting
- * creates a draft round, and the person can follow it from "your suggestions"
+ * creates a draft topic, and the person can follow it from "your suggestions"
  * until the answers are written and live.
  *
  * Signed in (server mode): a form here. Signed out: a GitHub sign-in prompt.
@@ -11,8 +11,8 @@ import { useCallback, useEffect, useId, useState, type FormEvent } from 'react';
 import { repoUrl } from 'virtual:walkthroughs';
 import { Dialog } from '../../components/primitives.tsx';
 import { Icon } from '../../components/Icon.tsx';
-import { TopicPicker } from '../../components/TopicPicker.tsx';
-import { topicLabel } from '../../content/topics.ts';
+import { FacetPicker } from '../../components/FacetPicker.tsx';
+import { facetLabel } from '../../content/facets.ts';
 import { api, ApiError } from '../../platform/api.ts';
 import { signInUrl, useServer } from '../../platform/backend.ts';
 import { navigate } from '../../state/route.ts';
@@ -82,7 +82,7 @@ function StaticSuggest() {
 export function TopicForm({ onDone, onClose }: { onDone: () => void; onClose: () => void }) {
   const formId = useId();
   const [title, setTitle] = useState('');
-  const [topics, setTopics] = useState<string[]>([]);
+  const [facets, setFacets] = useState<string[]>([]);
   const [details, setDetails] = useState('');
   const [questions, setQuestions] = useState<string[]>(['']);
   const [credit, setCredit] = useState(true);
@@ -96,7 +96,7 @@ export function TopicForm({ onDone, onClose }: { onDone: () => void; onClose: ()
     event.preventDefault();
     setBusy(true);
     setError(null);
-    const input: IdeaInput = { title, topics, details, questions: questions.map((q) => q.trim()).filter(Boolean), credit };
+    const input: IdeaInput = { title, facets, details, questions: questions.map((q) => q.trim()).filter(Boolean), credit };
     try {
       setSent(await api<Idea>('/ideas', { method: 'POST', body: input }));
       onDone();
@@ -152,7 +152,7 @@ export function TopicForm({ onDone, onClose }: { onDone: () => void; onClose: ()
           onChange={(e) => setTitle(e.target.value)}
         />
       </label>
-      <TopicPicker value={topics} onChange={setTopics} max={6} label="Where does it belong? (optional)" />
+      <FacetPicker value={facets} onChange={setFacets} max={6} label="Where does it belong? (optional)" />
       <label htmlFor={`${formId}-details`}>
         Why it matters, what it should cover (optional)
         <textarea id={`${formId}-details`} rows={3} maxLength={1000} value={details} onChange={(e) => setDetails(e.target.value)} />
@@ -281,7 +281,7 @@ export function MyIdeas({ items, onChange }: { items: Idea[]; onChange: () => Pr
             <span className="contrib-title">
               {idea.title}
               <span className="contrib-sub">
-                {idea.topics.length > 0 ? `${idea.topics.map(topicLabel).join(', ')} · ` : ''}sent {dateFormat.format(new Date(idea.createdAt))}
+                {idea.facets.length > 0 ? `${idea.facets.map(facetLabel).join(', ')} · ` : ''}sent {dateFormat.format(new Date(idea.createdAt))}
               </span>
             </span>
             <span className="status-chip" data-status={idea.stage}>
@@ -294,7 +294,7 @@ export function MyIdeas({ items, onChange }: { items: Idea[]; onChange: () => Pr
             ) : null}
             {idea.stage === 'live' && idea.sectionId ? (
               <a className="btn btn-quiet" href={`#${idea.sectionId}`}>
-                Open the round
+                Open the topic
               </a>
             ) : null}
             <div className="idea-detail">

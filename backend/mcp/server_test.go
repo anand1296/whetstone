@@ -239,7 +239,7 @@ func TestToolArgumentErrorsAreResultsTheModelCanRead(t *testing.T) {
 		{"search_questions", `{}`, "at least one keyword"},
 		{"search_questions", `{"query":"x","limit":99}`, "between 1 and 20"},
 		{"search_questions", `{"query":"x","level":"junior"}`, "level must be"},
-		{"search_questions", `{"query":"x","round":"nope"}`, "Unknown round"},
+		{"search_questions", `{"query":"x","round":"nope"}`, "Unknown topic"},
 		{"search_questions", `{"query":"x","extra":1}`, "Invalid arguments"},
 		{"get_question", `{}`, "id is required"},
 		{"get_question", `{"id":"missing"}`, "No question with id"},

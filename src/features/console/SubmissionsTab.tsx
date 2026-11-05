@@ -3,7 +3,7 @@
  *
  * Nothing a learner submits reaches anyone else until an admin approves it
  * here. Approving creates a real question in one transaction (the reviewer can
- * fix the wording, pick the round, set the id, or keep it as a draft); the
+ * fix the wording, pick the topic, set the id, or keep it as a draft); the
  * submitter is credited if they asked to be and gets an email either way.
  */
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
@@ -71,7 +71,7 @@ export function SubmissionsTab() {
                   <span className="contrib-title">
                     {sub.title}
                     <span className="contrib-sub">
-                      @{sub.submitter} · {LEVEL_LABEL[sub.level]} · {sub.newSectionTitle ? `new round: ${sub.newSectionTitle}` : sub.sectionId} ·{' '}
+                      @{sub.submitter} · {LEVEL_LABEL[sub.level]} · {sub.newSectionTitle ? `new topic: ${sub.newSectionTitle}` : sub.sectionId} ·{' '}
                       {formatDate(sub.createdAt)}
                     </span>
                   </span>
@@ -202,8 +202,8 @@ function Review({
       ) : null}
       {submission.newSectionTitle ? (
         <p className="settings-message is-error">
-          They suggested a new round: <strong>{submission.newSectionTitle}</strong>. Create it in Content first if you agree, then
-          come back and pick it, or choose an existing round below.
+          They suggested a new topic: <strong>{submission.newSectionTitle}</strong>. Create it in Content first if you agree, then
+          come back and pick it, or choose an existing topic below.
         </p>
       ) : null}
 
@@ -219,7 +219,7 @@ function Review({
           {taken.has(form.id) ? <span className="field-error">Already used by another round or question.</span> : fieldError('id')}
         </label>
         <label htmlFor={`${formId}-section`}>
-          Round
+          Topic
           <select id={`${formId}-section`} value={form.sectionId} onChange={(e) => update({ sectionId: e.target.value })}>
             {sections.map((s) => (
               <option key={s.id} value={s.id}>

@@ -167,7 +167,7 @@ var general = []string{
 	"Depth is built one question at a time. Today's one is waiting for you.",
 	"Confidence in an interview is mostly rehearsal. Rehearse one answer today.",
 	"Principal-level answers come from connecting ideas. Every question you revisit adds a connection.",
-	"Progress compounds: the rounds you've finished make the next ones easier to explain.",
+	"Progress compounds: the topics you've finished make the next ones easier to explain.",
 	"Future you, sitting across from the interviewer, will thank present you for this session.",
 }
 
@@ -257,7 +257,7 @@ var textTemplate = texttemplate.Must(texttemplate.New("text").Parse(`Hi {{.First
 
 {{.Motivation}}
 
-Your progress: {{.Done}} of {{.Total}} questions ({{.Percent}}%){{if .RoundsFinished}}, {{.RoundsFinished}} rounds finished{{end}}.
+Your progress: {{.Done}} of {{.Total}} questions ({{.Percent}}%){{if .RoundsFinished}}, {{.RoundsFinished}} topics finished{{end}}.
 {{- if .Due}}
 Due for review: {{.Due}} ({{.ReviewURL}})
 {{- end}}
@@ -296,7 +296,7 @@ var htmlTemplate = htmltemplate.Must(htmltemplate.New("html").Parse(`<!doctype h
       <td style="font-size:0;line-height:0;">&nbsp;</td>
     </tr></table>
     <p style="margin:12px 0 0;font-size:14px;color:#464e66;">
-      {{if .RoundsFinished}}{{.RoundsFinished}} rounds finished · {{end}}{{if .Due}}<a href="{{.ReviewURL}}" style="color:#a35f00;font-weight:700;">{{.Due}} due for review</a>{{else}}Nothing due for review{{end}}
+      {{if .RoundsFinished}}{{.RoundsFinished}} topics finished · {{end}}{{if .Due}}<a href="{{.ReviewURL}}" style="color:#a35f00;font-weight:700;">{{.Due}} due for review</a>{{else}}Nothing due for review{{end}}
     </p>
     {{if .InProgress}}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;font-size:14px;color:#464e66;">
       {{range .InProgress}}<tr><td style="padding:3px 0;">{{.Title}}</td><td align="right" style="padding:3px 0;font-weight:700;">{{.Done}}/{{.Total}}</td></tr>{{end}}

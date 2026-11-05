@@ -188,7 +188,7 @@ function AnnouncementEditor() {
         rows={3}
         maxLength={ANNOUNCEMENT_LIMIT}
         value={draft}
-        placeholder="e.g. Mock interview session on Saturday 10:00 IST. Finish the System Design round before then."
+        placeholder="e.g. Mock interview session on Saturday 10:00 IST. Finish the System Design topic before then."
         onChange={(e) => setDraft(e.target.value)}
       />
       <div className="button-row">
@@ -271,7 +271,7 @@ function LearnersPanel({ state, myUid }: { state: LoadState; myUid: string | nul
               <tr>
                 <th scope="col">Learner</th>
                 <th scope="col">Progress</th>
-                <th scope="col">Rounds finished</th>
+                <th scope="col">Topics finished</th>
                 <th scope="col">Last active</th>
                 <th scope="col">Studying</th>
               </tr>
@@ -355,7 +355,7 @@ export function AdminPage() {
         <p className="eyebrow">Super admin · visible only to you</p>
         <h1>Admin</h1>
         <p className="lede">
-          See how everyone is progressing, post an announcement, and invite people. You have {plural(sections.length, 'round')} and{' '}
+          See how everyone is progressing, post an announcement, and invite people. You have {plural(sections.length, 'topic')} and{' '}
           {plural(allQuestions.length, 'question')} published.
         </p>
       </header>

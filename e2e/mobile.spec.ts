@@ -5,7 +5,7 @@ test('mobile: drawer navigation, no horizontal scroll', async ({ page }) => {
   const noOverflow = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
   expect(await noOverflow()).toBe(true);
 
-  await page.getByRole('button', { name: 'Open rounds menu' }).click();
+  await page.getByRole('button', { name: 'Open topics menu' }).click();
   const drawer = page.getByRole('dialog', { name: 'Navigation' });
   await expect(drawer).toBeVisible();
   await drawer.getByRole('button', { name: /^Machine Coding/ }).click();

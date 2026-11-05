@@ -12,7 +12,7 @@ import { isLevel, LEVELS, type QuestionMeta, type SectionAnswers, type SectionMe
 import { ContentError, parseKeyValueBlock, requireField, splitFrontmatter } from './frontmatter.ts';
 import { createMarkdownRenderer, toPlainText } from './markdown.ts';
 import { expandFrameworkBlocks } from './frameworks.ts';
-import { isTopicId } from '../../src/content/topics.ts';
+import { isFacetId } from '../../src/content/facets.ts';
 
 export interface SourceFile {
   path: string;
@@ -166,19 +166,19 @@ export function compileContent(files: SourceFile[]): CompiledContent {
     });
     if (questions.length === 0) throw new ContentError(`${file.path}: section has no questions`);
 
-    const topics = (data['topics'] ?? '')
+    const facets = (data['facets'] ?? '')
       .split(',')
-      .map((topic) => topic.trim().toLowerCase())
-      .filter((topic, index, all) => topic !== '' && all.indexOf(topic) === index);
-    for (const topic of topics) {
-      if (!isTopicId(topic)) throw new ContentError(`${file.path}: unknown topic "${topic}" (see content/topics.json)`);
+      .map((facet) => facet.trim().toLowerCase())
+      .filter((facet, index, all) => facet !== '' && all.indexOf(facet) === index);
+    for (const facet of facets) {
+      if (!isFacetId(facet)) throw new ContentError(`${file.path}: unknown facet "${facet}" (see content/facets.json)`);
     }
 
     sections.push({
       id: sectionId,
       title: requireField(data, 'title', file.path),
       description: requireField(data, 'description', file.path),
-      topics,
+      facets,
       questions,
     });
     answers[sectionId] = sectionAnswers;

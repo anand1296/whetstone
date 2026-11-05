@@ -81,7 +81,7 @@ export function ConsolePage() {
         </p>
         <h1>Admin console</h1>
         <p className="lede">
-          Add rounds and questions, invite people, follow progress and switch features on or off. Changes are live for everyone as
+          Add topics and questions, invite people, follow progress and switch features on or off. Changes are live for everyone as
           soon as you save.
         </p>
       </header>

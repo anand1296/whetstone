@@ -57,7 +57,7 @@ var Features = []Feature{
 	{"review", "Spaced review", "The Review page and due-for-review counts (2, 5, 12, 30, 75 day ladder).", true},
 	{"search", "Search", "The search dialog (/ or Ctrl+K) across questions, tags and answers.", true},
 	{"notes", "Personal notes", "A private notes box under every answer.", true},
-	{"filters", "Round filters", "Status and level filters on each round page.", true},
+	{"filters", "Topic filters", "Status and level filters on each topic page.", true},
 	{"progressTransfer", "Export and import", "Progress export/import in Settings.", true},
 	{"levelOverview", "Level breakdown", "The Senior / Lead / Principal progress cards on the overview.", true},
 	{"howItsBuilt", "How it's built", "Walkthroughs of how each feature of this app was built: architecture, code links and decisions (bottom of the sidebar).", true},

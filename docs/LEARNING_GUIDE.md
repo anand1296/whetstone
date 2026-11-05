@@ -14,7 +14,7 @@ Whetstone is deliberately built with the techniques its answers teach, in the Re
 | `src/state/persistence/cloudSync.ts` | Debounced writes, single in-flight write, echo suppression, terminal vs transient errors | `#retry-backoff-jitter`, `#async-cache-dedupe-swr` |
 | `src/state/persistence/local.ts` | Defensive storage access, cross-tab `storage` events | `#client-storage-options` |
 | `src/content/index.ts` + `features/section/Answer.tsx` | Cached promise per chunk, React 19 `use()` with Suspense, evict-on-failure for retry | `#react-19-actions`, `#error-suspense-boundaries` |
-| `features/section/SectionPage.tsx` | Adjusting state during render (no effect), effects only for DOM sync (scroll/focus), `key` to reset per-round state | `#effects-synchronization` |
+| `features/section/SectionPage.tsx` | Adjusting state during render (no effect), effects only for DOM sync (scroll/focus), `key` to reset per-topic state | `#effects-synchronization` |
 | `features/section/QuestionItem.tsx` | Accessible accordion (button + region), memoized items with stable callbacks, latest-value refs for debounced notes | `#react-rerenders-optimizations` |
 | `features/search/SearchDialog.tsx` | ARIA combobox with `aria-activedescendant`, `useDeferredValue`, native `<dialog>` | `#typeahead-combobox`, `#keyboard-roving-activedescendant` |
 | `components/primitives.tsx` → `Dialog` | Syncing React state to an imperative API (`showModal`) | `#modal-dialog` |
@@ -66,8 +66,8 @@ Each exercise lists what it practices. Do them as timed machine-coding sessions,
 
 4. **Component tests with Testing Library + Vitest.** Add Vitest with jsdom, test `QuestionItem` (toggle, mark done, notes) and `SearchDialog` (keyboard navigation). *Practices: `#testing-library-principles`.*
 5. **Confidence rating.** After revealing an answer in practice mode, rate 1–4; store per question; show "weakest topics" on the overview. *Practices: data modeling, migrations (bump to `version: 2` with a migration from v1).*
-6. **Mock interview mode.** Pick N random questions across rounds, a total timer, one question at a time, and a summary at the end. *Practices: state machines (`#exhaustive-state-machines`), timers (`#accurate-countdown-timer`).*
-7. **Virtualize long rounds.** Pretend a round has 2,000 questions; keep scrolling and expand/collapse smooth. *Practices: `#virtual-list-from-scratch`.*
+6. **Mock interview mode.** Pick N random questions across topics, a total timer, one question at a time, and a summary at the end. *Practices: state machines (`#exhaustive-state-machines`), timers (`#accurate-countdown-timer`).*
+7. **Virtualize long topics.** Pretend a topic has 2,000 questions; keep scrolling and expand/collapse smooth. *Practices: `#virtual-list-from-scratch`.*
 
 ### Advanced (a weekend each)
 

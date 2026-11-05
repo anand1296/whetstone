@@ -357,7 +357,7 @@ export function QuestionEditor({ content, questionId, defaultSectionId, onClose,
           {idTaken ? <span className="field-error">Already used by another round or question.</span> : fieldError('id')}
         </label>
         <label htmlFor={`${formId}-section`}>
-          Round
+          Topic
           <select id={`${formId}-section`} value={form.sectionId} onChange={(e) => update({ sectionId: e.target.value })}>
             {content.sections.map((s) => (
               <option key={s.id} value={s.id}>

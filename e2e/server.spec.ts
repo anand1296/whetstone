@@ -55,18 +55,18 @@ test('owner signs in and manages content live', async ({ browser }) => {
 
   await side.getByRole('button', { name: /Admin/ }).click();
   await page.getByRole('tab', { name: 'Content' }).click();
-  const rounds = page.getByRole('navigation', { name: 'Rounds' }).locator('.cms-item');
+  const rounds = page.getByRole('navigation', { name: 'Topics' }).locator('.cms-item');
   await expect(rounds.first()).toBeVisible(); // the tab loads its data after opening
   const initialRounds = await rounds.count();
   expect(initialRounds).toBeGreaterThan(10);
 
   // A new round…
-  await page.getByRole('button', { name: 'New round' }).click();
-  const newRound = page.getByRole('dialog', { name: 'New round' });
+  await page.getByRole('button', { name: 'New topic' }).click();
+  const newRound = page.getByRole('dialog', { name: 'New topic' });
   await newRound.getByLabel('Title').fill('Go Backend Fundamentals');
   await newRound.getByLabel('One-line description').fill('Goroutines, channels, context and HTTP services in Go.');
   await expect(newRound.getByLabel(/^Id/)).toHaveValue('go-backend-fundamentals');
-  await newRound.getByRole('button', { name: 'Create round' }).click();
+  await newRound.getByRole('button', { name: 'Create topic' }).click();
   await expect(rounds).toHaveCount(initialRounds + 1);
 
   // …and a question, first as a draft, then published.

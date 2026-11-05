@@ -40,14 +40,14 @@ type IdeaQuestion struct {
 	State string `json:"state"`
 }
 
-// Idea is a suggested topic (round) with optional starter questions.
+// Idea is a suggested topic (topic) with optional starter questions.
 type Idea struct {
 	ID             int64          `json:"id"`
 	UserID         int64          `json:"-"`
 	SubmitterLogin string         `json:"submitter"`
 	SubmitterName  string         `json:"submitterName"`
 	Title          string         `json:"title"`
-	Topics         []string       `json:"topics"`
+	Facets         []string       `json:"facets"`
 	Details        string         `json:"details"`
 	Credit         bool           `json:"credit"`
 	Status         string         `json:"status"`
@@ -63,7 +63,7 @@ type Idea struct {
 	sectionLive bool
 }
 
-const ideaColumns = `i.id, i.user_id, u.login, u.name, i.title, i.topics, i.details, i.credit, i.status, i.review_note, r.login,
+const ideaColumns = `i.id, i.user_id, u.login, u.name, i.title, i.facets, i.details, i.credit, i.status, i.review_note, r.login,
 	i.section_id, COALESCE(sec.title, ''),
 	COALESCE(sec.published AND EXISTS (SELECT 1 FROM questions pq WHERE pq.section_id = sec.id AND pq.published), false),
 	i.created_at, i.reviewed_at`
@@ -74,7 +74,7 @@ func scanIdea(row scanner) (Idea, error) {
 	var i Idea
 	var reviewer, sectionID sql.NullString
 	var reviewed sql.NullTime
-	err := row.Scan(&i.ID, &i.UserID, &i.SubmitterLogin, &i.SubmitterName, &i.Title, pq.Array(&i.Topics), &i.Details, &i.Credit, &i.Status,
+	err := row.Scan(&i.ID, &i.UserID, &i.SubmitterLogin, &i.SubmitterName, &i.Title, pq.Array(&i.Facets), &i.Details, &i.Credit, &i.Status,
 		&i.ReviewNote, &reviewer, &sectionID, &i.SectionTitle, &i.sectionLive, &i.CreatedAt, &reviewed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return i, ErrNotFound
@@ -89,8 +89,8 @@ func scanIdea(row scanner) (Idea, error) {
 		i.ReviewedAt = &reviewed.Time
 	}
 	i.Questions = []IdeaQuestion{}
-	if i.Topics == nil {
-		i.Topics = []string{}
+	if i.Facets == nil {
+		i.Facets = []string{}
 	}
 	return i, err
 }
@@ -105,7 +105,7 @@ func (i *Idea) deriveStage() {
 	case IdeaWithdrawn:
 		i.Stage = StageWithdrawn
 	default:
-		// Live when every kept starter question is published (or, with none, when the round is).
+		// Live when every kept starter question is published (or, with none, when the topic is).
 		live := i.sectionLive
 		if len(i.Questions) > 0 {
 			live = true
@@ -260,12 +260,12 @@ func (s *Store) CountRecentIdeas(ctx context.Context, userID int64, since time.T
 func (s *Store) CreateIdea(ctx context.Context, idea Idea, questionTitles []string) (Idea, error) {
 	var id int64
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
-		topics := idea.Topics
-		if topics == nil {
-			topics = []string{}
+		facets := idea.Facets
+		if facets == nil {
+			facets = []string{}
 		}
-		if err := tx.QueryRowContext(ctx, `INSERT INTO topic_ideas (user_id, title, topics, details, credit) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-			idea.UserID, idea.Title, pq.Array(topics), idea.Details, idea.Credit).Scan(&id); err != nil {
+		if err := tx.QueryRowContext(ctx, `INSERT INTO topic_ideas (user_id, title, facets, details, credit) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+			idea.UserID, idea.Title, pq.Array(facets), idea.Details, idea.Credit).Scan(&id); err != nil {
 			return err
 		}
 		for n, title := range questionTitles {
@@ -321,8 +321,8 @@ type AcceptItem struct {
 
 // AcceptParams describes what accepting an idea creates.
 type AcceptParams struct {
-	NewSection *catalog.Section // create this round (as a draft) ...
-	SectionID  string           // ... or add the questions to this existing round
+	NewSection *catalog.Section // create this topic (as a draft) ...
+	SectionID  string           // ... or add the questions to this existing topic
 	Items      []AcceptItem
 	Note       string
 }
@@ -345,7 +345,7 @@ func uniqueID(ctx context.Context, tx *sql.Tx, base string) (string, error) {
 	return "", ErrIDTaken
 }
 
-// AcceptIdea creates the draft round and draft questions and marks the idea
+// AcceptIdea creates the draft topic and draft questions and marks the idea
 // accepted, in one transaction. The questions stay drafts until an admin
 // writes the answers and publishes them; the idea's stage follows on its own.
 func (s *Store) AcceptIdea(ctx context.Context, actorID, id int64, p AcceptParams, now time.Time) (Idea, error) {

@@ -67,7 +67,7 @@ function installMock(page: Page, role: 'owner' | 'learner' | 'viewer', uid: stri
 }
 
 const seed = {
-  'learners/u_priya': { version: 1, doneCount: 41, total: 119, byRound: { 'javascript-internals': 8 }, lastActiveAt: 1, lastSectionId: 'machine-coding' },
+  'learners/u_priya': { version: 1, doneCount: 41, total: 123, byRound: { 'javascript-internals': 8 }, lastActiveAt: 1, lastSectionId: 'machine-coding' },
   'config/announcement': { message: 'Mock interview on Saturday.', updatedAt: 5 },
 };
 
@@ -80,9 +80,9 @@ test('owner sees Admin, the learner dashboard, and can publish an announcement',
   await expect(page.locator('.learners-table')).toContainText('Priya S');
   await expect(page.locator('.learners-table tbody tr')).toHaveCount(2); // Priya + the owner, registered on open
 
-  await page.locator('#announcement-text').fill('New round added.');
+  await page.locator('#announcement-text').fill('New topic added.');
   await page.getByRole('button', { name: 'Publish announcement' }).click();
-  await expect(page.locator('.announcement')).toContainText('New round added.');
+  await expect(page.locator('.announcement')).toContainText('New topic added.');
 });
 
 test('learners never see Admin and are told what the owner can see', async ({ page }) => {

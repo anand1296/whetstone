@@ -30,7 +30,7 @@ var prompts = []prompt{{
 	Title:       "Quiz me",
 	Description: "Run a mock interview: one question at a time, the answer hidden until you have tried, then a comparison with the model answer.",
 	Arguments: []promptArgument{
-		{Name: "topic", Description: "What to be quizzed on, e.g. \"react rendering\" or \"web performance\". Leave empty for a mixed round.", Required: false},
+		{Name: "topic", Description: "What to be quizzed on, e.g. \"react rendering\" or \"web performance\". Leave empty for a mix.", Required: false},
 		{Name: "level", Description: "senior, lead or principal. Leave empty for any.", Required: false},
 		{Name: "questions", Description: "How many questions to ask (1-10). Default 3.", Required: false},
 	},
@@ -101,7 +101,7 @@ func quizInstructions(topic, level string, count int) string {
 	if topic != "" {
 		b.WriteString("- Topic: " + topic + ". Use search_questions to find matching questions.\n")
 	} else {
-		b.WriteString("- No topic was given: use list_rounds, then pick questions from different rounds.\n")
+		b.WriteString("- No topic was given: use list_rounds, then pick questions from different topics.\n")
 	}
 	if level != "" {
 		b.WriteString("- Level: " + level + " only.\n")

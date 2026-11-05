@@ -69,7 +69,7 @@ export interface AdminSection {
   id: string;
   title: string;
   description: string;
-  topics: string[];
+  facets: string[];
   published: boolean;
   updatedAt: string;
   questions: AdminQuestionMeta[];
@@ -216,7 +216,7 @@ export interface Idea {
   submitter: string;
   submitterName: string;
   title: string;
-  topics: string[];
+  facets: string[];
   details: string;
   credit: boolean;
   status: 'pending' | 'accepted' | 'declined' | 'withdrawn';
@@ -232,7 +232,7 @@ export interface Idea {
 
 export interface IdeaInput {
   title: string;
-  topics: string[];
+  facets: string[];
   details: string;
   questions: string[];
   credit: boolean;
@@ -240,7 +240,7 @@ export interface IdeaInput {
 
 export interface AcceptIdeaInput {
   sectionId?: string;
-  newSection?: { id: string; title: string; description: string; topics: string[] };
+  newSection?: { id: string; title: string; description: string; facets: string[] };
   questions: Array<{ ideaQuestionId: number; title: string; level: Level }>;
   note: string;
 }
@@ -258,8 +258,8 @@ export const consoleApi = {
   revokeInvite: (id: number) => api(`/admin/invites/${id}`, json('DELETE')),
 
   content: () => api<AdminContent>('/admin/content'),
-  createSection: (input: { id: string; title: string; description: string; topics: string[]; published: boolean }) => api('/admin/sections', json('POST', input)),
-  updateSection: (id: string, patch: { title?: string; description?: string; topics?: string[]; published?: boolean }) =>
+  createSection: (input: { id: string; title: string; description: string; facets: string[]; published: boolean }) => api('/admin/sections', json('POST', input)),
+  updateSection: (id: string, patch: { title?: string; description?: string; facets?: string[]; published?: boolean }) =>
     api(`/admin/sections/${encodeURIComponent(id)}`, json('PATCH', patch)),
   deleteSection: (id: string) => api(`/admin/sections/${encodeURIComponent(id)}`, json('DELETE')),
   reorderSections: (ids: string[]) => api('/admin/sections/order', json('PUT', { ids })),

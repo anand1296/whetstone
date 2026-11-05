@@ -31,7 +31,7 @@ function AnnouncementForm({ initial, onSaved }: { initial: AnnouncementSetting; 
         rows={3}
         maxLength={ANNOUNCEMENT_LIMIT}
         value={draft.message}
-        placeholder="e.g. Mock interviews on Saturday 10:00. Finish the System Design round before then."
+        placeholder="e.g. Mock interviews on Saturday 10:00. Finish the System Design topic before then."
         onChange={(e) => setDraft({ ...draft, message: e.target.value })}
       />
       <div className="form-grid">
@@ -44,12 +44,12 @@ function AnnouncementForm({ initial, onSaved }: { initial: AnnouncementSetting; 
           </select>
         </label>
         <label htmlFor={`${id}-url`}>
-          Link <span className="you">(optional: https://… or #round-id)</span>
+          Link <span className="you">(optional: https://… or #topic-id)</span>
           <input id={`${id}-url`} value={draft.linkUrl} placeholder="#system-design" onChange={(e) => setDraft({ ...draft, linkUrl: e.target.value })} />
         </label>
         <label htmlFor={`${id}-label`}>
           Link text
-          <input id={`${id}-label`} value={draft.linkLabel} maxLength={40} placeholder="Open the round" onChange={(e) => setDraft({ ...draft, linkLabel: e.target.value })} />
+          <input id={`${id}-label`} value={draft.linkLabel} maxLength={40} placeholder="Open the topic" onChange={(e) => setDraft({ ...draft, linkLabel: e.target.value })} />
         </label>
       </div>
       <div className="button-row">
@@ -139,7 +139,7 @@ function SiteForm({ initial, me }: { initial: SiteSetting; me: ServerUser }) {
           </label>
           <label htmlFor={`${id}-tagline`}>
             Overview headline <span className="you">(optional)</span>
-            <input id={`${id}-tagline`} value={site.tagline} maxLength={200} placeholder="Your interview loop, one round at a time." onChange={(e) => setSite({ ...site, tagline: e.target.value })} />
+            <input id={`${id}-tagline`} value={site.tagline} maxLength={200} placeholder="Your interview loop, one topic at a time." onChange={(e) => setSite({ ...site, tagline: e.target.value })} />
           </label>
         </div>
         <div className="radio-group" role="radiogroup" aria-label="Who can create an account">

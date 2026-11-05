@@ -2,7 +2,7 @@
 id: leadership-behavioral
 title: Leadership & Behavioral
 description: The round that decides senior vs staff: a story bank, migrations, disagreement, mentoring, tech debt, technical strategy, failures and influence without authority.
-topics: frontend
+facets: frontend
 ---
 
 ## Build your story bank: STAR(L) structure and the eight stories every senior engineer needs

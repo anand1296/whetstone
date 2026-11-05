@@ -38,7 +38,7 @@ var Languages = map[string]Language{
 	"yaml":       {"yaml", "YAML"},
 	"yml":        {"yaml", "YAML"},
 	"graphql":    {"graphql", "GraphQL"},
-	// Backend, cloud and data (for full-stack rounds).
+	// Backend, cloud and data (for full-stack topics).
 	"go":         {"go", "Go"},
 	"golang":     {"go", "Go"},
 	"sql":        {"sql", "SQL"},

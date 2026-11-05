@@ -38,13 +38,13 @@ type QuestionMeta struct {
 	Contributor string `json:"contributor,omitempty"`
 }
 
-// SectionMeta is a round with its questions' metadata.
+// SectionMeta is a topic with its questions' metadata.
 type SectionMeta struct {
 	ID          string         `json:"id"`
 	Title       string         `json:"title"`
 	Description string         `json:"description"`
 	Published   bool           `json:"published"`
-	Topics      []string       `json:"topics"`
+	Facets      []string       `json:"facets"`
 	UpdatedAt   time.Time      `json:"updatedAt"`
 	Questions   []QuestionMeta `json:"questions"`
 }
@@ -84,8 +84,8 @@ func lock(ctx context.Context, tx *sql.Tx, key int64) error {
 	return err
 }
 
-// Index returns the outline. Without drafts, unpublished rounds and questions
-// (and rounds left with no published questions) are omitted.
+// Index returns the outline. Without drafts, unpublished topics and questions
+// (and topics left with no published questions) are omitted.
 func (s *Store) Index(ctx context.Context, includeDrafts bool) (Index, error) {
 	var idx Index
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
@@ -97,14 +97,14 @@ func (s *Store) Index(ctx context.Context, includeDrafts bool) (Index, error) {
 	if idx.Version, err = contentVersion(ctx, tx); err != nil {
 		return idx, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id, title, description, published, topics, updated_at FROM sections ORDER BY position, id`)
+	rows, err := tx.QueryContext(ctx, `SELECT id, title, description, published, facets, updated_at FROM sections ORDER BY position, id`)
 	if err != nil {
 		return idx, err
 	}
 	var sections []SectionMeta
 	for rows.Next() {
 		var sec SectionMeta
-		if err := rows.Scan(&sec.ID, &sec.Title, &sec.Description, &sec.Published, pq.Array(&sec.Topics), &sec.UpdatedAt); err != nil {
+		if err := rows.Scan(&sec.ID, &sec.Title, &sec.Description, &sec.Published, pq.Array(&sec.Facets), &sec.UpdatedAt); err != nil {
 			rows.Close()
 			return idx, err
 		}
@@ -149,7 +149,7 @@ func (s *Store) Index(ctx context.Context, includeDrafts bool) (Index, error) {
 	return idx, nil
 }
 
-// SectionAnswers returns question id -> answer HTML for one round.
+// SectionAnswers returns question id -> answer HTML for one topic.
 func (s *Store) SectionAnswers(ctx context.Context, sectionID string, includeDrafts bool) (map[string]string, error) {
 	var published bool
 	err := s.db.QueryRowContext(ctx, `SELECT published FROM sections WHERE id = $1`, sectionID).Scan(&published)
@@ -181,7 +181,7 @@ func idTaken(ctx context.Context, tx *sql.Tx, id string) (bool, error) {
 	return taken, err
 }
 
-// IDTaken reports whether a round or question already uses id.
+// IDTaken reports whether a topic or question already uses id.
 func (s *Store) IDTaken(ctx context.Context, id string) (bool, error) {
 	var taken bool
 	err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sections WHERE id = $1) OR EXISTS (SELECT 1 FROM questions WHERE id = $1)`, id).Scan(&taken)
@@ -194,13 +194,13 @@ func insertSection(ctx context.Context, tx *sql.Tx, actorID int64, sec catalog.S
 	} else if taken {
 		return ErrIDTaken
 	}
-	_, err := tx.ExecContext(ctx, `INSERT INTO sections (id, title, description, topics, position, published, updated_by)
+	_, err := tx.ExecContext(ctx, `INSERT INTO sections (id, title, description, facets, position, published, updated_by)
 		VALUES ($1, $2, $3, $4, (SELECT COALESCE(MAX(position) + 1, 0) FROM sections), $5, $6)`,
-		sec.ID, sec.Title, sec.Description, pq.Array(topicsOrEmpty(sec.Topics)), sec.Published, nullID(actorID))
+		sec.ID, sec.Title, sec.Description, pq.Array(facetsOrEmpty(sec.Facets)), sec.Published, nullID(actorID))
 	return err
 }
 
-// CreateSection adds a round at the end.
+// CreateSection adds a topic at the end.
 func (s *Store) CreateSection(ctx context.Context, actorID int64, sec catalog.Section) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := lock(ctx, tx, lockContent); err != nil {
@@ -216,25 +216,25 @@ func (s *Store) CreateSection(ctx context.Context, actorID int64, sec catalog.Se
 	})
 }
 
-// GetSection loads a round's own fields.
+// GetSection loads a topic's own fields.
 func (s *Store) GetSection(ctx context.Context, id string) (catalog.Section, error) {
 	var sec catalog.Section
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, description, published, topics FROM sections WHERE id = $1`, id).
-		Scan(&sec.ID, &sec.Title, &sec.Description, &sec.Published, pq.Array(&sec.Topics))
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, description, published, facets FROM sections WHERE id = $1`, id).
+		Scan(&sec.ID, &sec.Title, &sec.Description, &sec.Published, pq.Array(&sec.Facets))
 	if errors.Is(err, sql.ErrNoRows) {
 		return sec, ErrNotFound
 	}
 	return sec, err
 }
 
-// UpdateSection replaces a round's title, description and published flag.
+// UpdateSection replaces a topic's title, description and published flag.
 func (s *Store) UpdateSection(ctx context.Context, actorID int64, sec catalog.Section) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := lock(ctx, tx, lockContent); err != nil {
 			return err
 		}
-		res, err := tx.ExecContext(ctx, `UPDATE sections SET title = $2, description = $3, published = $4, topics = $6, updated_at = now(), updated_by = $5 WHERE id = $1`,
-			sec.ID, sec.Title, sec.Description, sec.Published, nullID(actorID), pq.Array(topicsOrEmpty(sec.Topics)))
+		res, err := tx.ExecContext(ctx, `UPDATE sections SET title = $2, description = $3, published = $4, facets = $6, updated_at = now(), updated_by = $5 WHERE id = $1`,
+			sec.ID, sec.Title, sec.Description, sec.Published, nullID(actorID), pq.Array(facetsOrEmpty(sec.Facets)))
 		if err != nil {
 			return err
 		}
@@ -251,7 +251,7 @@ func (s *Store) UpdateSection(ctx context.Context, actorID int64, sec catalog.Se
 const snapshotSQL = `jsonb_build_object('id', id, 'sectionId', section_id, 'title', title, 'level', level,
 	'tags', to_jsonb(tags), 'minutes', minutes, 'body', body, 'published', published)`
 
-// DeleteSection removes a round and its questions. Each question is snapshotted first, so it can be restored.
+// DeleteSection removes a topic and its questions. Each question is snapshotted first, so it can be restored.
 func (s *Store) DeleteSection(ctx context.Context, actorID int64, id string) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := lock(ctx, tx, lockContent); err != nil {
@@ -313,7 +313,7 @@ func queryIDs(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]str
 	return ids, rows.Err()
 }
 
-// ReorderSections sets the order of all rounds. ids must list every round exactly once.
+// ReorderSections sets the order of all topics. ids must list every topic exactly once.
 func (s *Store) ReorderSections(ctx context.Context, actorID int64, ids []string) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := lock(ctx, tx, lockContent); err != nil {
@@ -336,7 +336,7 @@ func (s *Store) ReorderSections(ctx context.Context, actorID int64, ids []string
 	})
 }
 
-// ReorderQuestions sets the order of one round's questions. ids must list each of them exactly once.
+// ReorderQuestions sets the order of one topic's questions. ids must list each of them exactly once.
 func (s *Store) ReorderQuestions(ctx context.Context, actorID int64, sectionID string, ids []string) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := lock(ctx, tx, lockContent); err != nil {
@@ -385,7 +385,7 @@ func insertQuestion(ctx context.Context, tx *sql.Tx, actorID int64, q catalog.Qu
 	return err
 }
 
-// CreateQuestion adds a question at the end of its round.
+// CreateQuestion adds a question at the end of its topic.
 func (s *Store) CreateQuestion(ctx context.Context, actorID int64, q catalog.Question, c catalog.Compiled) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := lock(ctx, tx, lockContent); err != nil {
@@ -418,8 +418,8 @@ func (s *Store) GetQuestion(ctx context.Context, id string) (QuestionRecord, err
 }
 
 // UpdateQuestion replaces a question if nobody saved it since expectedRevision.
-// The previous version is kept in question_revisions. Moving to another round
-// places the question at the end of that round.
+// The previous version is kept in question_revisions. Moving to another topic
+// places the question at the end of that topic.
 func (s *Store) UpdateQuestion(ctx context.Context, actorID int64, q catalog.Question, c catalog.Compiled, expectedRevision int) (int, error) {
 	var revision int
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
@@ -670,9 +670,9 @@ func (s *Store) PlanSync(ctx context.Context, repo []catalog.Section) (SyncPlan,
 // CompileFunc renders a question for storage.
 type CompileFunc func(catalog.Question) (catalog.Compiled, catalog.Problems)
 
-// ApplySync imports repository content: new rounds and questions are added at
+// ApplySync imports repository content: new topics and questions are added at
 // the end; with overwrite, changed questions take the repository's fields
-// (keeping their round, position and published state, with a revision saved).
+// (keeping their topic, position and published state, with a revision saved).
 // Content created in the console is never deleted.
 func (s *Store) ApplySync(ctx context.Context, actorID int64, repo []catalog.Section, compile CompileFunc, overwrite bool) (SyncPlan, error) {
 	var p SyncPlan
@@ -688,24 +688,24 @@ func (s *Store) ApplySync(ctx context.Context, actorID int64, repo []catalog.Sec
 		if !overwrite {
 			p.ChangedQuestions = []string{}
 		}
-		// Topics are filter metadata, not authored content: always refresh them on rounds
-		// that already exist, so tagging a round in git lights up its chip after a sync.
-		topicsChanged := 0
+		// Facets are filter metadata, not authored content: always refresh them on topics
+		// that already exist, so tagging a topic in git lights up its chip after a sync.
+		facetsChanged := 0
 		for _, sec := range repo {
 			if !sections[sec.ID] {
 				continue
 			}
-			res, err := tx.ExecContext(ctx, `UPDATE sections SET topics = $2, updated_at = now() WHERE id = $1 AND topics IS DISTINCT FROM $2::text[]`,
-				sec.ID, pq.Array(topicsOrEmpty(sec.Topics)))
+			res, err := tx.ExecContext(ctx, `UPDATE sections SET facets = $2, updated_at = now() WHERE id = $1 AND facets IS DISTINCT FROM $2::text[]`,
+				sec.ID, pq.Array(facetsOrEmpty(sec.Facets)))
 			if err != nil {
 				return err
 			}
 			if n, _ := res.RowsAffected(); n > 0 {
-				topicsChanged++
+				facetsChanged++
 			}
 		}
 		if p.Empty() {
-			if topicsChanged > 0 {
+			if facetsChanged > 0 {
 				return bumpVersion(ctx, tx)
 			}
 			return nil
@@ -717,7 +717,7 @@ func (s *Store) ApplySync(ctx context.Context, actorID int64, repo []catalog.Sec
 		for _, sec := range repo {
 			if !sections[sec.ID] {
 				if err := insertSection(ctx, tx, actorID, sec); err != nil {
-					return fmt.Errorf("round %s: %w", sec.ID, err)
+					return fmt.Errorf("topic %s: %w", sec.ID, err)
 				}
 			}
 			for _, q := range sec.Questions {
@@ -756,7 +756,7 @@ func (s *Store) ApplySync(ctx context.Context, actorID int64, repo []catalog.Sec
 	return p, err
 }
 
-// SeedIfEmpty imports the repository content when the database has no rounds yet.
+// SeedIfEmpty imports the repository content when the database has no topics yet.
 // Safe to call on every cold start: the advisory lock makes concurrent starts wait.
 func (s *Store) SeedIfEmpty(ctx context.Context, repo []catalog.Section, compile CompileFunc) (bool, error) {
 	seeded := false
@@ -794,8 +794,8 @@ func (s *Store) SeedIfEmpty(ctx context.Context, repo []catalog.Section, compile
 	return seeded, err
 }
 
-// topicsOrEmpty keeps a NULL out of the NOT NULL topics column.
-func topicsOrEmpty(t []string) []string {
+// facetsOrEmpty keeps a NULL out of the NOT NULL facets column.
+func facetsOrEmpty(t []string) []string {
 	if t == nil {
 		return []string{}
 	}

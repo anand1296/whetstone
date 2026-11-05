@@ -1,15 +1,15 @@
 /**
- * Content management: rounds and questions, live.
+ * Content management: topics and questions, live.
  *
- * The left list is the rounds in learning order; the right side edits the
- * selected round and lists its questions. Editing a question opens the full
+ * The left list is the topics in learning order; the right side edits the
+ * selected topic and lists its questions. Editing a question opens the full
  * editor (QuestionEditor). Every save refreshes the app's own content too,
  * so the sidebar and pages update without a reload.
  */
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Dialog, LevelChip } from '../../components/primitives.tsx';
-import { TopicPicker } from '../../components/TopicPicker.tsx';
+import { FacetPicker } from '../../components/FacetPicker.tsx';
 import { plural } from '../../lib/format.ts';
 import { refreshBootstrap } from '../../platform/backend.ts';
 import { navigate } from '../../state/route.ts';
@@ -49,7 +49,7 @@ function NewRoundDialog({ open, takenIds, onClose, onCreated }: { open: boolean;
   const [id, setId] = useState('');
   const [idTouched, setIdTouched] = useState(false);
   const [description, setDescription] = useState('');
-  const [topics, setTopics] = useState<string[]>([]);
+  const [facets, setFacets] = useState<string[]>([]);
   const { busy, flash, run } = useAction();
   const formId = useId();
   const effectiveId = idTouched ? id : slugify(title);
@@ -57,22 +57,22 @@ function NewRoundDialog({ open, takenIds, onClose, onCreated }: { open: boolean;
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    const ok = await run(() => consoleApi.createSection({ id: effectiveId, title, description, topics, published: true }));
+    const ok = await run(() => consoleApi.createSection({ id: effectiveId, title, description, facets, published: true }));
     if (ok) {
       setTitle('');
       setId('');
       setIdTouched(false);
       setDescription('');
-      setTopics([]);
+      setFacets([]);
       await onCreated(effectiveId);
     }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} label="New round" className="dialog dialog-small">
+    <Dialog open={open} onClose={onClose} label="New topic" className="dialog dialog-small">
       <form className="dialog-body console-form" onSubmit={(event) => void submit(event)}>
         <div className="dialog-head">
-          <h2>New round</h2>
+          <h2>New topic</h2>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             <Icon name="close" />
           </button>
@@ -100,12 +100,12 @@ function NewRoundDialog({ open, takenIds, onClose, onCreated }: { open: boolean;
           One-line description
           <input id={`${formId}-desc`} value={description} required maxLength={300} onChange={(e) => setDescription(e.target.value)} />
         </label>
-        <TopicPicker value={topics} onChange={setTopics} />
-        <p className="admin-note">The round appears to learners once it has at least one published question.</p>
+        <FacetPicker value={facets} onChange={setFacets} />
+        <p className="admin-note">The topic appears to learners once it has at least one published question.</p>
         <FlashLine flash={flash} />
         <div className="button-row">
           <button type="submit" className="btn btn-primary" disabled={busy || taken || !effectiveId}>
-            Create round
+            Create topic
           </button>
         </div>
       </form>
@@ -277,7 +277,7 @@ function TrashDialog({ open, onClose, onRestored }: { open: boolean; onClose: ()
   );
 }
 
-/* ---------------------------------------------------------------- round detail */
+/* ---------------------------------------------------------------- topic detail */
 
 function RoundDetail({ section, index, total, onChanged, onEdit, onNew, onDeleted }: {
   section: AdminSection;
@@ -290,22 +290,22 @@ function RoundDetail({ section, index, total, onChanged, onEdit, onNew, onDelete
 }) {
   const [title, setTitle] = useState(section.title);
   const [description, setDescription] = useState(section.description);
-  const [topics, setTopics] = useState<string[]>(section.topics);
+  const [facets, setFacets] = useState<string[]>(section.facets);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const { busy, flash, run } = useAction();
   const formId = useId();
-  const dirty = title !== section.title || description !== section.description || topics.join() !== section.topics.join();
+  const dirty = title !== section.title || description !== section.description || facets.join() !== section.facets.join();
   const drafts = section.questions.filter((q) => !q.published).length;
 
   const save = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    if (await run(() => consoleApi.updateSection(section.id, { title, description, topics }), 'Round saved.')) await onChanged();
+    if (await run(() => consoleApi.updateSection(section.id, { title, description, facets }), 'Topic saved.')) await onChanged();
   };
 
   const togglePublished = async (): Promise<void> => {
     const next = !section.published;
-    if (await run(() => consoleApi.updateSection(section.id, { published: next }), next ? 'Round published.' : 'Round hidden from learners.')) await onChanged();
+    if (await run(() => consoleApi.updateSection(section.id, { published: next }), next ? 'Topic published.' : 'Topic hidden from learners.')) await onChanged();
   };
 
   const reorder = async (questionIndex: number, delta: number): Promise<void> => {
@@ -318,7 +318,7 @@ function RoundDetail({ section, index, total, onChanged, onEdit, onNew, onDelete
       <form className="console-form" onSubmit={(event) => void save(event)}>
         <div className="round-detail-head">
           <p className="eyebrow">
-            Round {index + 1} of {total} · <code>#{section.id}</code>
+            Topic {index + 1} of {total} · <code>#{section.id}</code>
           </p>
           <label className="switch-inline" htmlFor={`${formId}-pub`}>
             <input id={`${formId}-pub`} type="checkbox" role="switch" className="switch" checked={section.published} disabled={busy} onChange={() => void togglePublished()} />
@@ -333,10 +333,10 @@ function RoundDetail({ section, index, total, onChanged, onEdit, onNew, onDelete
           Description
           <input id={`${formId}-desc`} value={description} required maxLength={300} onChange={(e) => setDescription(e.target.value)} />
         </label>
-        <TopicPicker value={topics} onChange={setTopics} />
+        <FacetPicker value={facets} onChange={setFacets} />
         <div className="button-row">
           <button type="submit" className="btn btn-primary" disabled={busy || !dirty}>
-            Save round
+            Save topic
           </button>
           <button type="button" className="btn btn-quiet" onClick={() => navigate({ name: 'section', sectionId: section.id })}>
             View in app
@@ -346,7 +346,7 @@ function RoundDetail({ section, index, total, onChanged, onEdit, onNew, onDelete
           </button>
           {confirmDelete ? (
             <>
-              <span className="danger-copy">Delete this round and its {plural(section.questions.length, 'question')}?</span>
+              <span className="danger-copy">Delete this topic and its {plural(section.questions.length, 'question')}?</span>
               <button
                 type="button"
                 className="btn btn-danger"
@@ -355,7 +355,7 @@ function RoundDetail({ section, index, total, onChanged, onEdit, onNew, onDelete
                   if (ok) await onDeleted();
                 })}
               >
-                Delete round
+                Delete topic
               </button>
               <button type="button" className="btn btn-quiet" onClick={() => setConfirmDelete(false)}>
                 Cancel
@@ -432,7 +432,7 @@ export function ContentTab() {
   const state = useAsync(consoleApi.content);
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
-  const [dialog, setDialog] = useState<'round' | 'sync' | 'trash' | null>(null);
+  const [dialog, setDialog] = useState<'topic' | 'sync' | 'trash' | null>(null);
   const { busy, flash, run } = useAction();
 
   const refresh = async (): Promise<void> => {
@@ -477,8 +477,8 @@ export function ContentTab() {
             className="cms-card"
             actions={
               <>
-                <button type="button" className="btn" onClick={() => setDialog('round')}>
-                  New round
+                <button type="button" className="btn" onClick={() => setDialog('topic')}>
+                  New topic
                 </button>
                 <button type="button" className="btn btn-quiet" onClick={() => setDialog('sync')}>
                   Sync from repository
@@ -493,12 +493,12 @@ export function ContentTab() {
             }
           >
             <p className="admin-note">
-              {plural(sections.length, 'round')} · {plural(questionCount, 'question')}. Drafts are visible only to admins (marked
+              {plural(sections.length, 'topic')} · {plural(questionCount, 'question')}. Drafts are visible only to admins (marked
               “Draft” in the app). Exports use the repository's Markdown format, so you can commit them back to git.
             </p>
             <FlashLine flash={flash} />
             <div className="cms-layout">
-              <nav aria-label="Rounds" className="cms-rounds">
+              <nav aria-label="Topics" className="cms-rounds">
                 <ol className="cms-list">
                   {sections.map((section, index) => (
                     <li key={section.id} className="cms-item" data-active={section.id === current?.id}>
@@ -535,7 +535,7 @@ export function ContentTab() {
               )}
             </div>
             <NewRoundDialog
-              open={dialog === 'round'}
+              open={dialog === 'topic'}
               takenIds={takenIds}
               onClose={() => setDialog(null)}
               onCreated={async (id) => {

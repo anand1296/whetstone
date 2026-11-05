@@ -1,5 +1,5 @@
 /**
- * A single announcement the owner can show to everyone (exam dates, new rounds,
+ * A single announcement the owner can show to everyone (exam dates, new topics,
  * study-group sessions). Stored in one shared document that everyone can read
  * and only the owner can write (enforced by the access rules, not just the UI).
  */

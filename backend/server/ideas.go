@@ -13,21 +13,21 @@ import (
 
 // Topic ideas: any signed-in person can suggest a new category ("Kubernetes
 // for SREs") with a few optional starter questions. An admin accepts it, which
-// creates a draft round and draft questions, or declines it with a note.
+// creates a draft topic and draft questions, or declines it with a note.
 // Progress is derived from the content itself: the idea reads "being written"
 // until its draft questions are published, then "live".
 
 const (
 	ideasPerDay      = 5
 	maxPendingIdeas  = 10
-	maxIdeaTopics    = 6
+	maxIdeaFacets    = 6
 	maxIdeaQuestions = 5
 	maxIdeaDetails   = 1000
 )
 
 type ideaInput struct {
 	Title     string   `json:"title"`
-	Topics    []string `json:"topics"`
+	Facets    []string `json:"facets"`
 	Details   string   `json:"details"`
 	Questions []string `json:"questions"`
 	Credit    bool     `json:"credit"`
@@ -40,16 +40,16 @@ func (in *ideaInput) check() catalog.Problems {
 	}
 	in.Title = strings.TrimSpace(in.Title)
 	in.Details = strings.TrimSpace(in.Details)
-	in.Topics = catalog.NormalizeTopics(in.Topics)
+	in.Facets = catalog.NormalizeFacets(in.Facets)
 	if n := utf8.RuneCountInString(in.Title); n < 3 || n > 80 || strings.ContainsAny(in.Title, "\n\r") {
 		add("title", "give the topic a short name, 3 to 80 characters")
 	}
-	if len(in.Topics) > maxIdeaTopics {
-		add("topics", "pick at most %d chips", maxIdeaTopics)
+	if len(in.Facets) > maxIdeaFacets {
+		add("facets", "pick at most %d chips", maxIdeaFacets)
 	}
-	for _, t := range in.Topics {
-		if !catalog.ValidTopic(t) {
-			add("topics", "unknown chip %q", t)
+	for _, t := range in.Facets {
+		if !catalog.ValidFacet(t) {
+			add("facets", "unknown chip %q", t)
 			break
 		}
 	}
@@ -99,10 +99,10 @@ func (s *Server) createIdea(w http.ResponseWriter, r *http.Request, user store.U
 		return
 	}
 	if recent >= ideasPerDay || pending >= maxPendingIdeas {
-		writeError(w, http.StatusTooManyRequests, "rate_limited", fmt.Sprintf("You can suggest %d topics a day and have %d waiting at a time. Thank you for the enthusiasm!", ideasPerDay, maxPendingIdeas))
+		writeError(w, http.StatusTooManyRequests, "rate_limited", fmt.Sprintf("You can suggest %d facets a day and have %d waiting at a time. Thank you for the enthusiasm!", ideasPerDay, maxPendingIdeas))
 		return
 	}
-	idea, err := s.store.CreateIdea(r.Context(), store.Idea{UserID: user.ID, Title: in.Title, Topics: in.Topics, Details: in.Details, Credit: in.Credit}, in.Questions)
+	idea, err := s.store.CreateIdea(r.Context(), store.Idea{UserID: user.ID, Title: in.Title, Facets: in.Facets, Details: in.Details, Credit: in.Credit}, in.Questions)
 	if err != nil {
 		s.storeError(w, r, err)
 		return
@@ -154,7 +154,7 @@ func (s *Server) listIdeas(w http.ResponseWriter, r *http.Request, _ store.User)
 // draftScaffold is the placeholder body of a starter question until its answer is written.
 const draftScaffold = "> [!TLDR]\n> The answer to this question is being written.\n\n_Coming soon._"
 
-// acceptIdea creates the draft round (or adds to an existing one) and a draft
+// acceptIdea creates the draft topic (or adds to an existing one) and a draft
 // question per kept starter question, then closes the idea. The admin writes
 // the answers afterwards, in the normal content editor.
 func (s *Server) acceptIdea(w http.ResponseWriter, r *http.Request, actor store.User) {
@@ -169,7 +169,7 @@ func (s *Server) acceptIdea(w http.ResponseWriter, r *http.Request, actor store.
 			ID          string   `json:"id"`
 			Title       string   `json:"title"`
 			Description string   `json:"description"`
-			Topics      []string `json:"topics"`
+			Facets      []string `json:"facets"`
 		} `json:"newSection"`
 		Questions []struct {
 			IdeaQuestionID int64  `json:"ideaQuestionId"`
@@ -186,14 +186,14 @@ func (s *Server) acceptIdea(w http.ResponseWriter, r *http.Request, actor store.
 	tags := []string{"community"}
 	switch {
 	case in.NewSection != nil:
-		sec := catalog.Section{ID: in.NewSection.ID, Title: in.NewSection.Title, Description: in.NewSection.Description, Topics: in.NewSection.Topics, Published: false}
+		sec := catalog.Section{ID: in.NewSection.ID, Title: in.NewSection.Title, Description: in.NewSection.Description, Facets: in.NewSection.Facets, Published: false}
 		sec.Normalize()
 		problems = append(problems, prefixProblems("newSection", sec.Validate())...)
 		params.NewSection = &sec
 		params.SectionID = ""
-		tags = append(append([]string{}, sec.Topics...), "community")
+		tags = append(append([]string{}, sec.Facets...), "community")
 	case params.SectionID == "":
-		problems = append(problems, catalog.FieldError{Field: "sectionId", Message: "pick an existing round or create a new one"})
+		problems = append(problems, catalog.FieldError{Field: "sectionId", Message: "pick an existing topic or create a new one"})
 	}
 	if len(in.Questions) > maxIdeaQuestions {
 		problems = append(problems, catalog.FieldError{Field: "questions", Message: "too many questions"})

@@ -38,17 +38,17 @@ There is no admin password. You are the super admin because you sign in with the
 
 Admin → **Content**.
 
-- **Rounds:** *New round* (title; id is derived and permanent; description). Select a round to edit its title and description, publish/hide it, export it as Markdown, view it in the app, reorder with the arrows, or delete it (its questions go to Trash).
+- **Topics:** *New topic* (title; id is derived and permanent; description). Select a topic to edit its title and description, publish/hide it, export it as Markdown, view it in the app, reorder with the arrows, or delete it (its questions go to Trash).
 - **Questions:** *New question* opens the editor:
-  - Question title (backticks render as code), permanent id (derived from the title), round, level, study minutes, tags.
+  - Question title (backticks render as code), permanent id (derived from the title), topic, level, study minutes, tags.
   - The answer in Markdown with **Write / Side by side / Preview**. The preview is rendered by the server, exactly as learners will see it, and lists every problem.
   - *Insert…* adds callouts, code blocks and tables at the cursor. *Markdown help* summarizes the rules.
   - **Draft** vs **Published** switch. Drafts can be incomplete and are visible only to admins (marked "Draft" in the app). Publishing requires a `> [!TLDR]` callout and at least 200 characters.
   - **Save** (or Ctrl/⌘+S). If someone else saved since you opened it, you'll be told and can load their version.
   - **History**: every previous version; *Load into editor* then Save to restore it.
 - **Trash:** deleted questions; *Restore as draft*.
-- **Sync from repository:** compares the database with the `content/*.md` files deployed with this version. *Add what's missing* imports new rounds/questions committed to git. *Overwrite changed…* replaces edited questions with the repository version (history kept). Questions created in the console are never touched.
-- **Export all (.zip):** every published round as `content/NN-id.md`, ready to commit to the repository.
+- **Sync from repository:** compares the database with the `content/*.md` files deployed with this version. *Add what's missing* imports new topics/questions committed to git. *Overwrite changed…* replaces edited questions with the repository version (history kept). Questions created in the console are never touched.
+- **Export all (.zip):** every published topic as `content/NN-id.md`, ready to commit to the repository.
 
 Every change is live for everyone immediately and recorded in **Activity**.
 
@@ -62,7 +62,7 @@ Every change is live for everyone immediately and recorded in **Activity**.
 
 ### Learners
 
-Admin → **Learners**: everyone with role, progress (% and done/total), rounds finished, reviews due, last active and current round. The owner can change roles; admins can disable/enable and remove learners; the owner can also manage admins. Disabling someone signs them out everywhere.
+Admin → **Learners**: everyone with role, progress (% and done/total), topics finished, reviews due, last active and current topic. The owner can change roles; admins can disable/enable and remove learners; the owner can also manage admins. Disabling someone signs them out everywhere.
 
 Privacy: admins see this summary only. Notes, review dates and per-question history are never sent to admins. Learners are told this in Settings, and can delete their account there.
 
@@ -73,7 +73,7 @@ Members can propose questions from their own interviews (sidebar → **Behind th
 Admin → **Submissions** → **Review**:
 
 1. Read the interview context (only reviewers see it) and the live preview.
-2. Edit anything: wording, round, level, minutes, tags, the answer. Choose the **permanent id**. If they suggested a new round, create it in **Content** first, or pick an existing one.
+2. Edit anything: wording, topic, level, minutes, tags, the answer. Choose the **permanent id**. If they suggested a new topic, create it in **Content** first, or pick an existing one.
 3. Choose **Publish now** or **Add as draft**, optionally write a note to the author, then **Approve and add**. The question is created and the submission closed in one step; the author is credited (if they asked) and emailed.
 4. Or **Reject** with a short note; the author is emailed and sees the note on their Contribute page.
 
@@ -81,15 +81,15 @@ Nothing a member submits is visible to anyone else until you approve it. Each pe
 
 ### Topic ideas (new categories)
 
-People can also suggest a **whole new topic** (sidebar → **Contribute → Suggest a topic**, or the button above the rounds), with up to five optional starter questions. You get an email, and a count badge appears on **Admin** and on the **Topic ideas** tab.
+People can also suggest a **whole new topic** (sidebar → **Contribute → Suggest a topic**, or the button above the topics), with up to five optional starter questions. You get an email, and a count badge appears on **Admin** and on the **Topic ideas** tab.
 
 Admin → **Topic ideas** → **Review**:
 
-1. Read the idea and its suggested chips. Choose **a new round** (title, permanent id, one-line description, chips) or **an existing round**.
-2. Keep, reword or drop the starter questions and set each one's level, optionally write a note, then **Accept and create drafts**. This creates a hidden draft round and one hidden draft question per kept starter question, and emails the person. Or **Decline** with a note.
-3. Open the idea under **Being written** and click **Copy authoring brief**. It is a ready-to-paste prompt (format, depth, level, question ids) for producing the answers. Paste each answer into its draft in **Content**, then publish the questions and the round.
+1. Read the idea and its suggested filters. Choose **a new topic** (title, permanent id, one-line description, filters) or **an existing topic**.
+2. Keep, reword or drop the starter questions and set each one's level, optionally write a note, then **Accept and create drafts**. This creates a hidden draft topic and one hidden draft question per kept starter question, and emails the person. Or **Decline** with a note.
+3. Open the idea under **Being written** and click **Copy authoring brief**. It is a ready-to-paste prompt (format, depth, level, question ids) for producing the answers. Paste each answer into its draft in **Content**, then publish the questions and the topic.
 
-The person watches **In review → Accepted → Writing answers → Live** on their Contribute page. You never update that status by hand: it follows the drafts, and becomes **Live** when the questions are published. A chip lights up on the overview as soon as a published round carries its topic. Limits: 5 ideas a day and 10 waiting per person; **Contribute** in Features & settings pauses ideas and submissions together.
+The person watches **In review → Accepted → Writing answers → Live** on their Contribute page. You never update that status by hand: it follows the drafts, and becomes **Live** when the questions are published. A chip lights up on the overview as soon as a published topic carries its topic. Limits: 5 ideas a day and 10 waiting per person; **Contribute** in Features & settings pauses ideas and submissions together.
 
 ### Pull requests on GitHub (repository rules)
 
@@ -110,8 +110,8 @@ The repository ships `CODEOWNERS` (you own every file), `CONTRIBUTING.md`, PR an
 
 Admin → **Features & settings**:
 
-- **Announcement:** message, tone (info, good news, heads-up), optional link (`https://…` or `#round-id`). Shown at the top of the app until each person dismisses it. *Clear current* removes it.
-- **Features:** switch built-in features on or off for everyone, instantly: Spaced review, Search, Personal notes, Round filters, Export and import, Level breakdown, Email reminders, How it's built, Contribute.
+- **Announcement:** message, tone (info, good news, heads-up), optional link (`https://…` or `#topic-id`). Shown at the top of the app until each person dismisses it. *Clear current* removes it.
+- **Features:** switch built-in features on or off for everyone, instantly: Spaced review, Search, Personal notes, Topic filters, Export and import, Level breakdown, Email reminders, How it's built, Contribute.
 - **Email reminders** are opt-in per person (Settings → Email reminders, default off; daily, every 3 days or weekly). Turning the feature off here stops all reminder emails. Sending needs the SMTP settings and `CRON_SECRET` (docs/DEPLOYMENT.md §1.7). You never see people's email addresses.
 - **Site & access** (owner): app name, overview headline, registration, content access.
 

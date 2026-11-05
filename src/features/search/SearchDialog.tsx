@@ -70,7 +70,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           aria-activedescendant={results.length > 0 ? optionId(active) : undefined}
           aria-autocomplete="list"
           aria-label="Search questions"
-          placeholder="Search questions, topics, tags…"
+          placeholder="Search questions, facets, tags…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={onKeyDown}
@@ -81,7 +81,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
       </div>
       <p className="search-hint" aria-live="polite">
         {deferredQuery.trim() === ''
-          ? 'Jump to a round, or start typing to search every question.'
+          ? 'Jump to a topic, or start typing to search every question.'
           : results.length === 0
             ? `No questions match "${deferredQuery}".`
             : `${results.length} ${results.length === 1 ? 'match' : 'matches'}`}
