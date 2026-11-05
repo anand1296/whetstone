@@ -8,60 +8,60 @@ import (
 	"github.com/anand1296/whetstone/content"
 )
 
-// MaxTopics bounds how many topics one round may carry.
-const MaxTopics = 12
+// MaxFacets bounds how many facets one topic may carry.
+const MaxFacets = 12
 
-// Topic is one filter chip. The taxonomy lives in content/topics.json so the
+// Facet is one filter chip. The taxonomy lives in content/facets.json so the
 // static build, the browser and this package read the same list.
-type Topic struct {
+type Facet struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 }
 
-// TopicGroup is a labelled row of chips.
-type TopicGroup struct {
+// FacetGroup is a labelled row of chips.
+type FacetGroup struct {
 	ID     string  `json:"id"`
 	Label  string  `json:"label"`
-	Topics []Topic `json:"topics"`
+	Facets []Facet `json:"facets"`
 }
 
 var (
-	taxonomy   []TopicGroup
-	topicIndex = map[string]bool{}
+	taxonomy   []FacetGroup
+	facetIndex = map[string]bool{}
 )
 
 func init() {
-	raw, err := content.Files.ReadFile("topics.json")
+	raw, err := content.Files.ReadFile("facets.json")
 	if err != nil {
-		panic(fmt.Sprintf("catalog: topics.json: %v", err))
+		panic(fmt.Sprintf("catalog: facets.json: %v", err))
 	}
 	var doc struct {
-		Groups []TopicGroup `json:"groups"`
+		Groups []FacetGroup `json:"groups"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		panic(fmt.Sprintf("catalog: topics.json: %v", err))
+		panic(fmt.Sprintf("catalog: facets.json: %v", err))
 	}
 	taxonomy = doc.Groups
 	for _, g := range taxonomy {
-		for _, t := range g.Topics {
-			topicIndex[t.ID] = true
+		for _, t := range g.Facets {
+			facetIndex[t.ID] = true
 		}
 	}
 }
 
-// Taxonomy returns the topic groups in display order.
-func Taxonomy() []TopicGroup { return taxonomy }
+// Taxonomy returns the facet groups in display order.
+func Taxonomy() []FacetGroup { return taxonomy }
 
-// ValidTopic reports whether id is in the taxonomy.
-func ValidTopic(id string) bool { return topicIndex[id] }
+// ValidFacet reports whether id is in the taxonomy.
+func ValidFacet(id string) bool { return facetIndex[id] }
 
-// ParseTopics splits a comma separated list, lower-cases it and drops duplicates.
-func ParseTopics(list string) []string {
-	return NormalizeTopics(strings.Split(list, ","))
+// ParseFacets splits a comma separated list, lower-cases it and drops duplicates.
+func ParseFacets(list string) []string {
+	return NormalizeFacets(strings.Split(list, ","))
 }
 
-// NormalizeTopics trims, lower-cases and de-duplicates topic ids, keeping order.
-func NormalizeTopics(in []string) []string {
+// NormalizeFacets trims, lower-cases and de-duplicates facet ids, keeping order.
+func NormalizeFacets(in []string) []string {
 	out := []string{}
 	seen := map[string]bool{}
 	for _, t := range in {

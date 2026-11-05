@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { preloadSection, useContent } from '../../content/index.ts';
-import { filterSections } from '../../content/topics.ts';
+import { describeSelection, facetLabel, filterSections, groupOf } from '../../content/facets.ts';
 import { LEVELS, LEVEL_LABEL } from '../../content/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { LoopRing } from '../../components/LoopRing.tsx';
@@ -13,55 +13,66 @@ import { navigate } from '../../state/route.ts';
 import { useStore } from '../../state/useStore.ts';
 import { useServer } from '../../platform/backend.ts';
 import { SuggestTopicDialog } from '../contribute/SuggestTopic.tsx';
-import { TopicFilter } from './TopicFilter.tsx';
+import { FacetFilter } from './FacetFilter.tsx';
 
 export function Overview() {
-  const { allQuestions, questionsById, sections, sectionsById, totalMinutes } = useContent();
+  const { allQuestions, questionsById, sections, sectionsById } = useContent();
   const state = useStore(progressStore, (s) => s);
   const { features, site } = useServer();
   const [now] = useState(() => Date.now());
-  const selectedTopics = useStore(prefsStore, (s) => s.topics);
+  const selectedFacets = useStore(prefsStore, (s) => s.facets);
   const [suggesting, setSuggesting] = useState(false);
 
+  // A remembered facet can lose its content (a topic was hidden): only filter by facets that still match something.
+  const activeFacets = useMemo(
+    () => selectedFacets.filter((id) => sections.some((section) => section.facets.includes(id))),
+    [selectedFacets, sections],
+  );
+  // Everything below (progress, "up next", levels) follows the chosen track, not the whole bank.
+  const mine = useMemo(() => filterSections(sections, activeFacets), [sections, activeFacets]);
   const segments = useMemo(
-    () => sections.map((section) => ({ section, done: doneCount(section.questions, state.questions) })),
-    [sections, state.questions],
+    () => mine.map((section) => ({ section, done: doneCount(section.questions, state.questions) })),
+    [mine, state.questions],
   );
-  // A remembered chip can lose its content (a round was hidden): only filter by chips that still match something.
-  const activeTopics = useMemo(
-    () => selectedTopics.filter((id) => sections.some((section) => section.topics.includes(id))),
-    [selectedTopics, sections],
-  );
-  const visible = useMemo(() => {
-    const shown = new Set(filterSections(sections, activeTopics).map((section) => section.id));
-    return segments.map((segment, index) => ({ ...segment, number: index + 1 })).filter(({ section }) => shown.has(section.id));
-  }, [segments, sections, activeTopics]);
+  const numbers = useMemo(() => new Map(sections.map((section, index) => [section.id, index + 1])), [sections]);
+  const questions = useMemo(() => mine.flatMap((section) => section.questions), [mine]);
+  const minutes = useMemo(() => questions.reduce((sum, q) => sum + q.minutes, 0), [questions]);
   const done = segments.reduce((sum, s) => sum + s.done, 0);
-  const total = allQuestions.length;
+  const total = questions.length;
   const due = useMemo(() => dueQuestions(allQuestions, state.questions, now), [allQuestions, state.questions, now]);
-  const target = useMemo(() => continueTarget(sections, state), [sections, state]);
+  const target = useMemo(() => continueTarget(mine, state), [mine, state]);
   const targetQuestion = target ? questionsById.get(target.questionId) : undefined;
   const targetSection = target ? sectionsById.get(target.sectionId) : undefined;
+  const filtering = activeFacets.length > 0;
 
   const byLevel = LEVELS.map((level) => {
-    const questions = allQuestions.filter((q) => q.level === level);
-    return { level, total: questions.length, done: doneCount(questions, state.questions) };
+    const ofLevel = questions.filter((q) => q.level === level);
+    return { level, total: ofLevel.length, done: doneCount(ofLevel, state.questions) };
   });
 
   return (
     <article className="page overview">
       <header className="overview-hero">
         <div className="overview-intro">
-          <p className="eyebrow">Senior · Lead · Principal frontend interviews</p>
-          <h1>{site.tagline || 'Your interview loop, one round at a time.'}</h1>
+          <p className="eyebrow">Senior · Lead · Principal engineering interviews</p>
+          <h1>{site.tagline || 'Your interview loop, one topic at a time.'}</h1>
           <p className="lede">
-            {plural(total, 'question')} across {sections.length} rounds, about {formatStudyTime(totalMinutes)} of study. Read the
+            {plural(total, 'question')} across {plural(mine.length, 'topic')}
+            {filtering ? ` for ${describeSelection(activeFacets)}` : ''}, about {formatStudyTime(minutes)} of study. Read the
             question, answer it out loud, then open it and compare. Tick it off when you could say it in the room.
           </p>
         </div>
       </header>
 
-      <section className="overview-grid" aria-label="Your progress">
+      <FacetFilter
+        sections={sections}
+        selected={activeFacets}
+        shown={mine.length}
+        onChange={(facets) => updatePrefs({ facets })}
+        onSuggest={() => setSuggesting(true)}
+      />
+
+      <section className="overview-grid" aria-label={filtering ? `Your progress: ${describeSelection(activeFacets)}` : 'Your progress'}>
         <LoopRing
           segments={segments}
           done={done}
@@ -125,21 +136,16 @@ export function Overview() {
 
       <section className="rounds" aria-labelledby="rounds-heading">
         <h2 id="rounds-heading" className="section-heading">
-          The rounds
+          {filtering ? `Topics for ${describeSelection(activeFacets)}` : 'All topics'}
         </h2>
-        <TopicFilter
-          sections={sections}
-          selected={activeTopics}
-          shown={visible.length}
-          onChange={(topics) => updatePrefs({ topics })}
-          onSuggest={() => setSuggesting(true)}
-        />
-        {visible.length === 0 ? (
+        {mine.length === 0 ? (
           <div className="rounds-empty">
-            <p>No rounds match all of those chips yet.</p>
+            <p>
+              No topics match {describeSelection(activeFacets)} yet. Try fewer filters, or tell us what you&rsquo;d want covered first.
+            </p>
             <div className="button-row">
-              <button type="button" className="btn" onClick={() => updatePrefs({ topics: [] })}>
-                Clear the filter
+              <button type="button" className="btn" onClick={() => updatePrefs({ facets: [] })}>
+                Show everything
               </button>
               <button type="button" className="btn btn-primary" onClick={() => setSuggesting(true)}>
                 Suggest a topic
@@ -148,7 +154,7 @@ export function Overview() {
           </div>
         ) : null}
         <ol className="round-list">
-          {visible.map(({ section, done: sectionDone, number }) => (
+          {segments.map(({ section, done: sectionDone }) => (
             <li key={section.id}>
               <button
                 type="button"
@@ -158,10 +164,11 @@ export function Overview() {
                 onFocus={() => preloadSection(section.id)}
                 onClick={() => navigate({ name: 'section', sectionId: section.id })}
               >
-                <span className="round-index tabular">{String(number).padStart(2, '0')}</span>
+                <span className="round-index tabular">{String(numbers.get(section.id) ?? 0).padStart(2, '0')}</span>
                 <span className="round-body">
                   <span className="round-title">{section.title}</span>
                   <span className="round-desc">{section.description}</span>
+                  <FacetTags facets={section.facets} />
                 </span>
                 <span className="round-progress">
                   <span className="tabular">
@@ -176,5 +183,20 @@ export function Overview() {
       </section>
       <SuggestTopicDialog open={suggesting} onClose={() => setSuggesting(false)} />
     </article>
+  );
+}
+
+/** Small labels on a topic card for what it is specific to (language, framework, platform, or a role other than the default). */
+function FacetTags({ facets }: { facets: readonly string[] }) {
+  const specific = facets.filter((id) => groupOf(id)?.id !== 'role');
+  if (specific.length === 0) return null;
+  return (
+    <span className="facet-tags">
+      {specific.map((id) => (
+        <span key={id} className="facet-tag">
+          {facetLabel(id)}
+        </span>
+      ))}
+    </span>
   );
 }

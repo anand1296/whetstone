@@ -80,7 +80,7 @@ func splitQuestions(body string, offset int) []rawQuestion {
 	return out
 }
 
-// ParseFile parses one repository round file. Questions are published.
+// ParseFile parses one repository topic file. Questions are published.
 func ParseFile(file, source string) (Section, error) {
 	source = strings.ReplaceAll(source, "\r\n", "\n")
 	if !strings.HasPrefix(source, "---\n") {
@@ -103,7 +103,7 @@ func ParseFile(file, source string) (Section, error) {
 	}
 	headerLines := strings.Count(source[:len(source)-len(body)], "\n")
 
-	section := Section{ID: data["id"], Title: data["title"], Description: data["description"], Topics: ParseTopics(data["topics"]), Published: true}
+	section := Section{ID: data["id"], Title: data["title"], Description: data["description"], Facets: ParseFacets(data["facets"]), Published: true}
 	section.Normalize()
 	if problems := section.Validate(); len(problems) > 0 {
 		return Section{}, &ParseError{File: file, Line: 1, Message: problems.Error()}
@@ -209,8 +209,8 @@ func ParseFS(fsys fs.FS) ([]Section, error) {
 func ExportFile(s Section) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "---\nid: %s\ntitle: %s\ndescription: %s\n", s.ID, oneLine(s.Title), oneLine(s.Description))
-	if len(s.Topics) > 0 {
-		fmt.Fprintf(&b, "topics: %s\n", strings.Join(s.Topics, ", "))
+	if len(s.Facets) > 0 {
+		fmt.Fprintf(&b, "facets: %s\n", strings.Join(s.Facets, ", "))
 	}
 	b.WriteString("---\n")
 	for _, q := range s.Questions {

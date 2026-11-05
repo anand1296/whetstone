@@ -1,5 +1,5 @@
 // Package catalog is the content model shared by the database, the admin
-// editor and the repository files: rounds ("sections") that hold questions.
+// editor and the repository files: topics ("sections") that hold questions.
 //
 // It parses the repository's Markdown format (front matter + one "## " heading
 // and <!-- meta --> comment per question), validates fields with messages an
@@ -38,14 +38,14 @@ var ReservedIDs = map[string]bool{"review": true, "admin": true, "console": true
 
 var idPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
-// Section is a round, as stored and edited.
+// Section is a topic, as stored and edited.
 type Section struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Published   bool   `json:"published"`
-	// Topics are filter-chip ids from content/topics.json (frontend, react, ...).
-	Topics    []string   `json:"topics"`
+	// Facets are filter-chip ids from content/facets.json (frontend, react, ...).
+	Facets    []string   `json:"facets"`
 	Questions []Question `json:"questions,omitempty"`
 }
 
@@ -121,7 +121,7 @@ func (s *Section) Normalize() {
 	s.ID = strings.TrimSpace(s.ID)
 	s.Title = strings.TrimSpace(s.Title)
 	s.Description = strings.TrimSpace(s.Description)
-	s.Topics = NormalizeTopics(s.Topics)
+	s.Facets = NormalizeFacets(s.Facets)
 }
 
 // Validate checks a section's own fields (not its questions).
@@ -140,12 +140,12 @@ func (s Section) Validate() Problems {
 	} else if utf8.RuneCountInString(s.Description) > MaxDescription {
 		p.add("description", "must be at most %d characters", MaxDescription)
 	}
-	if len(s.Topics) > MaxTopics {
-		p.add("topics", "use at most %d topics", MaxTopics)
+	if len(s.Facets) > MaxFacets {
+		p.add("facets", "use at most %d facets", MaxFacets)
 	}
-	for _, t := range s.Topics {
-		if !ValidTopic(t) {
-			p.add("topics", "unknown topic %q: pick from content/topics.json", t)
+	for _, t := range s.Facets {
+		if !ValidFacet(t) {
+			p.add("facets", "unknown topic %q: pick from content/facets.json", t)
 			break
 		}
 	}

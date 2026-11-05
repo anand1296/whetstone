@@ -1,11 +1,11 @@
-import { TOPIC_GROUPS } from '../content/topics.ts';
+import { FACET_GROUPS } from '../content/facets.ts';
 
 /**
- * Multi-select chips for choosing topics (a round's topics, or the topics of a
- * suggestion). Every topic is selectable here, unlike the overview filter,
- * which only enables topics that already have content.
+ * Multi-select chips for choosing facets (a topic's facets, or the facets of a
+ * suggestion). Every facet is selectable here, unlike the overview filter,
+ * which only enables facets that already have content.
  */
-export function TopicPicker({
+export function FacetPicker({
   value,
   onChange,
   max = 12,
@@ -21,24 +21,24 @@ export function TopicPicker({
     else if (value.length < max) onChange([...value, id]);
   };
   return (
-    <fieldset className="topic-picker">
+    <fieldset className="facet-picker">
       <legend>{label}</legend>
-      {TOPIC_GROUPS.map((group) => (
-        <div key={group.id} className="topic-picker-row">
-          <span className="topic-picker-label">{group.label}</span>
-          <span className="topic-picker-chips">
-            {group.topics.map((topic) => {
-              const on = value.includes(topic.id);
+      {FACET_GROUPS.map((group) => (
+        <div key={group.id} className="facet-picker-row">
+          <span className="facet-picker-label">{group.label}</span>
+          <span className="facet-picker-chips">
+            {group.facets.map((facet) => {
+              const on = value.includes(facet.id);
               return (
                 <button
-                  key={topic.id}
+                  key={facet.id}
                   type="button"
                   className="chip"
                   aria-pressed={on}
                   disabled={!on && value.length >= max}
-                  onClick={() => toggle(topic.id)}
+                  onClick={() => toggle(facet.id)}
                 >
-                  {topic.label}
+                  {facet.label}
                 </button>
               );
             })}

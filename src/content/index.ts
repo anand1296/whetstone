@@ -4,7 +4,7 @@
  * so the source can change in one place:
  *
  * - bundled: compiled from content/*.md at build time (static hosting, the
- *   claude.ai Artifact, offline). Answer HTML is code-split per round.
+ *   claude.ai Artifact, offline). Answer HTML is code-split per topic.
  * - server: served by the Go backend from Postgres, editable in the admin
  *   console. Swapped in by `setContent()` before the first render and again
  *   whenever an admin changes something.

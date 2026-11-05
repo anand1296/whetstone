@@ -1,11 +1,13 @@
 import { useId, useMemo, useState } from 'react';
 import { preloadSection, useContent } from '../content/index.ts';
+import { describeSelection, filterSections } from '../content/facets.ts';
 import { Icon, LoopMark } from '../components/Icon.tsx';
 import { SYNC_COPY } from '../features/settings/SettingsDialog.tsx';
 import { syncStatusStore } from '../state/persistence/cloudSync.ts';
 import { platformStore } from '../platform/runtime.ts';
 import { isAdminRole, useServer } from '../platform/backend.ts';
 import { Avatar, ROLE_LABEL } from '../features/account/Account.tsx';
+import { prefsStore, updatePrefs } from '../state/prefs.ts';
 import { progressStore } from '../state/progressStore.ts';
 import { doneCount, dueQuestions } from '../state/selectors.ts';
 import { navigate, routeStore } from '../state/route.ts';
@@ -34,7 +36,18 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
   const [now] = useState(() => Date.now());
   const dueCount = useMemo(() => dueQuestions(allQuestions, progress, now).length, [allQuestions, progress, now]);
   const activeSection = route.name === 'section' ? route.sectionId : null;
-  const roundsLabelId = useId();
+  const selectedFacets = useStore(prefsStore, (p) => p.facets);
+  // The list follows the chosen track; the topic you're reading always stays visible.
+  const activeFacets = useMemo(
+    () => selectedFacets.filter((id) => sections.some((section) => section.facets.includes(id))),
+    [selectedFacets, sections],
+  );
+  const listed = useMemo(() => {
+    const keep = new Set(filterSections(sections, activeFacets).map((section) => section.id));
+    return sections.filter((section) => keep.has(section.id) || section.id === activeSection);
+  }, [sections, activeFacets, activeSection]);
+  const hidden = sections.length - listed.length;
+  const topicsLabelId = useId();
   const behindLabelId = useId();
 
   const go = (target: Parameters<typeof navigate>[0]): void => {
@@ -109,11 +122,11 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
           ) : null}
         </ul>
 
-        <p className="nav-label" id={roundsLabelId}>
-          Rounds
+        <p className="nav-label" id={topicsLabelId}>
+          {activeFacets.length > 0 ? `Topics · ${describeSelection(activeFacets)}` : 'Topics'}
         </p>
-        <ol className="nav-list nav-rounds" aria-labelledby={roundsLabelId}>
-          {sections.map((section) => {
+        <ol className="nav-list nav-rounds" aria-labelledby={topicsLabelId}>
+          {listed.map((section) => {
             const done = doneCount(section.questions, progress);
             const total = section.questions.length;
             const draft = section.published === false;
@@ -142,6 +155,18 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
             );
           })}
         </ol>
+        {hidden > 0 ? (
+          <button
+            type="button"
+            className="nav-more"
+            onClick={() => {
+              updatePrefs({ facets: [] });
+              go({ name: 'overview' });
+            }}
+          >
+            {hidden} more {hidden === 1 ? 'topic' : 'topics'} hidden · show all
+          </button>
+        ) : null}
 
         {features.howItsBuilt || features.contribute ? (
           <>

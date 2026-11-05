@@ -26,11 +26,11 @@ import (
 var (
 	ErrNotFound    = errors.New("not found")
 	ErrConflict    = errors.New("edited by someone else since you opened it")
-	ErrIDTaken     = errors.New("that id is already used by a round or question")
+	ErrIDTaken     = errors.New("that id is already used by a topic or question")
 	ErrNotInvited  = errors.New("not invited")
 	ErrDisabled    = errors.New("account disabled")
 	ErrInvalidList = errors.New("the list must contain every item exactly once")
-	ErrNoSection   = errors.New("that round doesn't exist")
+	ErrNoSection   = errors.New("that topic doesn't exist")
 )
 
 //go:embed migrations/*.sql

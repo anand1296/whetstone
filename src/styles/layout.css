@@ -282,3 +282,22 @@ kbd {
 .sync-dot[data-status='error'] {
   background: var(--due);
 }
+
+.nav-more {
+  display: block;
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 6px 12px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-more:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}

@@ -3,44 +3,181 @@
     {
       "id": "role",
       "label": "Role",
-      "topics": [
-        { "id": "frontend", "label": "Frontend" },
-        { "id": "backend", "label": "Backend" },
-        { "id": "fullstack", "label": "Full-stack" },
-        { "id": "sre", "label": "SRE" },
-        { "id": "qe", "label": "QE / SDET" },
-        { "id": "cloud", "label": "Cloud" }
+      "facets": [
+        {
+          "id": "frontend",
+          "label": "Frontend"
+        },
+        {
+          "id": "backend",
+          "label": "Backend"
+        },
+        {
+          "id": "fullstack",
+          "label": "Full-stack"
+        },
+        {
+          "id": "sre",
+          "label": "SRE"
+        },
+        {
+          "id": "qe",
+          "label": "QE / SDET"
+        },
+        {
+          "id": "cloud",
+          "label": "Cloud"
+        },
+        {
+          "id": "design",
+          "label": "Design"
+        }
       ]
     },
     {
       "id": "language",
       "label": "Language",
-      "topics": [
-        { "id": "javascript", "label": "JavaScript" },
-        { "id": "typescript", "label": "TypeScript" },
-        { "id": "go", "label": "Go" },
-        { "id": "nodejs", "label": "Node.js" },
-        { "id": "java", "label": "Java" },
-        { "id": "python", "label": "Python" }
+      "facets": [
+        {
+          "id": "javascript",
+          "label": "JavaScript"
+        },
+        {
+          "id": "typescript",
+          "label": "TypeScript"
+        },
+        {
+          "id": "go",
+          "label": "Go"
+        },
+        {
+          "id": "nodejs",
+          "label": "Node.js"
+        },
+        {
+          "id": "java",
+          "label": "Java"
+        },
+        {
+          "id": "python",
+          "label": "Python"
+        }
       ]
     },
     {
       "id": "framework",
       "label": "Framework",
-      "topics": [
-        { "id": "react", "label": "React" },
-        { "id": "angular", "label": "Angular" },
-        { "id": "vue", "label": "Vue" }
+      "facets": [
+        {
+          "id": "react",
+          "label": "React"
+        },
+        {
+          "id": "angular",
+          "label": "Angular"
+        },
+        {
+          "id": "vue",
+          "label": "Vue"
+        }
       ]
     },
     {
       "id": "platform",
       "label": "Platform",
-      "topics": [
-        { "id": "aws", "label": "AWS" },
-        { "id": "azure", "label": "Azure" },
-        { "id": "gcp", "label": "GCP" },
-        { "id": "kubernetes", "label": "Kubernetes" }
+      "facets": [
+        {
+          "id": "aws",
+          "label": "AWS"
+        },
+        {
+          "id": "azure",
+          "label": "Azure"
+        },
+        {
+          "id": "gcp",
+          "label": "GCP"
+        },
+        {
+          "id": "kubernetes",
+          "label": "Kubernetes"
+        }
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "id": "frontend",
+      "label": "Frontend",
+      "facets": [
+        "frontend"
+      ]
+    },
+    {
+      "id": "frontend-react",
+      "label": "Frontend \u00b7 React",
+      "facets": [
+        "frontend",
+        "react"
+      ]
+    },
+    {
+      "id": "frontend-angular",
+      "label": "Frontend \u00b7 Angular",
+      "facets": [
+        "frontend",
+        "angular"
+      ]
+    },
+    {
+      "id": "frontend-vue",
+      "label": "Frontend \u00b7 Vue",
+      "facets": [
+        "frontend",
+        "vue"
+      ]
+    },
+    {
+      "id": "backend",
+      "label": "Backend",
+      "facets": [
+        "backend"
+      ]
+    },
+    {
+      "id": "fullstack",
+      "label": "Full-stack",
+      "facets": [
+        "frontend",
+        "backend"
+      ]
+    },
+    {
+      "id": "sre",
+      "label": "SRE",
+      "facets": [
+        "sre"
+      ]
+    },
+    {
+      "id": "qe",
+      "label": "QE / SDET",
+      "facets": [
+        "qe"
+      ]
+    },
+    {
+      "id": "cloud",
+      "label": "Cloud",
+      "facets": [
+        "cloud"
+      ]
+    },
+    {
+      "id": "design",
+      "label": "Design",
+      "facets": [
+        "design"
       ]
     }
   ]
