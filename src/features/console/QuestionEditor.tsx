@@ -12,6 +12,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { LEVELS, LEVEL_LABEL, type Level } from '../../content/types.ts';
+import { AiAnswerButton } from './AiAnswerButton.tsx';
 import { ApiError } from '../../platform/api.ts';
 import { navigate } from '../../state/route.ts';
 import { consoleApi, type AdminContent, type Preview, type QuestionInput, type Revision } from './consoleApi.ts';
@@ -424,6 +425,16 @@ export function QuestionEditor({ content, questionId, defaultSectionId, onClose,
           </p>
         </details>
       </div>
+
+      <AiAnswerButton
+        title={form.title}
+        level={form.level}
+        sectionId={form.sectionId}
+        tags={form.tags}
+        body={form.body}
+        emptyBodies={[TEMPLATE]}
+        onDraft={(body) => update({ body })}
+      />
 
       <div className="editor-panes" data-view={view}>
         {view !== 'preview' ? (

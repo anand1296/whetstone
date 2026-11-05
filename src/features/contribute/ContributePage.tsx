@@ -201,7 +201,8 @@ function QuestionForm({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
-    body,
+    // Leaving the starter template untouched means "question only": a reviewer drafts the answer.
+    body: body.trim() === TEMPLATE.trim() ? '' : body,
     context,
     credit,
   });
@@ -292,9 +293,13 @@ function QuestionForm({ onSubmitted }: { onSubmitted: () => Promise<void> }) {
           {fieldError('tags')}
         </label>
         <label htmlFor={`${formId}-body`} className="span-2">
-          Your answer <span className="you">(Markdown; start with the &gt; [!TLDR] callout, use ### for headings)</span>
+          Your answer <span className="you">(optional: Markdown with the &gt; [!TLDR] callout, ### headings and fenced code blocks)</span>
           <textarea id={`${formId}-body`} className="body-input" value={body} onChange={(e) => setBody(e.target.value)} aria-invalid={Boolean(problems.body)} />
           {fieldError('body')}
+          <span className="field-hint">
+            A detailed answer with code snippets gets approved fastest. If you only have the question, leave the template as it is and a
+            reviewer will draft the answer.
+          </span>
         </label>
         <label htmlFor={`${formId}-context`} className="span-2">
           Interview context <span className="you">(optional, only the reviewer sees it: kind of company, level, topic)</span>

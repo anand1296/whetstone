@@ -11,6 +11,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { LEVELS, LEVEL_LABEL, type Level } from '../../content/types.ts';
 import { ApiError } from '../../platform/api.ts';
 import { refreshBootstrap } from '../../platform/backend.ts';
+import { AiAnswerButton } from './AiAnswerButton.tsx';
 import { consoleApi, type AdminContent, type Preview, type QuestionInput, type Submission, type SubmissionStatus } from './consoleApi.ts';
 import { Card, errorMessage, formatDate, LoadState, slugify, useAction, useAsync, type Flash, FlashLine } from './shared.tsx';
 
@@ -75,6 +76,7 @@ export function SubmissionsTab() {
                       {formatDate(sub.createdAt)}
                     </span>
                   </span>
+                  {sub.status === 'pending' && sub.body.trim() === '' ? <span className="status-chip" data-status="needs-answer">No answer yet</span> : null}
                   <span className="status-chip" data-status={sub.status}>
                     {STATUS_LABEL[sub.status]}
                   </span>
@@ -249,6 +251,21 @@ function Review({
           {fieldError('tags')}
         </label>
       </div>
+
+      {submission.body.trim() === '' ? (
+        <p className="settings-message">
+          The submitter sent only the question. Write the answer yourself, or use the AI button to draft one, then edit it before approving.
+        </p>
+      ) : null}
+      <AiAnswerButton
+        title={form.title}
+        level={form.level}
+        sectionId={form.sectionId}
+        tags={input.tags}
+        body={form.body}
+        context={submission.context}
+        onDraft={(body) => update({ body })}
+      />
 
       <div className="editor-panes" data-view="split">
         <div className="editor-pane">

@@ -172,3 +172,12 @@ The single-file build hosted as a claude.ai Artifact has no backend. claude.ai h
 ```
 
 Code: `src/platform/runtime.ts`, `src/state/summary.ts`, `src/state/persistence/cloudSync.ts` (`syncWithRemote`, `syncSummary`), `src/features/admin/AdminPage.tsx`, `src/features/announcement/*`, `e2e/admin.spec.ts`.
+
+
+## Answers drafted with AI
+
+Community submissions may arrive as a **question only** (shown with a "No answer yet" tag). In the review screen, and in the question editor for any existing question, the **Generate answer with AI** button drafts a full answer (TLDR, explanation, code) into the editor; once an answer exists it becomes **Regenerate**, which improves on the current text. An optional "steer" box (for example "add a TypeScript example") guides one run.
+
+- Drafts only fill the editor. Nothing changes in the app until you review the text and **Approve** or **Save**, which validates it like any other answer, so the app updates only after a human has read it.
+- Verify facts and code; the draft is a starting point.
+- The button appears only when `ANTHROPIC_API_KEY` is set in the deployment's environment variables (Vercel: Project, Settings, Environment Variables, then redeploy). Usage is capped by `AI_DAILY_LIMIT` (default 40 per rolling 24 hours) and shown next to the button.
