@@ -45,7 +45,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
   await expect(resume.locator('.action-title')).toContainText('When does a component re-render');
-  await expect(page.locator('.loop-ring')).toContainText('2/144');
+  await expect(page.locator('.loop-ring')).toContainText('2/165');
 
   await resume.click();
   const third = page.locator('.q').nth(2);
@@ -175,7 +175,7 @@ test('import, spaced review and reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Yes, clear it' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.goto('/');
-  await expect(page.locator('.loop-ring')).toContainText('0/144');
+  await expect(page.locator('.loop-ring')).toContainText('0/165');
 });
 
 test('filters, theme and keyboard basics', async ({ page }) => {
@@ -223,8 +223,8 @@ test('tracks narrow the topics; "coming soon" tracks are inert; the choice is re
   const topics = page.locator('.round-list .round');
   const sidebarTopics = page.locator('.nav-rounds .nav-round');
   await expect(picker).toBeVisible();
-  await expect(topics).toHaveCount(18);
-  await expect(sidebarTopics).toHaveCount(18);
+  await expect(topics).toHaveCount(21);
+  await expect(sidebarTopics).toHaveCount(21);
 
   // Tracks with no content yet are visible but disabled, with a tooltip.
   const sre = picker.getByRole('group', { name: 'Tracks' }).getByRole('button', { name: 'SRE' });
@@ -232,15 +232,15 @@ test('tracks narrow the topics; "coming soon" tracks are inert; the choice is re
   await sre.hover();
   await expect(picker.locator('.chip-wrap', { hasText: 'SRE' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
   await sre.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
-  await expect(topics).toHaveCount(18);
+  await expect(topics).toHaveCount(21);
 
   // The Design track shows just the design topic, in the page and in the sidebar.
   await picker.getByRole('button', { name: /^Design/ }).click();
   await expect(topics).toHaveCount(1);
   await expect(topics.first()).toContainText('Design and AI Prototyping');
   await expect(sidebarTopics).toHaveCount(1);
-  await expect(page.getByRole('button', { name: /17 more topics hidden/ })).toBeVisible();
-  await expect(picker.getByRole('status')).toContainText('Showing 1 of 18 topics');
+  await expect(page.getByRole('button', { name: /20 more topics hidden/ })).toBeVisible();
+  await expect(picker.getByRole('status')).toContainText('Showing 1 of 21 topics');
 
   await page.reload();
   await expect(topics).toHaveCount(1);
@@ -254,12 +254,12 @@ test('tracks narrow the topics; "coming soon" tracks are inert; the choice is re
 
   // Fine-tune: individual facets live under the disclosure.
   await picker.getByRole('button', { name: 'Clear' }).click();
-  await expect(topics).toHaveCount(18);
+  await expect(topics).toHaveCount(21);
   await picker.getByText('Fine-tune by role').click();
   await picker.getByRole('button', { name: /^Design/ }).last().click();
   await expect(topics).toHaveCount(1);
   await picker.getByRole('button', { name: 'Clear' }).click();
-  await expect(topics).toHaveCount(18);
+  await expect(topics).toHaveCount(21);
 
   // Without a backend, suggestions go through a GitHub issue form.
   await picker.getByRole('button', { name: 'Suggest a topic' }).click();
