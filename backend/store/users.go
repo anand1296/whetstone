@@ -336,13 +336,24 @@ func scanInvite(row scanner) (Invite, error) {
 }
 
 // CreateInvite stores a new invite: the token's hash (used to look it up) and the token
-// itself (so the owner can copy the link again).
-func (s *Store) CreateInvite(ctx context.Context, actorID int64, token string, tokenHash []byte, role, note string, maxUses int, expires time.Time) (Invite, error) {
+// itself (so the owner can copy the link again). With countExisting the seats already taken
+// by current members (everyone except the owner) are counted as used, so "100 seats" means
+// 100 people in total, including the ones who joined before the link existed.
+func (s *Store) CreateInvite(ctx context.Context, actorID int64, token string, tokenHash []byte, role, note string, maxUses int, expires time.Time, countExisting bool) (Invite, error) {
 	var inv Invite
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		used := 0
+		if countExisting {
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM users WHERE role <> $1`, RoleOwner).Scan(&used); err != nil {
+				return err
+			}
+			if used > maxUses {
+				used = maxUses
+			}
+		}
 		var id int64
-		if err := tx.QueryRowContext(ctx, `INSERT INTO invites (token_hash, token, role, note, max_uses, created_by, expires_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`, tokenHash, token, role, note, maxUses, nullID(actorID), expires).Scan(&id); err != nil {
+		if err := tx.QueryRowContext(ctx, `INSERT INTO invites (token_hash, token, role, note, max_uses, uses, created_by, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`, tokenHash, token, role, note, maxUses, used, nullID(actorID), expires).Scan(&id); err != nil {
 			return err
 		}
 		var err error
@@ -350,7 +361,7 @@ func (s *Store) CreateInvite(ctx context.Context, actorID int64, token string, t
 		if err != nil {
 			return err
 		}
-		return audit(ctx, tx, actorID, "invite.created", note, map[string]any{"id": id, "role": role, "maxUses": maxUses})
+		return audit(ctx, tx, actorID, "invite.created", note, map[string]any{"id": id, "role": role, "maxUses": maxUses, "seatsAlreadyTaken": used})
 	})
 	return inv, err
 }
@@ -390,4 +401,37 @@ func (s *Store) RevokeInvite(ctx context.Context, actorID, id int64, now time.Ti
 		}
 		return audit(ctx, tx, actorID, "invite.revoked", "", map[string]any{"id": id})
 	})
+}
+
+// ExtendInvite gives an invite more time and/or more seats. Time is added to whichever is
+// later, the current expiry or now, so an expired link comes back to life for the full
+// extension. A revoked invite stays revoked.
+func (s *Store) ExtendInvite(ctx context.Context, actorID, id int64, now time.Time, addDays, addSeats int) (Invite, error) {
+	var inv Invite
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		cur, err := scanInvite(tx.QueryRowContext(ctx, `SELECT `+inviteColumns+` FROM invites i LEFT JOIN users u ON u.id = i.created_by WHERE i.id = $1 FOR UPDATE OF i`, id))
+		if err != nil {
+			return err
+		}
+		if cur.RevokedAt != nil {
+			return ErrNotFound
+		}
+		expires := cur.ExpiresAt
+		if addDays > 0 {
+			base := expires
+			if base.Before(now) {
+				base = now
+			}
+			expires = base.Add(time.Duration(addDays) * 24 * time.Hour)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE invites SET expires_at = $2, max_uses = max_uses + $3 WHERE id = $1`, id, expires, addSeats); err != nil {
+			return err
+		}
+		inv, err = scanInvite(tx.QueryRowContext(ctx, `SELECT `+inviteColumns+` FROM invites i LEFT JOIN users u ON u.id = i.created_by WHERE i.id = $1`, id))
+		if err != nil {
+			return err
+		}
+		return audit(ctx, tx, actorID, "invite.extended", "", map[string]any{"id": id, "addDays": addDays, "addSeats": addSeats})
+	})
+	return inv, err
 }

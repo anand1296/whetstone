@@ -24,6 +24,8 @@ Full matrix: docs/SPEC.md §2.5.
 
 Admin → **Invites** → choose *who it's for* (a note only admins see), *joins as* (learner; admin if you're the owner), *can be used* (once, or 5/25/100 times for a group link) and *expires after* → **Create invite link** → copy and send it. The owner can copy the link again any time from the *Invite links* table (**Copy link**); invites created before this change (migration 004) only keep a fingerprint, so their link can't be shown.
 
+**Launch cohort link (100 seats, 3 months).** Create one group link with *can be used* = 100 times, *expires after* = 90 days, and tick **Count people who already have an account toward these seats**. Everyone who already joined (all non-owner accounts) is counted as used, so the table shows e.g. `7/100` straight away, and their access doesn't change. Later, the owner can press **+30 days** or **+25 seats** on the row to extend it (an expired link comes back for the full extension; revoked links stay revoked). Only the owner can extend; admins can't. People still need only a GitHub account to use the link.
+
 - The link is shown **once**; the server stores only a fingerprint (hash). Lost it? Revoke it and create another.
 - The person opens the link, sees who invited them, and signs in with GitHub. Their account is created with the invite's role.
 - Returning users never need a link again.

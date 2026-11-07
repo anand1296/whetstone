@@ -1247,3 +1247,55 @@ func TestTopicIdeas(t *testing.T) {
 	expect(t, learner.do("DELETE", fmt.Sprintf("/api/me/ideas/%d", idea.ID), nil), 200)
 	expect(t, learner.do("DELETE", fmt.Sprintf("/api/me/ideas/%d", idea.ID), nil), 409)
 }
+
+// A launch link with 100 seats counts people who already joined, never touches their
+// access, and only the owner can extend it.
+func TestCohortInviteCountsExistingMembersAndExtends(t *testing.T) {
+	e := newEnv(t)
+	owner := e.login("owner")
+
+	// Two friends who joined before the cohort link existed.
+	var first struct {
+		URL string `json:"url"`
+	}
+	owner.do("POST", "/api/admin/invites", map[string]any{"maxUses": 5, "expiresInDays": 7}).json(t, &first)
+	token := strings.TrimPrefix(first.URL[strings.Index(first.URL, "?invite="):], "?invite=")
+	e.login("friend-one", token)
+	e.login("friend-two", token)
+
+	var created struct {
+		URL    string `json:"url"`
+		Invite struct {
+			ID      int64  `json:"id"`
+			Uses    int    `json:"uses"`
+			MaxUses int    `json:"maxUses"`
+			Expires string `json:"expiresAt"`
+		} `json:"invite"`
+	}
+	res := owner.do("POST", "/api/admin/invites", map[string]any{"maxUses": 100, "expiresInDays": 90, "countExistingMembers": true, "note": "launch"})
+	expect(t, res, 201)
+	res.json(t, &created)
+	if created.Invite.Uses != 2 || created.Invite.MaxUses != 100 {
+		t.Fatalf("existing members should take 2 of 100 seats: %+v", created.Invite)
+	}
+
+	// Existing friends keep signing in; the cohort link does not change them.
+	if b := e.login("friend-one").bootstrap(); b.User == nil || b.User.Role != "learner" {
+		t.Fatalf("existing member affected: %+v", b.User)
+	}
+
+	// Only the owner can extend, and an admin cannot.
+	path := fmt.Sprintf("/api/admin/invites/%d/extend", created.Invite.ID)
+	expect(t, e.login("friend-two").do("POST", path, map[string]any{"addDays": 30}), 403)
+	expect(t, owner.do("POST", path, map[string]any{}), 422)
+	var extended struct {
+		MaxUses   int    `json:"maxUses"`
+		ExpiresAt string `json:"expiresAt"`
+	}
+	res = owner.do("POST", path, map[string]any{"addDays": 30, "addSeats": 25})
+	expect(t, res, 200)
+	res.json(t, &extended)
+	if extended.MaxUses != 125 || extended.ExpiresAt <= created.Invite.Expires {
+		t.Fatalf("extension not applied: %+v (was %s)", extended, created.Invite.Expires)
+	}
+}

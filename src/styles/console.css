@@ -764,3 +764,11 @@ fieldset {
   color: var(--accent);
   font-weight: 600;
 }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
