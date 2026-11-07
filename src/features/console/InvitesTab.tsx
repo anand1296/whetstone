@@ -9,6 +9,7 @@ function NewInvite({ me, onCreated }: { me: ServerUser; onCreated: () => Promise
   const [note, setNote] = useState('');
   const [maxUses, setMaxUses] = useState(1);
   const [days, setDays] = useState(14);
+  const [countMembers, setCountMembers] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { busy, flash, run } = useAction();
@@ -18,7 +19,7 @@ function NewInvite({ me, onCreated }: { me: ServerUser; onCreated: () => Promise
     event.preventDefault();
     setCopied(false);
     const ok = await run(async () => {
-      const created = await consoleApi.createInvite({ role, note, maxUses, expiresInDays: days });
+      const created = await consoleApi.createInvite({ role, note, maxUses, expiresInDays: days, countExistingMembers: countMembers });
       setLink(created.url);
     });
     if (ok) {
@@ -61,6 +62,12 @@ function NewInvite({ me, onCreated }: { me: ServerUser; onCreated: () => Promise
           </select>
         </label>
       </div>
+      {maxUses > 1 ? (
+        <label className="check-row">
+          <input type="checkbox" checked={countMembers} onChange={(e) => setCountMembers(e.target.checked)} />
+          Count people who already have an account toward these seats
+        </label>
+      ) : null}
       <div className="button-row">
         <button type="submit" className="btn btn-primary" disabled={busy}>
           <Icon name="link" size={16} /> Create invite link
@@ -159,6 +166,30 @@ export function InvitesTab({ me }: { me: ServerUser }) {
                           {invite.url && invite.status === 'active' ? <CopyInviteLink url={invite.url} /> : null}
                           {invite.status === 'active' && !invite.url && me.role === 'owner' ? (
                             <span className="cell-sub">Link not stored (created before this feature)</span>
+                          ) : null}
+                          {me.role === 'owner' && invite.status !== 'revoked' ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-quiet"
+                                disabled={busy}
+                                onClick={() => void run(() => consoleApi.extendInvite(invite.id, { addDays: 30 }), 'Extended by 30 days.').then(async (ok) => {
+                                  if (ok) await state.reload();
+                                })}
+                              >
+                                +30 days
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-quiet"
+                                disabled={busy}
+                                onClick={() => void run(() => consoleApi.extendInvite(invite.id, { addSeats: 25 }), 'Added 25 seats.').then(async (ok) => {
+                                  if (ok) await state.reload();
+                                })}
+                              >
+                                +25 seats
+                              </button>
+                            </>
                           ) : null}
                           {invite.status === 'active' ? (
                             <button

@@ -167,6 +167,8 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request, actor stor
 		Note      string `json:"note"`
 		MaxUses   int    `json:"maxUses"`
 		ExpiresIn int    `json:"expiresInDays"`
+		// CountMembers counts people who already have an account as used seats.
+		CountMembers bool `json:"countExistingMembers"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -203,7 +205,7 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request, actor stor
 		s.storeError(w, r, err)
 		return
 	}
-	inv, err := s.store.CreateInvite(r.Context(), actor.ID, token, auth.Hash(token), body.Role, body.Note, body.MaxUses, s.now().Add(time.Duration(body.ExpiresIn)*24*time.Hour))
+	inv, err := s.store.CreateInvite(r.Context(), actor.ID, token, auth.Hash(token), body.Role, body.Note, body.MaxUses, s.now().Add(time.Duration(body.ExpiresIn)*24*time.Hour), body.CountMembers)
 	if err != nil {
 		s.storeError(w, r, err)
 		return
@@ -225,6 +227,40 @@ func (s *Server) revokeInvite(w http.ResponseWriter, r *http.Request, actor stor
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// extendInvite is owner-only: more days and/or more seats on an existing link.
+func (s *Server) extendInvite(w http.ResponseWriter, r *http.Request, actor store.User) {
+	id, ok := pathID(r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid", "bad invite id")
+		return
+	}
+	var body struct {
+		AddDays  int `json:"addDays"`
+		AddSeats int `json:"addSeats"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	switch {
+	case actor.Role != store.RoleOwner:
+		writeError(w, http.StatusForbidden, "owner_only", "Only the owner can extend invites.")
+		return
+	case body.AddDays < 0 || body.AddDays > 365 || body.AddSeats < 0 || body.AddSeats > 1000 || body.AddDays+body.AddSeats == 0:
+		writeError(w, http.StatusUnprocessableEntity, "invalid", "addDays must be 0-365 and addSeats 0-1000, and at least one must be set")
+		return
+	}
+	inv, err := s.store.ExtendInvite(r.Context(), actor.ID, id, s.now(), body.AddDays, body.AddSeats)
+	if err != nil {
+		s.storeError(w, r, err)
+		return
+	}
+	view := inviteView{Invite: inv, Status: inv.Status(s.now())}
+	if inv.Token != "" {
+		view.URL = s.origin(r) + "/?invite=" + inv.Token
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 /* ---------------------------------------------------------------- content */

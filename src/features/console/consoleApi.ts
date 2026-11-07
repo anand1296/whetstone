@@ -276,9 +276,11 @@ export const consoleApi = {
   removePerson: (id: number) => api(`/admin/users/${id}`, json('DELETE')),
 
   invites: () => api<Invite[]>('/admin/invites'),
-  createInvite: (input: { role: 'admin' | 'learner'; note: string; maxUses: number; expiresInDays: number }) =>
+  createInvite: (input: { role: 'admin' | 'learner'; note: string; maxUses: number; expiresInDays: number; countExistingMembers?: boolean }) =>
     api<{ invite: Invite; url: string }>('/admin/invites', json('POST', input)),
   revokeInvite: (id: number) => api(`/admin/invites/${id}`, json('DELETE')),
+  extendInvite: (id: number, input: { addDays?: number; addSeats?: number }) =>
+    api<Invite>(`/admin/invites/${id}/extend`, json('POST', input)),
 
   content: () => api<AdminContent>('/admin/content'),
   createSection: (input: { id: string; title: string; description: string; facets: string[]; published: boolean }) => api('/admin/sections', json('POST', input)),
