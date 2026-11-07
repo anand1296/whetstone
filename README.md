@@ -2,7 +2,7 @@
 
 > Formerly "Frontend Loop". Sharpen your skills for interviews and exams.
 
-**Try it: [frontend-loop-beta.vercel.app](https://frontend-loop-beta.vercel.app)** · sign in with GitHub to sync your progress, or just start studying.
+**Try it: [whetstone-v1.vercel.app](https://whetstone-v1.vercel.app)** · sign in with GitHub to sync your progress, or just start studying.
 
 **Interview prep for engineers, from junior to principal.** 225 deep, interview-grade questions across 24 topics, from JavaScript internals and system design to low-level design and AI-assisted design, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 
