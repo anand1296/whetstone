@@ -3,7 +3,6 @@ import { Icon } from '../../components/Icon.tsx';
 import {
   describeSelection,
   facetCounts,
-  filterSections,
   focusChips,
   isRoleId,
   normalizeSelection,
