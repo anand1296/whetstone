@@ -1,6 +1,7 @@
 {
   "name": "whetstone",
   "private": true,
+  "license": "MIT",
   "version": "2.0.0",
   "description": "Interview prep for senior, lead and principal engineers: a React app with a Go + Postgres backend, admin CMS, invites and synced progress.",
   "type": "module",
