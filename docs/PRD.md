@@ -61,7 +61,7 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 ## 5. Functional requirements
 
 1. **Content**
-   - 24 topics, ~225 questions, tagged by level (Junior, Senior, Lead/Staff, Principal), estimated study minutes and topic tags.
+   - 24 topics, ~232 questions, tagged by level (Junior, Senior, Lead/Staff, Principal), estimated study minutes and topic tags.
    - Every answer starts with a "60-second answer" summary.
    - Code is syntax-highlighted with a copy button; tables scroll horizontally on small screens.
 2. **Accordion list** per topic; panels lazy-render their content; expand/collapse all.
@@ -98,7 +98,7 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 
 | Version | Scope |
 | --- | --- |
-| **v1.0** (this release) | Everything in §5, 225 questions across 24 topics, docs, unit tests, CI |
+| **v1.0** (this release) | Everything in §5, 232 questions across 24 topics, docs, unit tests, CI |
 | v1.1 | Component tests (Testing Library) and Playwright E2E in CI; Lighthouse CI budgets |
 | v1.2 | Offline support (service worker), installable PWA |
 | **v2.0** (this release) | Go + Postgres backend; GitHub sign-in; owner/admin/learner roles; invite links; synced progress; admin console (content CMS with preview, drafts, revisions, trash, repository sync and export; learners; invites; feature flags; site settings; announcements; activity log); full-stack CI |

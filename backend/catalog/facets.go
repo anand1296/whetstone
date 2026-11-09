@@ -16,6 +16,8 @@ const MaxFacets = 12
 type Facet struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
+	// Roles lists the roles a focus-area chip is offered under, even before it has a topic.
+	Roles []string `json:"roles,omitempty"`
 }
 
 // FacetGroup is a labelled row of chips.

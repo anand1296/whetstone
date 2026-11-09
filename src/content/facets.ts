@@ -2,13 +2,16 @@
  * The filter taxonomy ("facets"). The list itself lives in content/facets.json so
  * the browser, the content compiler and the Go backend all read one source.
  *
- * A topic (a page of questions, like Performance) is tagged with facets such as
- * `frontend`, `react` or `sre`. People pick a *track* (a preset of facets such as
- * "Frontend · React") or fine-tune individual facets.
+ * A topic (a page of questions, like Performance) carries one or more *roles*
+ * (`frontend`, `backend`, `sre`...) and any number of *focus areas*: a language
+ * (`javascript`, `go`), a framework (`react`), a subject (`performance`,
+ * `machine-coding`, `system-design`) or a platform (`aws`).
  *
- * A facet is *selectable* only while at least one published topic carries it;
- * the rest render disabled with a "Coming soon" tooltip. Publishing a topic
- * tagged `angular` therefore lights up the Angular facet and track with no UI change.
+ * People first pick who they are preparing as (one or several roles), then
+ * optionally narrow with focus-area chips. A chip is *live* while a published topic
+ * under the chosen role carries it; a chip a role has announced but has no topic yet
+ * (Angular, Vue...) renders disabled with a "Coming soon" tooltip, so publishing a
+ * topic tagged `angular` lights it up with no UI change.
  */
 import taxonomy from '../../content/facets.json' with { type: 'json' };
 import type { SectionMeta } from './types.ts';
@@ -16,6 +19,8 @@ import type { SectionMeta } from './types.ts';
 export interface Facet {
   id: string;
   label: string;
+  /** Focus areas only: the roles this chip is offered under (also while it is still "coming soon"). */
+  roles?: string[];
 }
 
 export interface FacetGroup {
@@ -24,23 +29,23 @@ export interface FacetGroup {
   facets: Facet[];
 }
 
-/** A one-tap preset: the facets someone with this goal wants selected. */
-export interface Track {
-  id: string;
-  label: string;
-  facets: string[];
-}
-
 export const FACET_GROUPS: FacetGroup[] = taxonomy.groups;
-export const TRACKS: Track[] = taxonomy.tracks;
 
-/** The group whose facets are *required* (a topic must carry one of the selected roles). */
 const ROLE_GROUP = 'role';
 
 const ALL_FACETS: Facet[] = FACET_GROUPS.flatMap((group) => group.facets);
+const ROLES: Facet[] = FACET_GROUPS.find((group) => group.id === ROLE_GROUP)?.facets ?? [];
+/** Every group except Role, in display order: these are the focus-area chips. */
+const FOCUS: Facet[] = FACET_GROUPS.filter((group) => group.id !== ROLE_GROUP).flatMap((group) => group.facets);
+
+export const ROLE_FACETS: readonly Facet[] = ROLES;
 
 export function isFacetId(value: string): boolean {
   return ALL_FACETS.some((facet) => facet.id === value);
+}
+
+export function isRoleId(value: string): boolean {
+  return ROLES.some((facet) => facet.id === value);
 }
 
 export function facetLabel(id: string): string {
@@ -60,43 +65,62 @@ export function facetCounts(sections: readonly SectionMeta[]): Map<string, numbe
   return counts;
 }
 
+const split = (selected: readonly string[]) => ({
+  roles: selected.filter(isRoleId),
+  focus: selected.filter((id) => !isRoleId(id) && isFacetId(id)),
+});
+
 /**
  * Which topics to show for a selection.
  *
- * - Role (Frontend, Backend, SRE…) is strict: a topic must carry one of the
- *   selected roles. Several roles widen the result (Full-stack = Frontend + Backend).
- * - Language, framework and platform *narrow only what is specific*. A topic that
- *   carries no tag in that group is general (Accessibility, System design) and
- *   always stays, so "Frontend + React" shows the React topics *and* the general
- *   frontend ones, but hides the Angular-only ones. Several picks in one group widen.
+ * - Role is strict: a topic must carry one of the selected roles. Several roles widen
+ *   the result (Frontend + Backend for a full-stack engineer). No role = everything.
+ * - Focus-area chips widen too: a topic is kept when it carries *any* selected chip,
+ *   so "React + Performance" is the React topics plus the Performance topic. No chip
+ *   = every topic for the role.
  */
 export function filterSections<T extends SectionMeta>(sections: readonly T[], selected: readonly string[]): T[] {
-  if (selected.length === 0) return [...sections];
-  const picked = FACET_GROUPS.map((group) => ({
-    group,
-    ids: group.facets.filter((f) => selected.includes(f.id)).map((f) => f.id),
-  })).filter(({ ids }) => ids.length > 0);
-  return sections.filter((section) =>
-    picked.every(({ group, ids }) => {
-      if (ids.some((id) => section.facets.includes(id))) return true;
-      if (group.id === ROLE_GROUP) return false;
-      return !group.facets.some((f) => section.facets.includes(f.id));
-    }),
+  const { roles, focus } = split(selected);
+  return sections.filter(
+    (section) =>
+      (roles.length === 0 || roles.some((id) => section.facets.includes(id))) &&
+      (focus.length === 0 || focus.some((id) => section.facets.includes(id))),
   );
 }
 
-/** A track is offered once every facet it needs has content; otherwise it's "Coming soon". */
-export function trackAvailable(track: Track, counts: ReadonlyMap<string, number>): boolean {
-  return track.facets.every((id) => (counts.get(id) ?? 0) > 0);
+export interface FocusChip {
+  facet: Facet;
+  /** Topics under the chosen roles that carry it. */
+  count: number;
+  soon: boolean;
 }
 
-/** The track whose facets equal the selection exactly (order-insensitive), if any. */
-export function matchingTrack(selected: readonly string[]): Track | undefined {
-  if (selected.length === 0) return undefined;
-  return TRACKS.find((track) => track.facets.length === selected.length && track.facets.every((id) => selected.includes(id)));
+/** The focus-area chips to offer for the chosen roles: live ones first-class, announced-but-empty ones as "coming soon". */
+export function focusChips(sections: readonly SectionMeta[], selected: readonly string[]): FocusChip[] {
+  const { roles } = split(selected);
+  if (roles.length === 0) return [];
+  const inRole = filterSections(sections, roles);
+  const counts = facetCounts(inRole);
+  const chips: FocusChip[] = [];
+  for (const facet of FOCUS) {
+    const count = counts.get(facet.id) ?? 0;
+    if (count > 0) chips.push({ facet, count, soon: false });
+    else if (facet.roles?.some((id) => roles.includes(id))) chips.push({ facet, count: 0, soon: true });
+  }
+  return chips;
 }
 
-/** "Frontend · React" style summary of a selection, for headings and empty states. */
+/** Drops focus chips that don't apply to the chosen roles (after the role changed). */
+export function normalizeSelection(sections: readonly SectionMeta[], selected: readonly string[]): string[] {
+  const { roles, focus } = split(selected);
+  const live = new Set(focusChips(sections, roles).filter((chip) => !chip.soon).map((chip) => chip.facet.id));
+  return [...roles, ...focus.filter((id) => live.has(id))];
+}
+
+/** "Frontend · React, Performance" style summary of a selection, for headings and empty states. */
 export function describeSelection(selected: readonly string[]): string {
-  return matchingTrack(selected)?.label ?? selected.map(facetLabel).join(' · ');
+  const { roles, focus } = split(selected);
+  const left = roles.map(facetLabel).join(' + ');
+  const right = focus.map(facetLabel).join(', ');
+  return [left, right].filter(Boolean).join(' · ');
 }

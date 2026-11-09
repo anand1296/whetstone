@@ -2,7 +2,7 @@
 id: frontend-system-design
 title: Frontend System Design
 description: A framework for the 45-minute design round, then full walkthroughs: news feed, e-commerce product page, real-time dashboard, spreadsheet, collaborative editor, offline-first app and search.
-facets: frontend
+facets: frontend, system-design
 ---
 
 ## A framework for frontend system design interviews, and how to spend the 45 minutes
@@ -748,3 +748,150 @@ export const dismiss = (id: string) => { /* remove and promote next from queue *
 ### Pitfalls
 
 Rendering toasts inside a transformed parent (stacking context bugs; use a portal), storing JSX in the store (store data, render in the host), and unbounded queues during error storms.
+
+## Design the frontend of a video streaming site (YouTube-style): feed, player, streaming and caching
+<!--
+id: design-video-streaming-frontend
+level: lead
+tags: system design, video, streaming, hls, dash, adaptive bitrate, performance, caching, infinite scroll
+minutes: 28
+-->
+
+> [!PROMPT]
+> Design the web frontend for a YouTube-style video platform: a home feed, a watch page with the player, recommendations and comments, and search. It must start playback quickly on slow networks and scale to millions of viewers.
+>
+> **Cover**
+> - Requirements and the key rendering decisions.
+> - How video is delivered and played.
+> - The feed, watch page and comments.
+> - Performance, caching and resilience.
+
+> [!TLDR]
+> Split the problem into the page shell, the data, and the media. Render the shell and above-the-fold content on the server (or edge) for fast first paint and SEO, hydrate the player and comments lazily, and virtualize long feeds. Video is not one file: the backend packages it as short segments in several bitrates (HLS or MPEG-DASH), and the player uses adaptive bitrate (ABR) to switch quality with network conditions, fetching segments from a CDN. Start fast with a low-bitrate first segment, a poster image, and preloading only metadata; protect the main thread, handle errors and resume, and measure startup time, rebuffering ratio and INP.
+
+### Requirements to clarify
+
+- Functional: browse a personalized feed, search, watch, like, comment, resume where you left off.
+- Non-functional: fast startup (time to first frame), few stalls, works on slow mobile networks, accessible (captions, keyboard controls), SEO for watch pages.
+
+### Page architecture
+
+- **Home feed:** server-rendered first screen of cards (thumbnail, title, channel, duration), then infinite scroll with cursor pagination. Virtualize rows, size thumbnails with `srcset` and reserved aspect ratio to avoid layout shift, and lazy-load below the fold.
+- **Watch page:** SSR the title, metadata and structured data for SEO. The player is the LCP candidate on this page, so give it priority; load comments, recommendations and secondary widgets after the player is ready or when scrolled into view.
+- **Navigation:** prefetch the watch data on hover or intent; keep the player alive across route changes for a mini-player or picture-in-picture.
+
+### Video delivery and playback
+
+- The backend transcodes into multiple resolutions and bitrates and cuts each into a few seconds of segments, described by a manifest (HLS `.m3u8` or DASH `.mpd`).
+- The player (Media Source Extensions via a library such as hls.js or Shaka Player, or native HLS on Safari) downloads the manifest, then segments from a CDN edge.
+- **Adaptive bitrate:** it measures throughput and buffer level and chooses the quality per segment; start low for a quick first frame, then step up.
+- **Startup tuning:** poster image shown immediately, `preload="metadata"`, small first segments, connection warm-up with `preconnect` to the CDN, no autoplay on cellular unless allowed.
+- **Controls and accessibility:** captions (WebVTT), keyboard shortcuts, `aria` labels, reduced-motion respect.
+
+```tsx
+// Sketch: load the player code only when it is needed
+const Player = lazy(() => import('./Player'));
+
+function Watch({ video }: { video: Video }) {
+  return (
+    <>
+      <img src={video.poster} width={1280} height={720} alt="" />   {/* instant visual while the player loads */}
+      <Suspense fallback={null}><Player manifestUrl={video.manifestUrl} /></Suspense>
+    </>
+  );
+}
+```
+
+### Comments and recommendations
+
+Paginate comments by cursor, load replies on demand, optimistic UI for posting with rollback, and sanitize rendered text. Recommendations are a separate request so a slow service never blocks playback.
+
+### Caching and resilience
+
+- CDN caches segments and static assets (long `Cache-Control` with content-hashed names); API responses use short caches or `stale-while-revalidate` for feeds.
+- Save playback position periodically (debounced) and resume from it.
+- On network errors the player retries with backoff and can drop quality; show a clear error with a retry.
+- Use a service worker only for app shell and images, not for video segments.
+
+### Metrics to watch
+
+Time to first frame, rebuffer ratio, average bitrate, playback failure rate, LCP and INP on the watch page. Report them from the client (RUM) and alert on regressions.
+
+### Pitfalls
+
+Treating video as a single large file; autoplaying several previews at once on the feed; shipping the whole player and comments in the first bundle; layout shifts from thumbnails without reserved size.
+
+## Design a real-time notification system for a web app: delivery, badges and reliability
+<!--
+id: design-realtime-notifications
+level: senior
+tags: system design, notifications, websocket, sse, polling, real-time, service worker, web push, reliability
+minutes: 22
+-->
+
+> [!PROMPT]
+> Design the frontend (and the contract with the backend) for real-time notifications in a web app: a bell icon with an unread count, a dropdown list, live updates while the tab is open, and push notifications when it is closed.
+>
+> **Cover**
+> - How updates get to the client: WebSocket, Server-Sent Events, polling.
+> - Data model, unread counts and read state.
+> - Multi-tab, offline and reconnect behavior.
+> - Web push, accessibility and performance.
+
+> [!TLDR]
+> Separate the notification list (fetched with an ordinary paginated API) from the live channel that tells you something changed. For the live channel, use Server-Sent Events or a WebSocket with automatic reconnect and a "resume from last event id" mechanism; fall back to long or short polling when needed. Keep a small client store with notifications keyed by id (deduplicated), an unread count, and optimistic "mark as read". Share one connection across tabs with a BroadcastChannel or SharedWorker, announce new items accessibly, and use the Push API with a service worker for the closed-tab case. Design for at-least-once delivery, so every message carries an id and handling is idempotent.
+
+### Choosing the transport
+
+| Option | Good for | Trade-offs |
+| --- | --- | --- |
+| Short polling | Simple, low scale | Wasteful, delayed |
+| Long polling | Fallback behind strict proxies | Held connections, more server cost |
+| Server-Sent Events | One-way server to client updates; auto-reconnect and `Last-Event-ID` built in | Text only, one direction, per-origin connection limits on HTTP/1.1 |
+| WebSocket | Two-way, low latency | You own reconnect, heartbeat and backoff logic; load balancer and sticky-session considerations |
+
+For notifications, SSE is often enough; choose WebSocket when the same channel carries chat or collaboration.
+
+### Client design
+
+```ts
+type Notification = { id: string; type: string; text: string; createdAt: string; read: boolean };
+
+// Source of truth on the client
+const byId = new Map<string, Notification>();
+let unread = 0;
+
+function receive(n: Notification) {
+  if (byId.has(n.id)) return;      // dedupe: delivery is at-least-once
+  byId.set(n.id, n);
+  if (!n.read) unread++;
+}
+```
+
+- **Initial load:** fetch the latest page and the unread count from the API; subscribe to the live channel afterwards, then reconcile anything missed using the last seen id.
+- **Unread count:** the server is the source of truth (it can be large); the client adjusts locally and corrects on refresh.
+- **Mark as read:** optimistic update, send in the background, retry on failure; "mark all read" as a single call.
+- **Pagination:** cursor-based for older items.
+- **Reconnect:** exponential backoff with jitter; on reconnect, request events after the last id so nothing is lost.
+
+### Multi-tab and background behavior
+
+- Keep one live connection per browser, not per tab: elect a leader tab (Web Locks API) or use a SharedWorker, and broadcast to other tabs with `BroadcastChannel`.
+- Pause or slow polling when the tab is hidden (`visibilitychange`); refresh on focus.
+- **Closed tab:** Web Push (service worker plus Push API and VAPID keys) with the user's permission; ask in context, not on first load. Deep-link the click to the relevant page.
+
+### UX and accessibility
+
+- Bell button with an accessible name including the count (`aria-label="Notifications, 3 unread"`).
+- Announce new items politely (`aria-live="polite"` region) without stealing focus; never auto-open the dropdown.
+- Group or collapse bursts ("5 people liked your post") and let users mute types.
+
+### Reliability and security
+
+- At-least-once delivery with idempotent handling by id; the server stores notifications so they survive disconnects.
+- Authenticate the live channel (cookies or short-lived tokens) and authorize per user; sanitize text before rendering.
+- Rate-limit and batch on the server to avoid floods.
+
+### Pitfalls
+
+Opening a connection per tab; no resume after reconnect (silent gaps); trusting the local unread count forever; asking for push permission immediately on page load.

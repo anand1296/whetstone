@@ -1783,3 +1783,30 @@ button.action-card:hover {
   vertical-align: middle;
   white-space: nowrap;
 }
+
+.focus-row {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px dashed var(--border, rgba(127, 127, 127, 0.3));
+}
+
+.focus-label {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, inherit);
+}
+
+.focus-label span {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.focus-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

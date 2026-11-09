@@ -2063,3 +2063,70 @@ Use context for dependency injection and slow-changing global values; use a stor
 ### Pitfalls
 
 A provider placed too high re-rendering everything below it; passing inline functions in the value; assuming `useMemo` on the consumer helps (it does not prevent the context-triggered render).
+
+## State management in a large React application: what goes where, and when to add a library
+<!--
+id: react-state-management-large-apps
+level: senior
+tags: react, state management, redux, zustand, react query, context, server state, architecture
+minutes: 18
+-->
+
+> [!PROMPT]
+> You are joining a large React app where everything lives in one global Redux store and every change re-renders half the page. How do you decide where each kind of state should live, and when do you reach for a library?
+>
+> **Cover**
+> - The kinds of state and a home for each.
+> - Server state versus client state.
+> - Context, Redux Toolkit, Zustand and similar libraries: trade-offs.
+> - Avoiding unnecessary re-renders.
+
+> [!TLDR]
+> Most "state management" problems come from putting every kind of state in one place. Sort state by what it is: server data (a cached copy of the backend) belongs in a data-fetching cache such as TanStack Query or SWR; URL state (filters, page, selected id) belongs in the URL; form state in a form library or local state; shared UI state (modals, theme) in context or a small store; everything else stays local to the component. Add a global client store (Redux Toolkit, Zustand) only for state that is truly cross-cutting and changes often, and subscribe with selectors so components re-render only for the slice they read.
+
+### Sort state by kind
+
+| Kind | Example | Best home |
+| --- | --- | --- |
+| Server state | Orders, user profile | Query cache (TanStack Query, SWR, RTK Query): caching, dedupe, refetch, invalidation |
+| URL state | Search term, filters, tab | Router search params (shareable, back button works) |
+| Form state | Inputs, validation | Local state or a form library (React Hook Form) |
+| Local UI state | Open dropdown, hover | `useState` in the component |
+| Shared UI state | Theme, toasts, sidebar | Context (low change rate) or a small store |
+| Complex client state | Editor document, multi-step wizard, offline queue | Store with explicit actions (Redux Toolkit, Zustand, XState for state machines) |
+
+Copying server data into a global store by hand (fetch, dispatch, reducer, loading flags) is the biggest source of boilerplate and stale data; a query cache removes it.
+
+### Choosing a tool
+
+- **`useState` / `useReducer`:** default. Lift state only as high as the lowest common parent needs.
+- **Context:** good for values that rarely change (theme, auth user). Every consumer re-renders when the value changes, so split contexts and keep fast-changing data out.
+- **Redux Toolkit:** worth it for large teams: one predictable pattern, devtools with time travel, middleware, and strong conventions.
+- **Zustand / Jotai / Valtio:** smaller, less ceremony, selector-based subscriptions; good for medium apps and shared client state.
+- **State machines (XState):** when the problem is *which transitions are legal* (checkout flows, upload states).
+
+### Avoid needless re-renders
+
+```tsx
+// Bad: re-renders whenever anything in the store changes
+const store = useStore();
+
+// Good: subscribe to just what the component reads
+const count = useStore((s) => s.cart.items.length);
+```
+
+- Keep state close to where it is used; colocate before you globalize.
+- Normalize entities by id when lists are updated frequently.
+- Derive values during render (or with selectors) instead of storing copies that can drift.
+- Use `useSyncExternalStore`-based libraries so updates are safe under concurrent rendering.
+
+### How to migrate an existing mess
+
+1. Inventory what the store holds and tag each slice by kind.
+2. Move server data to a query cache first (biggest win, least risk).
+3. Move URL-shaped state to the router.
+4. Shrink what is left to a small store with selectors, then delete dead slices.
+
+### Pitfalls
+
+One giant context holding everything; mirroring server responses into client state; storing derived data; reaching for Redux because "that's what large apps use" without naming the problem it solves.

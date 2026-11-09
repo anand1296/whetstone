@@ -2,7 +2,7 @@
 id: lld-problems
 title: Low-Level Design: Classic Problems
 description: Sixteen classic machine-coding problems, from parking lot and BookMyShow to chess, Splitwise, ATM and ride booking, each with the entities, the patterns that fit and the traps.
-facets: backend, frontend
+facets: backend, frontend, lld
 ---
 
 ## Design a parking lot: vehicles, spots, tickets and pluggable pricing

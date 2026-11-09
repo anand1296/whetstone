@@ -2,7 +2,7 @@
 id: security
 title: Frontend Security
 description: XSS in React apps, CSP and Trusted Types, token storage and the BFF pattern, protected routes, CSRF with SameSite cookies, OAuth with PKCE, and supply-chain risk.
-facets: frontend
+facets: frontend, security
 ---
 
 ## XSS in React apps: where React protects you, where it doesn't, and how to sanitize
@@ -767,3 +767,51 @@ export async function POST(req: Request) {
 ### Pitfalls
 
 Assuming obfuscation or a `.env` file hides values in the bundle; committing `.env`; using one all-powerful key for everything; sharing keys in chat tools.
+
+## Frontend security overview: the main threats (XSS, CSRF, clickjacking and more) and how you defend against each
+<!--
+id: frontend-security-overview
+level: junior
+tags: security, xss, csrf, clickjacking, cors, csp, cookies, dependencies, overview
+minutes: 14
+-->
+
+> [!PROMPT]
+> How do you make a frontend application secure? Name the main attacks, explain how each works in one or two sentences, and give the defense you would put in place.
+
+> [!TLDR]
+> The browser enforces the same-origin policy, but your code still has to avoid the classic holes. XSS (attacker script runs in your page) is stopped by escaping or sanitizing untrusted content, avoiding `innerHTML` and `dangerouslySetInnerHTML`, and a strict Content Security Policy. CSRF (another site makes the browser send your cookie) is stopped by `SameSite` cookies and anti-forgery tokens. Clickjacking (your site framed invisibly) is stopped with `frame-ancestors` or `X-Frame-Options`. Protect secrets and sessions (HttpOnly, Secure cookies; never keep long-lived tokens in `localStorage` if XSS is a risk), keep dependencies patched, and remember that all real authorization must be enforced on the server because client code can be changed by the user.
+
+### Threat map
+
+| Threat | What happens | Main defenses |
+| --- | --- | --- |
+| **XSS** (cross-site scripting) | Attacker-controlled input is rendered as code in your page and can read data or act as the user | Output encoding (frameworks like React escape by default), sanitize any HTML you must render (DOMPurify), avoid `innerHTML`/`eval`, strict CSP, Trusted Types |
+| **CSRF** (cross-site request forgery) | A malicious site causes the browser to send an authenticated request to your site | `SameSite=Lax` or `Strict` cookies, anti-CSRF tokens, check `Origin`, require custom headers for state-changing calls |
+| **Clickjacking** | Your page is embedded in a hidden frame and the user is tricked into clicking | `Content-Security-Policy: frame-ancestors 'self'` (or `X-Frame-Options`) |
+| **Insecure storage and sessions** | Tokens stolen from storage or logs | `HttpOnly`, `Secure`, `SameSite` cookies for sessions; short-lived access tokens; never log secrets |
+| **Vulnerable dependencies and supply chain** | A compromised package runs in your build or page | Lockfiles, `npm audit` or Dependabot, minimal dependencies, Subresource Integrity for third-party scripts |
+| **Open redirects and unsafe links** | Attackers send users through your site to a malicious one | Validate redirect targets against an allowlist; `rel="noopener noreferrer"` on external `target="_blank"` links |
+| **CORS misconfiguration** | Another origin can read your API responses | Allowlist specific origins; never reflect arbitrary `Origin` together with credentials |
+| **Broken access control** | User changes an id in a request and sees someone else's data | Enforce authorization on the server for every request; hiding buttons is not security |
+
+### React specifics
+
+```tsx
+// Safe: React escapes text
+<p>{comment.text}</p>
+
+// Dangerous unless sanitized first
+<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.html) }} />
+
+// Dangerous: javascript: URLs in href from user input
+<a href={user.website}>site</a>   // validate that the protocol is http or https
+```
+
+### What to say in the interview
+
+Lead with the principle: treat all input as untrusted, encode on output, give the browser fewer permissions (CSP, cookies flags), and enforce rules on the server. Then name two or three attacks with their specific defenses, and mention how you would verify (security headers check, dependency audit, a quick review of `innerHTML` usage).
+
+### Pitfalls
+
+Relying on client-side validation; storing JWTs in `localStorage` while allowing third-party scripts; adding a CSP with `unsafe-inline` and calling it done; hiding an admin button and skipping the server check.

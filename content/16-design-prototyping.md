@@ -2,7 +2,7 @@
 id: design-prototyping
 title: Design and AI Prototyping
 description: How product design is shifting from static Figma mockups toward AI-generated, code-based HTML prototypes, and what that changes for designers, engineers, design systems and handoff.
-facets: design, frontend
+facets: design, frontend, ai-products
 ---
 
 ## From Figma mockups to AI-generated HTML prototypes: what is changing and why

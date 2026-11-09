@@ -13,10 +13,6 @@
           "label": "Backend"
         },
         {
-          "id": "fullstack",
-          "label": "Full-stack"
-        },
-        {
           "id": "sre",
           "label": "SRE"
         },
@@ -52,27 +48,47 @@
       "facets": [
         {
           "id": "javascript",
-          "label": "JavaScript"
+          "label": "JavaScript",
+          "roles": [
+            "frontend"
+          ]
         },
         {
           "id": "typescript",
-          "label": "TypeScript"
+          "label": "TypeScript",
+          "roles": [
+            "frontend"
+          ]
         },
         {
           "id": "go",
-          "label": "Go"
+          "label": "Go",
+          "roles": [
+            "backend"
+          ]
         },
         {
           "id": "nodejs",
-          "label": "Node.js"
+          "label": "Node.js",
+          "roles": [
+            "backend"
+          ]
         },
         {
           "id": "java",
-          "label": "Java"
+          "label": "Java",
+          "roles": [
+            "backend"
+          ]
         },
         {
           "id": "python",
-          "label": "Python"
+          "label": "Python",
+          "roles": [
+            "backend",
+            "data",
+            "aiml"
+          ]
         }
       ]
     },
@@ -82,15 +98,125 @@
       "facets": [
         {
           "id": "react",
-          "label": "React"
+          "label": "React",
+          "roles": [
+            "frontend"
+          ]
         },
         {
           "id": "angular",
-          "label": "Angular"
+          "label": "Angular",
+          "roles": [
+            "frontend"
+          ]
         },
         {
           "id": "vue",
-          "label": "Vue"
+          "label": "Vue",
+          "roles": [
+            "frontend"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "area",
+      "label": "Focus area",
+      "facets": [
+        {
+          "id": "machine-coding",
+          "label": "Machine coding",
+          "roles": [
+            "frontend"
+          ]
+        },
+        {
+          "id": "system-design",
+          "label": "System design",
+          "roles": [
+            "frontend",
+            "backend"
+          ]
+        },
+        {
+          "id": "lld",
+          "label": "Low-level design",
+          "roles": [
+            "backend",
+            "frontend"
+          ]
+        },
+        {
+          "id": "databases",
+          "label": "Databases",
+          "roles": [
+            "backend"
+          ]
+        },
+        {
+          "id": "performance",
+          "label": "Performance",
+          "roles": [
+            "frontend"
+          ]
+        },
+        {
+          "id": "browser",
+          "label": "Browser & web",
+          "roles": [
+            "frontend"
+          ]
+        },
+        {
+          "id": "testing",
+          "label": "Testing",
+          "roles": [
+            "frontend",
+            "qe"
+          ]
+        },
+        {
+          "id": "accessibility",
+          "label": "Accessibility",
+          "roles": [
+            "frontend"
+          ]
+        },
+        {
+          "id": "security",
+          "label": "Security",
+          "roles": [
+            "frontend"
+          ]
+        },
+        {
+          "id": "architecture",
+          "label": "Architecture",
+          "roles": [
+            "frontend"
+          ]
+        },
+        {
+          "id": "ai-products",
+          "label": "AI in products",
+          "roles": [
+            "frontend",
+            "design"
+          ]
+        },
+        {
+          "id": "observability",
+          "label": "Observability",
+          "roles": [
+            "sre"
+          ]
+        },
+        {
+          "id": "leadership",
+          "label": "Leadership",
+          "roles": [
+            "frontend"
+          ]
         }
       ]
     },
@@ -100,141 +226,34 @@
       "facets": [
         {
           "id": "aws",
-          "label": "AWS"
+          "label": "AWS",
+          "roles": [
+            "cloud",
+            "sre"
+          ]
         },
         {
           "id": "azure",
-          "label": "Azure"
+          "label": "Azure",
+          "roles": [
+            "cloud"
+          ]
         },
         {
           "id": "gcp",
-          "label": "GCP"
+          "label": "GCP",
+          "roles": [
+            "cloud"
+          ]
         },
         {
           "id": "kubernetes",
-          "label": "Kubernetes"
+          "label": "Kubernetes",
+          "roles": [
+            "cloud",
+            "sre"
+          ]
         }
-      ]
-    }
-  ],
-  "tracks": [
-    {
-      "id": "frontend",
-      "label": "Frontend",
-      "facets": [
-        "frontend"
-      ]
-    },
-    {
-      "id": "frontend-react",
-      "label": "Frontend · React",
-      "facets": [
-        "frontend",
-        "react"
-      ]
-    },
-    {
-      "id": "frontend-angular",
-      "label": "Frontend · Angular",
-      "facets": [
-        "frontend",
-        "angular"
-      ]
-    },
-    {
-      "id": "frontend-vue",
-      "label": "Frontend · Vue",
-      "facets": [
-        "frontend",
-        "vue"
-      ]
-    },
-    {
-      "id": "backend",
-      "label": "Backend",
-      "facets": [
-        "backend"
-      ]
-    },
-    {
-      "id": "backend-java",
-      "label": "Backend · Java",
-      "facets": [
-        "backend",
-        "java"
-      ]
-    },
-    {
-      "id": "backend-nodejs",
-      "label": "Backend · Node.js",
-      "facets": [
-        "backend",
-        "nodejs"
-      ]
-    },
-    {
-      "id": "backend-go",
-      "label": "Backend · Go",
-      "facets": [
-        "backend",
-        "go"
-      ]
-    },
-    {
-      "id": "fullstack",
-      "label": "Full-stack",
-      "facets": [
-        "frontend",
-        "backend"
-      ]
-    },
-    {
-      "id": "sre",
-      "label": "SRE",
-      "facets": [
-        "sre"
-      ]
-    },
-    {
-      "id": "qe",
-      "label": "QE / SDET",
-      "facets": [
-        "qe"
-      ]
-    },
-    {
-      "id": "cloud",
-      "label": "Cloud",
-      "facets": [
-        "cloud"
-      ]
-    },
-    {
-      "id": "design",
-      "label": "Design",
-      "facets": [
-        "design"
-      ]
-    },
-    {
-      "id": "data-engineering",
-      "label": "Data engineering",
-      "facets": [
-        "data"
-      ]
-    },
-    {
-      "id": "ai-ml",
-      "label": "AI / ML",
-      "facets": [
-        "aiml"
-      ]
-    },
-    {
-      "id": "fde",
-      "label": "Forward deployed (FDE)",
-      "facets": [
-        "fde"
       ]
     }
   ]
