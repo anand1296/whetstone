@@ -258,6 +258,10 @@ The repository is open for contributions, and everything is reviewed by the owne
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), the [code of conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md) for reporting vulnerabilities privately.
 
+## License
+
+[MIT](LICENSE). By contributing you agree that your contribution is released under the same license; interview questions you share are credited to you if you like.
+
 ## Docs index
 
 | Doc | Purpose |
