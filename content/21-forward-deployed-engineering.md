@@ -599,3 +599,521 @@ Decide what must change: integration with real systems, monitoring and evaluatio
 ### Pitfalls
 
 Success defined as "users like it"; skipping the baseline; building a demo that cannot be productionized; letting the pilot drift without a decision date.
+
+## Decomposition worked example: "You have city traffic data. Build me a system to improve traffic."
+<!--
+id: fde-decomposition-city-traffic
+level: senior
+tags: fde, decomposition, databricks, palantir, kpi, stakeholders, data pipeline, ml, case study
+minutes: 30
+-->
+
+> [!PROMPT]
+> The interviewer says: "You have a city's traffic data. Build me a system to improve traffic." That is all you get. Walk through how you would handle the 45 minutes.
+>
+> **Cover**
+> - What you ask before you design anything.
+> - The order you design the layers in.
+> - How you keep it from becoming an ML project that never ships.
+
+> [!TLDR]
+> Candidates who report this prompt (it appears in Databricks and Palantir loops according to prep-site write-ups) describe the same winning pattern: ask about the stakeholder, the end user, the data you actually have and one success KPI before drawing anything; then design from the user inward, starting with the application layer (what decision does someone make, in which screen), then the data and ETL layer that feeds it, and only then a model or weighted heuristic if the use case needs one. Propose a thin first slice you can show in a week, name the risks, and say what you would measure. "Improve traffic" is not a goal until it becomes something like "reduce median commute time on the top five corridors during peak hours".
+
+### 1. Ask first (about 10 minutes)
+
+- **Who is the customer and who uses it?** A traffic-operations center, city planners, commuters, or emergency services each want different things.
+- **What decision should improve?** Signal timing, incident response, road works scheduling, public information.
+- **What does "better" mean, and how is it measured today?** Pick one primary KPI (median travel time on named corridors, intersection delay, incident clearance time) and one or two guardrails (safety, emissions, fairness across neighborhoods).
+- **What data exists?** Sensors, GPS probes, signal logs, incident reports; frequency, history, quality, who owns it, access and privacy limits.
+- **Constraints:** budget, timeline, what the city can actually change, legal limits on tracking individuals.
+
+Restate it: "So the goal is to cut peak-hour delay on these corridors by giving operators earlier warning and a recommendation for signal changes. Is that right?"
+
+### 2. Design from the user inward
+
+1. **Application layer.** The first screen an operator would use: a live corridor map with congestion, incidents, and a recommended action. Define the main user flows and the API they need.
+2. **Data and ETL.** Ingest sensor and GPS feeds, validate and clean (missing sensors, duplicates, time zones), store raw and curated tables, and define a handful of entities (road segment, sensor, incident). Batch first, streaming only where the decision needs it.
+3. **Intelligence.** Start with simple, explainable baselines (historical averages by time and weather, thresholds) before a forecasting model. Add ML only if the baseline misses the KPI, and show how you would evaluate it offline and then in a pilot.
+
+```text
+Sensors / GPS / incidents  ->  ingest + validate  ->  curated tables  ->  baseline + model
+                                                              |                    |
+                                              operator dashboard <---- recommendations
+```
+
+### 3. A thin first slice
+
+"In one week: one corridor, last 12 months of data, a dashboard showing delay by hour, and a ranked list of the worst intersections. In a month: a forecast and signal-timing suggestions for that corridor, reviewed by an engineer before anything changes." Then measure against the KPI with a before-and-after or a comparison corridor.
+
+### 4. Risks to name
+
+Data gaps and bias (sensors only on major roads), privacy of location data, operators not trusting black-box advice, changes that shift congestion elsewhere, and measuring causality honestly (seasonality, roadworks).
+
+### Pitfalls
+
+Starting with a model; designing without a user; promising a number before seeing the data; ignoring privacy; treating it as a textbook system-design question with load numbers and databases rather than a scoping conversation.
+
+Reported in prep-site and candidate write-ups such as the [Aced FDE interview guide](https://www.aced.io/blog/forward-deployed-engineer-interview-the-definitive-2026-guide-fde) and a [Databricks FDE candidate experience](https://www.aced.io/experiences/databricks-forward-deployed-engineer-interview-51f23a). Wording and attribution are second-hand.
+
+## Applied coding round: turn messy files into clean data with an LLM call, and survive bad output
+<!--
+id: fde-coding-llm-pipeline
+level: senior
+tags: fde, coding, python, llm, structured output, validation, retries, csv, data cleaning
+minutes: 35
+-->
+
+> [!PROMPT]
+> You are given a folder of messy CSV exports (inconsistent quoting, missing columns) and free-text notes. Build a small pipeline that parses them, asks an LLM API to extract structured fields from each note, and writes clean output. The model sometimes returns malformed or wrong JSON. How do you build it, and what would you say about reliability?
+>
+> **Cover**
+> - Parsing and normalizing the input.
+> - Calling the model and validating the output.
+> - Retries, idempotency and cost control.
+> - How you would evaluate extraction quality.
+
+> [!TLDR]
+> Reported FDE coding rounds at applied-AI startups look like this: a live Python task where you parse messy files, call an LLM, and handle malformed output, judged on whether it runs and how you handle edge cases. Separate the pipeline into stages with clear contracts: tolerant parsing, a prompt that asks for a strict schema, validation of every response (schema, types, allowed values), a bounded retry with feedback on failure, a place to put records that still fail, and an idempotent write so a rerun does not duplicate work. Then talk about evaluation: a labeled sample, field-level accuracy, and a human review queue for low-confidence records.
+
+### Sketch
+
+```python
+import csv, json, time
+from dataclasses import dataclass
+
+@dataclass
+class Extracted:
+    customer: str
+    amount_cents: int
+    category: str            # must be one of ALLOWED
+
+ALLOWED = {"refund", "billing", "bug", "other"}
+
+def parse_rows(path):
+    with open(path, newline="", encoding="utf-8-sig", errors="replace") as f:
+        reader = csv.DictReader(f)
+        for i, row in enumerate(reader, start=2):
+            yield i, {k.strip().lower(): (v or "").strip() for k, v in row.items() if k}
+
+def validate(raw: str) -> Extracted:
+    data = json.loads(raw)                                  # may raise ValueError
+    cat = data["category"]
+    if cat not in ALLOWED:
+        raise ValueError(f"bad category {cat!r}")
+    return Extracted(str(data["customer"]), int(data["amount_cents"]), cat)
+
+def extract(note: str, call_llm, attempts=3) -> Extracted | None:
+    prompt = f"Return JSON with customer, amount_cents, category in {sorted(ALLOWED)}.\nNote: {note}"
+    last_error = ""
+    for n in range(attempts):
+        raw = call_llm(prompt + (f"\nYour previous answer was invalid: {last_error}" if last_error else ""))
+        try:
+            return validate(raw)
+        except (ValueError, KeyError, TypeError) as e:
+            last_error = str(e)
+            time.sleep(0.5 * 2 ** n)                        # backoff; see the API question
+    return None                                             # route to a review file, do not guess
+```
+
+### What to say out loud
+
+- **Parsing:** never trust the file: handle encodings, BOMs, extra whitespace, missing columns, and keep the source row number so errors are traceable.
+- **Structured output:** use the provider's JSON or tool-calling mode where available, and still validate; models can return plausible but wrong values.
+- **Failures:** keep a separate `rejected.jsonl` with the row, the raw response and the error. Never silently drop or invent data.
+- **Idempotency:** key results by a stable id (file and row, or a content hash) so reruns skip finished records.
+- **Cost and speed:** batch or run with bounded concurrency, cache by content hash, truncate long notes sensibly, and log token usage.
+- **Privacy:** check whether the data may leave the customer's environment before calling a hosted model.
+
+### Evaluation
+
+Label 50 to 100 records by hand, measure field-level accuracy and the rejection rate, sample outputs weekly, and route low-confidence records to a human. Report numbers, not impressions.
+
+### Pitfalls
+
+Parsing with `split(",")`; assuming the model returns valid JSON; retrying forever; writing partial results with no way to resume; no way to tell the customer how accurate it is.
+
+Described in an article on [how applied-AI companies hire forward deployed engineers](https://www.techinterview.org/post/3233477242/how-distyl-ai-hires-forward-deployed-engineers/); details vary by company.
+
+## Coding round: fetch every page of a flaky API, with retries, backoff, rate limits and a limiter of your own
+<!--
+id: fde-coding-flaky-api-backoff-rate-limiter
+level: senior
+tags: fde, coding, rest api, pagination, retries, exponential backoff, jitter, rate limiter, idempotency
+minutes: 35
+-->
+
+> [!PROMPT]
+> Fetch all records from a paginated REST API that sometimes returns 429 or 5xx. Then implement a rate limiter that supports a per-user limit and a global limit. Explain your choices.
+>
+> **Cover**
+> - Pagination styles and how you know you are done.
+> - Which errors to retry and how to back off.
+> - Token bucket versus sliding window.
+> - Testing it without a real server.
+
+> [!TLDR]
+> Pagination and retries appear again and again in reported FDE coding rounds (a paginated fetch for Palantir, backoff with jitter and a per-user plus global rate limiter in prep guides that attribute the limiter to Anthropic). Page until the server says there is no next page (a cursor, a `next` link, or a page count), never by guessing sizes. Retry only transient failures (429, 502, 503, 504, timeouts, connection resets), honor `Retry-After`, back off exponentially with random jitter and a cap, and stop after a bounded number of attempts. For the limiter, a token bucket per key gives smooth limits with bursts; check the per-user bucket and the global bucket together and only consume tokens when both allow the request.
+
+### Fetch all pages with retries
+
+```python
+import random, time
+import requests
+
+RETRYABLE = {429, 500, 502, 503, 504}
+
+def get_with_retry(session, url, params=None, attempts=5):
+    for n in range(attempts):
+        try:
+            r = session.get(url, params=params, timeout=10)
+        except (requests.ConnectionError, requests.Timeout):
+            r = None
+        if r is not None and r.status_code not in RETRYABLE:
+            r.raise_for_status()                       # 4xx like 404 or 401 are not retried
+            return r.json()
+        if n == attempts - 1:
+            raise RuntimeError(f"giving up on {url}")
+        retry_after = r.headers.get("Retry-After") if r is not None else None
+        delay = float(retry_after) if retry_after and retry_after.isdigit() else min(30, 0.5 * 2 ** n)
+        time.sleep(delay * random.uniform(0.5, 1.0))   # jitter spreads retries out
+
+def fetch_all(session, base):
+    url, params = f"{base}/items", {"limit": 100}
+    while True:
+        page = get_with_retry(session, url, params)
+        yield from page["items"]
+        cursor = page.get("next_cursor")
+        if not cursor:
+            return
+        params = {"limit": 100, "cursor": cursor}
+```
+
+Discuss: cursor versus offset pagination (offsets can skip or repeat rows when data changes), de-duplicating by id, saving the cursor so a crash can resume, and making writes idempotent if retries could repeat them (use an idempotency key).
+
+### A token-bucket limiter, per user and global
+
+```python
+import time
+
+class Bucket:
+    def __init__(self, rate, capacity, now=time.monotonic):
+        self.rate, self.capacity, self.now = rate, capacity, now
+        self.tokens, self.updated = capacity, now()
+
+    def _refill(self):
+        t = self.now()
+        self.tokens = min(self.capacity, self.tokens + (t - self.updated) * self.rate)
+        self.updated = t
+
+    def can_take(self):
+        self._refill()
+        return self.tokens >= 1
+
+    def take(self):
+        self.tokens -= 1
+
+class Limiter:
+    def __init__(self, per_user_rate, per_user_burst, global_rate, global_burst):
+        self.users, self.cfg = {}, (per_user_rate, per_user_burst)
+        self.global_bucket = Bucket(global_rate, global_burst)
+
+    def allow(self, user):
+        bucket = self.users.setdefault(user, Bucket(*self.cfg))
+        if bucket.can_take() and self.global_bucket.can_take():
+            bucket.take(); self.global_bucket.take()   # consume only when both allow
+            return True
+        return False
+```
+
+- **Why token bucket:** allows short bursts but enforces an average rate; a fixed window allows double bursts at window edges; a sliding window is more exact but costs more memory.
+- **Concurrency:** add a lock (or use atomic operations in Redis) in a real service; run it in a shared store when there are several servers.
+- **Testing:** inject the clock (as above) and a fake session so tests are instant and deterministic. Test the 429 path, `Retry-After`, the final failure, and exhaustion of each bucket.
+- **Cleanup:** evict idle user buckets so memory does not grow forever.
+
+### Pitfalls
+
+Retrying non-idempotent writes blindly; retry loops with no limit or no jitter (every client retries at the same moment); treating every 4xx as retryable; consuming the per-user token even when the global limit rejects.
+
+Reported in prep guides such as the [Aced FDE guide](https://www.aced.io/blog/forward-deployed-engineer-interview-the-definitive-2026-guide-fde); company attribution is second-hand.
+
+## The SQL screen: more than one transaction, return rates and a per-user summary
+<!--
+id: fde-sql-screen-group-having
+level: junior
+tags: fde, sql, group by, having, window functions, screen, databricks, aggregation
+minutes: 15
+-->
+
+> [!PROMPT]
+> Given `users(id, name)` and `transactions(id, user_id, amount, status, created_at)`, write queries to (1) find users with more than one transaction, (2) give a per-user summary with count, total and latest transaction date, and (3) find customers whose refund rate exceeded 30% last quarter. Explain how you would check your answers.
+
+> [!TLDR]
+> FDE technical screens often include a short SQL question (reported for Databricks and in prep guides). The core tools are `GROUP BY` with aggregates, `HAVING` to filter groups (versus `WHERE` to filter rows), joins that keep the rows you intend (`LEFT JOIN` when users with no transactions matter), and conditional aggregation for rates. State assumptions about duplicates, nulls and time zones, test on a tiny hand-made table, and say what index would help at scale.
+
+### 1. Users with more than one transaction
+
+```sql
+SELECT u.id, u.name, COUNT(*) AS transactions
+FROM users u
+JOIN transactions t ON t.user_id = u.id
+GROUP BY u.id, u.name
+HAVING COUNT(*) > 1;
+```
+
+`WHERE` filters rows before grouping; `HAVING` filters groups after aggregation.
+
+### 2. Per-user summary, including users with none
+
+```sql
+SELECT u.id,
+       u.name,
+       COUNT(t.id)                        AS transactions,
+       COALESCE(SUM(t.amount), 0)         AS total_amount,
+       MAX(t.created_at)                  AS last_transaction_at
+FROM users u
+LEFT JOIN transactions t ON t.user_id = u.id
+GROUP BY u.id, u.name
+ORDER BY total_amount DESC;
+```
+
+`COUNT(t.id)` counts only matching rows, so users with no transactions get 0; `COUNT(*)` would report 1 for them.
+
+### 3. Rate over a period with conditional aggregation
+
+```sql
+SELECT user_id,
+       COUNT(*)                                                    AS total,
+       COUNT(*) FILTER (WHERE status = 'refunded')                 AS refunded,
+       COUNT(*) FILTER (WHERE status = 'refunded')::float / COUNT(*) AS refund_rate
+FROM transactions
+WHERE created_at >= date_trunc('quarter', now()) - interval '3 months'
+  AND created_at <  date_trunc('quarter', now())
+GROUP BY user_id
+HAVING COUNT(*) FILTER (WHERE status = 'refunded')::float / COUNT(*) > 0.30;
+```
+
+`FILTER` is PostgreSQL syntax; the portable form is `SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END)`. Use a half-open date range (`>=` start, `<` end) so you never double count a boundary.
+
+### A follow-up they may add: latest transaction per user
+
+```sql
+SELECT *
+FROM (
+  SELECT t.*, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn
+  FROM transactions t
+) x
+WHERE rn = 1;
+```
+
+### How to check
+
+Make a five-row example by hand with a user who has none, one, and several transactions, plus a tie and a null amount, and verify each query. For large tables, an index on `(user_id, created_at)` supports the grouping and the latest-row lookup.
+
+### Pitfalls
+
+Using `WHERE COUNT(*) > 1`; an inner join that drops users with no rows; dividing integers (integer division gives 0); forgetting about nulls and duplicate rows.
+
+## Regulated customer design: a private, VPC-deployed RAG system for healthcare with 50 million documents
+<!--
+id: fde-private-regulated-deployment
+level: lead
+tags: fde, system design, rag, hipaa, vpc, security, compliance, phi, audit, deployment
+minutes: 35
+-->
+
+> [!PROMPT]
+> A hospital network wants an assistant that answers clinicians' questions over 50 million internal documents. Patient data must not leave their cloud account, and they must comply with HIPAA. Design it, and say how you would handle the security team that has not approved production access yet.
+>
+> **Cover**
+> - Where the model and the data live.
+> - Access control, logging and data minimization.
+> - Scale and quality for 50 million documents.
+> - How you get approval and ship incrementally.
+
+> [!TLDR]
+> In a regulated deployment the architecture is decided by the data boundary first and quality second. Keep protected health information inside the customer's private network: run retrieval, storage and (where the contract and vendor agreements allow) model inference within their VPC or through a private endpoint under a signed business associate agreement (BAA), with encryption in transit and at rest and no vendor training on their data. Enforce the document-level permissions of the source systems at retrieval time, log every query and answer for audit, minimize what is placed in prompts, and keep a human in the loop for clinical decisions. Scale with an incremental ingestion pipeline, hybrid search and an evaluation set built with clinicians. Win the security review by bringing a threat model, a data-flow diagram and a pilot scope that starts with de-identified or low-risk content.
+
+### The boundary decisions
+
+| Question | Typical answer |
+| --- | --- |
+| Where does data live? | Customer's cloud account or on-premises; vector index and document store inside their VPC |
+| Where does the model run? | A privately hosted or private-endpoint model under a BAA; no training or retention by the vendor; confirm region and logging terms |
+| Who can see what? | Source-system permissions mirrored into the index; query-time filter on the user's identity and role |
+| What leaves the network? | Nothing containing PHI unless contractually covered; metrics are anonymized |
+
+Note that "HIPAA compliant" is not a property of a model; it is a combination of contracts, controls and operations. Involve the customer's compliance team early and avoid making legal claims yourself.
+
+### Architecture
+
+1. **Ingestion:** connectors for each source (EHR exports, PDFs, notes), incremental sync, de-duplication, document-type-aware parsing, and metadata for owner, department, patient scope and ACL.
+2. **Index:** hybrid retrieval (keyword plus embeddings) over chunks with metadata; shard by tenant or department; 50 million documents means tens to hundreds of millions of chunks, so plan storage, approximate nearest-neighbor indexes and re-indexing windows.
+3. **Query path:** authenticate the clinician, apply ACL filters in the retrieval query, rerank, build a prompt with citations, generate, and return sources the user can open. Refuse or say "not found" when evidence is weak.
+4. **Controls:** audit log of who asked what and which documents were returned, retention limits, encryption keys managed by the customer, rate limits, and redaction of identifiers where they are not needed.
+5. **Safety:** clear labeling that it is a retrieval aid, not clinical advice; no write actions in the first version.
+
+### Quality and scale
+
+- Build an evaluation set with clinicians: real questions, expected source documents, and "should not answer" cases. Track retrieval recall, citation accuracy and refusal quality.
+- Handle stale or conflicting documents with dates and source authority in metadata.
+- Measure latency and cost per query, cache common queries only within permission boundaries.
+
+### The security review
+
+Bring a data-flow diagram, a threat model (prompt injection through documents, permission leaks, data exfiltration, logging of PHI), a list of vendors and sub-processors, and a rollout plan. Ask what they need to approve production, propose a pilot with a small group and a limited corpus, and offer a read-only first version. Escalate blockers early and put decisions in writing.
+
+### Pitfalls
+
+Building the best retrieval and discovering the model endpoint is not allowed; indexing everything without carrying permissions; logging prompts that contain PHI to a third-party service; promising compliance guarantees; skipping evaluation because "clinicians will tell us".
+
+A reported prompt in prep guides such as the [Aced FDE guide](https://www.aced.io/blog/forward-deployed-engineer-interview-the-definitive-2026-guide-fde); wording and attribution are second-hand.
+
+## Evaluate and debug an AI agent: a 99% delivery target, and "our key metric just dropped"
+<!--
+id: fde-agent-evaluation-metric-drop
+level: lead
+tags: fde, ai agents, evaluation, metrics, observability, regression, debugging, guardrails, human in the loop
+minutes: 30
+-->
+
+> [!PROMPT]
+> You deploy an AI agent that reroutes shipments using ERP data, weather APIs and input from 500 warehouse managers. The customer wants a 99% on-time delivery rate. (1) How do you evaluate it before it acts on real shipments? (2) A month after launch a key metric drops. How do you diagnose it and decide what to fix first?
+>
+> **Cover**
+> - What you measure at each level.
+> - How you test before and after launch.
+> - How you debug a regression.
+
+> [!TLDR]
+> Evaluate an agent on three levels: the final outcome (on-time delivery, cost, human overrides), the trajectory (did it pick the right tools, in a sensible order, with valid arguments) and each component (retrieval, extraction, the individual model calls). Before launch, replay historical situations offline, run in shadow mode next to the humans, then let it act with a human approving each change, widening autonomy as the numbers justify it. After launch, a metric drop is diagnosed by checking what changed (inputs, data, model or prompt versions, a tool or API, traffic mix), slicing by segment, reading sampled traces, and fixing the highest-impact, easiest-to-prove cause first. A 99% target is an outcome that depends on far more than the agent, so agree what share the agent can influence and set guardrails and a fallback.
+
+### 1. Evaluate before it touches real shipments
+
+- **Define success precisely:** on-time rate is the customer's goal, but the agent can only affect rerouting decisions. Track decision quality too: percentage of reroutes that beat the original plan, cost per reroute, and how often a manager overrides it.
+- **Offline replay:** take past disruptions (weather events, delays) and have the agent propose actions; compare with what happened and with what experts would have done. Keep a fixed, versioned test set and add every production failure to it.
+- **Trajectory checks:** valid tool calls, no loops, correct handling of missing data, correct escalation when uncertain.
+- **Shadow mode:** run on live data but only record recommendations; measure agreement with humans and what would have changed.
+- **Staged autonomy:** suggest, then act with approval, then act autonomously on low-risk categories, with limits (value, region, reversibility) and a kill switch.
+- **Safety cases:** conflicting manager instructions, stale data, API outages, adversarial or malformed input.
+
+### 2. "The metric dropped": a diagnosis routine
+
+1. **Confirm it is real:** check the metric definition, data pipeline and time zone; compare with a control group or the pre-change baseline.
+2. **List what changed:** model or prompt version, tool or API changes, data schema, new warehouses or seasonality, traffic mix, a customer process change. Roll back or disable the most recent change if the harm is serious.
+3. **Slice:** by region, shipment type, warehouse, time, input source and agent version. A drop concentrated in one slice points to a specific cause.
+4. **Read traces:** sample failing cases end to end. Look for wrong retrieval, a tool timeout, a misread field, a prompt that no longer fits new data.
+5. **Form hypotheses and test them** against the saved evaluation set; reproduce the failure before changing anything.
+6. **Prioritize** by impact times confidence divided by effort; ship the smallest safe fix, add the case to the regression set, and tell the customer what happened and what you changed.
+
+### Observability to have from day one
+
+Structured traces for every run (inputs, tool calls, outputs, versions), dashboards for outcome and process metrics, alerts on error and override rates, and a feedback path where managers can flag bad decisions.
+
+### Pitfalls
+
+Judging by demos or by the final metric alone; one overall accuracy number that hides a failing region; changing prompt and model together so you cannot tell what helped; letting the agent act with no limits; promising 99% without agreeing what the agent controls.
+
+Prompts reported in prep guides such as the [Aced FDE guide](https://www.aced.io/blog/forward-deployed-engineer-interview-the-definitive-2026-guide-fde); attribution is second-hand.
+
+## Diagnose a slow LLM-powered feature: from 1.5 seconds to under 100 milliseconds
+<!--
+id: fde-llm-latency-diagnosis
+level: senior
+tags: fde, latency, llm, search, caching, streaming, profiling, performance, inference
+minutes: 25
+-->
+
+> [!PROMPT]
+> A customer's LLM-powered search takes about 1.5 seconds per query and they want it under 100 ms. How do you find where the time goes, and what are your options? Is 100 ms always achievable with a language model in the loop?
+>
+> **Cover**
+> - How you measure before changing anything.
+> - Typical contributors to latency in an LLM pipeline.
+> - Options, with their quality and cost trade-offs.
+
+> [!TLDR]
+> Break the 1.5 seconds into stages with tracing before you optimize: network, authentication, query understanding, embedding the query, vector or keyword search, reranking, the model call (time to first token plus generation time) and post-processing. Usually the generation step dominates, followed by sequential calls that could be parallel. Fix in this order: remove work (skip the model for easy queries, cache results), run independent steps in parallel, shrink what the model must do (shorter prompts, smaller or faster model, a limited output), stream results so the user sees something early, and move computation off the request path (precompute embeddings and popular answers). A full generated answer in under 100 ms is rarely realistic; a fast retrieval result in 100 ms with a streamed or deferred generated summary often is, and that conversation with the customer is part of the job.
+
+### Measure first
+
+Add timing per stage (distributed tracing or simple timers) and look at percentiles (p50, p95, p99), not averages. Separate cold from warm paths and measure from the user's network, not just the server.
+
+### Where the time usually goes
+
+| Stage | Typical issues | Options |
+| --- | --- | --- |
+| Query embedding and retrieval | Slow model call per query, unindexed search, large `top_k` | Cache embeddings, ANN index tuning, smaller `top_k`, keyword shortcut for exact matches |
+| Reranking | Second model over many candidates | Rerank fewer, use a lighter reranker, skip for confident results |
+| LLM call | Long prompt, big model, long output, no streaming | Shorter context, smaller or distilled model, cap output length, stream tokens, prompt caching where supported |
+| Sequential calls | Steps run one after another | Parallelize independent calls, speculative execution |
+| Infrastructure | Cold starts, far-away regions, no connection reuse | Keep warm, deploy near users, reuse connections, batch where possible |
+
+### Options by effect
+
+1. **Cache:** exact and semantic caches for frequent queries (respecting permissions).
+2. **Skip the model:** classify queries; answer navigational or exact-match queries from the index.
+3. **Return results first:** show ranked results immediately and stream a generated summary afterwards.
+4. **Make the model cheaper:** smaller model, quantization, shorter outputs, fine-tuning for a narrow task.
+5. **Precompute:** embed documents ahead, precompute answers for the top queries.
+
+### Be honest about the target
+
+Network round trips alone may use a large part of 100 ms, and generation speed is bounded by tokens per second. Ask what the 100 ms is for: perceived responsiveness (stream, show results first) or a hard backend budget. Offer a plan with expected savings per step and the quality impact of each, and measure after every change.
+
+### Pitfalls
+
+Optimizing the model before measuring; reporting only averages; caching without permission checks; cutting context so much that quality drops without an evaluation to notice.
+
+Reported in prep guides such as the [Aced FDE guide](https://www.aced.io/blog/forward-deployed-engineer-interview-the-definitive-2026-guide-fde), which attributes the latency family of questions to OpenAI loops; attribution is second-hand.
+
+## Client simulation: a three-week slip, a feature that breaks data rules, and "why can't it be 100% accurate?"
+<!--
+id: fde-client-simulation-hard-conversations
+level: senior
+tags: fde, client simulation, communication, bad news, expectation setting, governance, stakeholder management, role-play
+minutes: 25
+-->
+
+> [!PROMPT]
+> The interviewer plays the customer. Handle each of these in turn:
+> 1. Your deployment slipped three weeks and their CTO is on the call.
+> 2. A VP asks for a feature that would break their own data-governance policy.
+> 3. A non-technical VP asks why the AI system cannot be guaranteed 100% accurate.
+> 4. Their security team will not grant production credentials.
+>
+> What do you say, and what is each scenario testing?
+
+> [!TLDR]
+> These role-plays test whether you stay calm, take ownership, speak plainly and keep the customer's goals in view without caving or arguing. A reliable shape for all four: acknowledge the situation without defensiveness, state the facts and your recommendation, offer options with trade-offs, agree the next step and date, and follow up in writing. For bad news, lead with the headline, the cause, the impact and the plan. When asked for something you should not do, say no to the request and yes to the goal, offering a compliant alternative. When explaining limits, use a concrete analogy and the business consequence rather than jargon.
+
+### 1. A three-week slip, CTO on the call
+
+- Lead with the headline and ownership: "We will deliver three weeks later than we planned. I want to tell you why, what it means for you, and how we recover."
+- Cause (brief and factual, no blame), impact on their business, and options: reduced scope now and the rest later, extra resources, or the new date.
+- Say what you will change so it does not recur, and give a date for the next update. Do not hide behind jargon or surprise them with it in a meeting.
+
+### 2. A request that breaks data governance
+
+- Understand the goal first: "What are you trying to achieve with this?"
+- Be clear about the line: "I can't build it that way because it would move personal data outside the approved boundary, and that creates risk for you."
+- Offer alternatives that meet the goal: aggregated or de-identified data, an approved integration, a request through their compliance team. Offer to join that conversation.
+
+### 3. "Why can't it be 100% accurate?"
+
+"The system predicts likely answers from patterns and the documents we give it, so it can be wrong, like a very fast new hire who occasionally misreads a form. We reduce errors with source citations, checks, and a review step for high-risk cases, and we measure the error rate so you can decide how much to rely on it. For decisions where a mistake is expensive, a person approves the result." Then give a number from your evaluation if you have one.
+
+### 4. Security will not grant production credentials
+
+- Treat security as an ally, not a blocker: ask what they need to see to approve it.
+- Offer least-privilege, read-only, time-limited access, a scoped service account, or a sandbox with synthetic data to continue meanwhile.
+- Share a short architecture and data-flow document, ask for the review timeline, and keep the sponsor informed so the delay is visible, not blamed on you.
+
+### What the interviewer watches
+
+Listening before answering, ownership without groveling, clarity without condescension, saying "I don't know yet, I will find out by Thursday", and not over-promising to end an uncomfortable moment.
+
+### Pitfalls
+
+Blaming other teams; hiding a delay until it is unavoidable; saying yes to a risky request to please a VP; explaining model internals when the customer asked about risk.
+
+Scenarios reported in prep guides such as the [Aced FDE guide](https://www.aced.io/blog/forward-deployed-engineer-interview-the-definitive-2026-guide-fde); wording is second-hand.
