@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react';
 import { preloadSection, useContent } from '../content/index.ts';
-import { describeSelection, filterSections } from '../content/facets.ts';
+import { describeSelection, filterSections, normalizeSelection } from '../content/facets.ts';
 import { Icon, LoopMark } from '../components/Icon.tsx';
 import { SYNC_COPY } from '../features/settings/SettingsDialog.tsx';
 import { syncStatusStore } from '../state/persistence/cloudSync.ts';
@@ -39,7 +39,7 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
   const selectedFacets = useStore(prefsStore, (p) => p.facets);
   // The list follows the chosen track; the topic you're reading always stays visible.
   const activeFacets = useMemo(
-    () => selectedFacets.filter((id) => sections.some((section) => section.facets.includes(id))),
+    () => normalizeSelection(sections, selectedFacets.filter((id) => sections.some((section) => section.facets.includes(id)))),
     [selectedFacets, sections],
   );
   const listed = useMemo(() => {

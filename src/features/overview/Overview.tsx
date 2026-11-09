@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { preloadSection, useContent } from '../../content/index.ts';
-import { describeSelection, facetLabel, filterSections, groupOf } from '../../content/facets.ts';
+import { describeSelection, facetLabel, filterSections, groupOf, normalizeSelection } from '../../content/facets.ts';
 import { LEVELS, LEVEL_LABEL } from '../../content/types.ts';
 import { isGrowing } from '../../content/coverage.ts';
 import { Icon } from '../../components/Icon.tsx';
@@ -26,7 +26,7 @@ export function Overview() {
 
   // A remembered facet can lose its content (a topic was hidden): only filter by facets that still match something.
   const activeFacets = useMemo(
-    () => selectedFacets.filter((id) => sections.some((section) => section.facets.includes(id))),
+    () => normalizeSelection(sections, selectedFacets.filter((id) => sections.some((section) => section.facets.includes(id)))),
     [selectedFacets, sections],
   );
   // Everything below (progress, "up next", levels) follows the chosen track, not the whole bank.

@@ -535,3 +535,11 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 - (+) The suggestion pipeline reuses the submissions patterns (limits, emails, transactional review).
 - (−) Facets on a topic are a coarse signal; a topic that mixes areas needs several topics.
 - (−) A deleted draft question silently stops counting toward "live" for its idea.
+
+## ADR-033: Role plus focus-area chips replace tracks
+
+**Context.** One-tap tracks (Frontend, Frontend · React, Backend · Go...) multiplied with every language and framework, and the real fine-tuning sat behind a collapsed disclosure. Fifteen frontend topics were a flat list with no way to say "just JavaScript, React and machine coding".
+
+**Decision.** Two steps. First a role (one or several; full-stack is Frontend + Backend). Then focus-area chips drawn from the role's topics: languages, frameworks and subjects (a new `area` group in `content/facets.json`). Chips widen (any selected chip keeps a topic); none selected means everything for the role. Chips a role has announced (`roles` on the facet) but without a topic yet render as "Coming soon". Tracks and the "general topics always stay" rule are removed.
+
+**Consequences.** Choosing React no longer drags in Accessibility or Performance implicitly: it is one more tap, and visible. Every topic needs at least one focus area (enforced by a test for roles that offer chips). New topics and facets need no UI change.

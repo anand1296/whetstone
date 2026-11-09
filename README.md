@@ -4,7 +4,7 @@
 
 **Try it: [whetstone-v1.vercel.app](https://whetstone-v1.vercel.app)** · sign in with GitHub to sync your progress, or just start studying.
 
-**Interview prep for engineers, from junior to principal.** 225 deep, interview-grade questions across 24 topics, from JavaScript internals and system design to low-level design and AI-assisted design, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
+**Interview prep for engineers, from junior to principal.** 232 deep, interview-grade questions across 24 topics, from JavaScript internals and system design to low-level design and AI-assisted design, with progress tracking, resume-where-you-left-off, spaced review and a practice mode that makes you answer out loud before you read.
 
 Version 2 adds a **Go + Postgres backend**: GitHub sign-in, synced progress across devices, invite links, roles (owner, admins, learners) and an **admin console** where you can add and edit topics and questions live (preview, drafts, history, trash), see learners' progress, switch features and post announcements, with no code changes or deploys.
 
@@ -48,7 +48,7 @@ The same frontend still runs **without** a backend: on any static host, as one H
 - **Answers built for the room.** Every answer opens with *the 60-second answer*, then the mental model, correct code with a copy button, trade-offs, edge cases, follow-ups, common mistakes and primary references.
 - **React, Angular or Vue.** Answers with code (machine-coding builds, component APIs, forms, error handling, state, testing, security, streaming UIs and more) have a framework switch: pick React, Angular or Vue once and the code follows you across questions. Framework-neutral material is always shown.
 - **Tick it off; pick up where you left off.** Progress saves automatically; the overview reopens the question you were on.
-- **Tracks.** "What are you preparing for?" offers one-tap tracks (Frontend, Frontend · React, Backend, Full-stack, Data engineering, AI / ML, Forward deployed (FDE), SRE, QE, Cloud, Design), and the topic list, progress ring, "up next" and sidebar all follow the track. "Fine-tune" combines role, language, framework and platform; general topics (like Accessibility) stay visible when you narrow by language or framework. Tracks without content yet are visibly "Coming soon" and light up automatically when a topic tagged for them is published.
+- **Role, then focus areas.** "What are you preparing for?" is two steps: pick a role (Frontend, Backend, Data engineering, AI / ML, Forward deployed, Design; pick two for full-stack), then optional focus-area chips under it (JavaScript, React, Machine coding, System design, Performance, Java, Go and so on). Chips widen, so React + Performance shows both; none selected shows everything for the role. Areas still on the roadmap (Angular, Vue, Python) appear as "Coming soon". Topics, progress and "up next" follow the choice.
 - **Suggest a topic.** Missing a whole area? Suggest it with a few starter questions, then follow it from the Contribute page until it's live.
 - **Email reminders** (opt-in, daily / every 3 days / weekly): progress, reviews due, the next question with a link, and a motivational nudge.
 - **Spaced review** (2, 5, 12, 30, 75 days), **practice mode** (answer out loud first, with a stopwatch), **private notes**, **search** (`/` or Ctrl/⌘ K), filters, deep links (`#oauth-pkce-flow`), light/dark, phone-friendly, keyboard and screen-reader friendly.
@@ -226,7 +226,7 @@ whetstone/
 | --- | --- | --- |
 | Go unit | 15 | Markdown rendering and safety, every code language, content parsing/validation/export round-trip, progress merge properties |
 | Go integration (real Postgres) | 16 | Every API rule over HTTP: invites, roles, disabling, expiry, open/members-only, settings, full CMS lifecycle, revisions, trash, ETags, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth (fake provider), concurrent invite race, serverless entry, email reminders, community submissions |
-| Renderer parity | 225 answers | Go and TypeScript renderers produce the same documents |
+| Renderer parity | 232 answers | Go and TypeScript renderers produce the same documents |
 | TypeScript unit | 45 | Walkthrough compiler, content compiler, progress model, search, selectors, sync protocols (Artifact and HTTP), language-list parity |
 | E2E static | 12 | Study flows, How it's built, Contribute, hosted Artifact build in a sandboxed CSP frame, mobile |
 | E2E full stack | 4 | Owner edits content and settings and invites; learner joins, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves, it's credited |

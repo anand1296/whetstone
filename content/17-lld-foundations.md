@@ -2,7 +2,7 @@
 id: lld-foundations
 title: Low-Level Design: Foundations
 description: The method behind every low-level design (machine coding) round: class diagrams and relationships, contract-first interfaces, design patterns, SOLID and extensibility, and thread safety.
-facets: backend, frontend
+facets: backend, frontend, lld
 ---
 
 ## A repeatable method for any low-level design round: the five things interviewers look for

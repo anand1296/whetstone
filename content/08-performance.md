@@ -2,7 +2,7 @@
 id: performance
 title: Performance
 description: Core Web Vitals in depth, INP fixes, bundle strategy, React.lazy and Suspense, images and fonts, a profiling workflow, budgets in CI, and perceived performance.
-facets: frontend
+facets: frontend, performance
 ---
 
 ## Diagnose and fix LCP, INP and CLS on a real page
@@ -975,3 +975,93 @@ Put a performance budget in CI (Lighthouse CI or a size limit for first-party pl
 ### Pitfalls
 
 Optimizing first-party code while a tag manager undoes it; blocking rendering for an A/B test script without an anti-flicker timeout; no owner for old tags.
+
+## How do you improve performance in a React app? A measure-first playbook
+<!--
+id: react-performance-playbook
+level: senior
+tags: react, performance, profiling, memoization, code splitting, virtualization, bundle size
+minutes: 18
+-->
+
+> [!PROMPT]
+> A React page feels slow: scrolling a long list stutters, typing in a search box lags, and the first load is heavy. Walk through how you would find and fix the causes, in the order you would do it.
+
+> [!TLDR]
+> Measure before changing anything: use the React DevTools Profiler to find components that render too often or too slowly, the browser Performance panel for long tasks, and Lighthouse or real-user metrics for load. Then fix by category: reduce what loads (code splitting, smaller dependencies, image and font work), reduce what renders (virtualize long lists, move state down, split components, memoize only where the profiler shows a win), and reduce what blocks (defer non-urgent updates with transitions, move heavy work off the main thread). Verify with the same measurement afterwards and guard it with a bundle-size budget.
+
+### Step 1: find the bottleneck
+
+- **Render cost:** React DevTools Profiler. Record the interaction, look at "why did this render" and the flame graph for slow commits.
+- **Main-thread blocking:** Chrome Performance panel, look for long tasks (over 50 ms) and layout thrashing.
+- **Load:** Network panel and a bundle analyzer; Core Web Vitals (LCP, INP, CLS) from field data when you have it.
+
+### Step 2: fix by category
+
+**Loading less**
+- Code-split by route and heavy widgets (`React.lazy` plus `Suspense`).
+- Audit dependencies (replace heavy libraries, import only what you use, avoid shipping a whole date or icon library).
+- Optimize images (responsive sizes, modern formats, lazy loading) and use `font-display`.
+
+**Rendering less**
+- **Virtualize long lists** (`react-window`, TanStack Virtual) so only visible rows exist in the DOM.
+- **Move state down** so a keystroke re-renders one input, not the page.
+- **Split components** so slow parts don't re-render with fast-changing parents.
+- **Memoize on evidence:** `React.memo`, `useMemo` and `useCallback` help when a measured component re-renders with equal props, and a stable reference is needed; otherwise they add cost. The React Compiler can do much of this automatically.
+- Use stable, unique `key`s.
+
+**Blocking less**
+```tsx
+const [query, setQuery] = useState('');
+const deferred = useDeferredValue(query);          // keep typing responsive, render results later
+const results = useMemo(() => filter(items, deferred), [items, deferred]);
+```
+- `startTransition` for non-urgent updates.
+- Debounce expensive handlers; move heavy computation to a Web Worker.
+
+### Step 3: prove it and keep it
+
+Re-profile the same interaction, compare numbers, and add a bundle-size check or performance budget in CI so regressions fail the build.
+
+### Pitfalls
+
+Wrapping everything in `useMemo`; optimizing without a profile; testing only in development mode (React runs slower with extra checks); fixing a rendering problem with caching when the real problem is a huge DOM.
+
+## Lighthouse scores: what they measure, lab versus field data and how to raise them
+<!--
+id: lighthouse-scores-lab-vs-field
+level: senior
+tags: performance, lighthouse, core web vitals, lab data, field data, lcp, inp, cls, tbt
+minutes: 14
+-->
+
+> [!PROMPT]
+> Your Lighthouse performance score is 55 on mobile and the product manager wants it above 90. How do you read the report, what actually moves the score, and why might real users still see a slow site after the score improves?
+
+> [!TLDR]
+> Lighthouse is a lab test: one simulated load on a throttled device, producing a 0 to 100 score from a weighted mix of metrics (largest contentful paint, total blocking time, cumulative layout shift, first contentful paint and speed index). To raise it, work the biggest weights first: make the LCP element load early (preload, optimized image, fast server response), cut JavaScript that blocks the main thread (smaller bundles, code splitting, deferring third parties), and reserve space to stop layout shifts. A good score does not guarantee a fast experience for real users, who are measured by field data (Chrome UX Report, your own RUM) including INP, which Lighthouse does not measure in a standard run. Treat the score as a diagnostic, and track Core Web Vitals in the field.
+
+### Reading the report
+
+- **Metrics and weights:** the score is computed from a handful of metrics, with LCP and TBT carrying the most weight, then CLS. Look at which ones are red.
+- **Opportunities and diagnostics** list likely causes (render-blocking resources, unused JavaScript, oversized images, long main-thread tasks).
+- **Variance:** scores move between runs. Run several times, in incognito, on the same throttling profile, and use Lighthouse CI for stable comparisons.
+
+### What usually moves the score
+
+| Symptom | Fixes |
+| --- | --- |
+| Slow LCP | Preload the hero image, serve modern formats at the right size, avoid lazy-loading the LCP image, fast TTFB (CDN, caching, SSR or static) |
+| High TBT (main thread blocked) | Code-split, remove unused JS, defer or lazy-load third-party scripts, break up long tasks, avoid heavy hydration |
+| High CLS | Set width and height (or aspect-ratio) on images and embeds, reserve space for ads and banners, avoid injecting content above existing content, use `font-display` with metric-matched fallbacks |
+| Slow FCP | Inline critical CSS, remove render-blocking CSS and JS, preconnect to required origins |
+
+### Lab versus field
+
+- **Lab data (Lighthouse, WebPageTest):** repeatable, great for debugging, but one device and network.
+- **Field data (CrUX, RUM):** what real users on real devices experience; this is what Core Web Vitals assessment and search ranking use. The 75th percentile is the number that counts.
+- **INP** (Interaction to Next Paint) is a field metric; in the lab you approximate it with TBT and by testing interactions manually.
+
+### Pitfalls
+
+Gaming the score (hiding content, removing analytics only for the test); optimizing desktop while most users are on mid-range phones; ignoring a CDN or server response time because the front-end bundle looks fine; fixing the lab score and never checking field data afterwards.

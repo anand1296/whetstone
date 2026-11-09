@@ -32,7 +32,7 @@ minutes: 15
 ...
 ```
 
-**`facets`** (comma separated) tags the topic for the overview filters: a role (`frontend`, `backend`, `sre`, `design`...), plus an optional language, framework or platform. The allowed ids are in [`content/facets.json`](../content/facets.json), which also defines the one-tap *tracks*. A track or facet is selectable as soon as one published topic carries it; the rest show as "Coming soon". A tag in a row narrows the list, but a topic with *no* tag in that row (a general topic, such as Accessibility under frameworks) always stays visible, so tag only what a topic is specifically about. Always set a role. In the console, pick facets in the topic editor; **Sync from repository** refreshes facets on existing topics.
+**`facets`** (comma separated) tags the topic for the overview filters: one or more roles (`frontend`, `backend`, `sre`, `design`...) plus *focus areas*: a language (`javascript`, `go`), a framework (`react`), a subject (`performance`, `machine-coding`, `system-design`, `accessibility`...) or a platform. The allowed ids are in [`content/facets.json`](../content/facets.json). People pick a role, then focus-area chips under it; a topic shows when it matches a selected role and any selected chip, so give every topic at least one focus area or a chip selection would hide it. A chip is live as soon as one published topic under the role carries it; chips declared with `roles` but no topic yet show as "Coming soon". In the console, pick facets in the topic editor; **Sync from repository** refreshes facets on existing topics.
 
 | Field | Rules |
 | --- | --- |

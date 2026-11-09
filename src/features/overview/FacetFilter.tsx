@@ -2,27 +2,27 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import {
   describeSelection,
-  FACET_GROUPS,
   facetCounts,
   filterSections,
-  matchingTrack,
-  trackAvailable,
-  TRACKS,
+  focusChips,
+  isRoleId,
+  normalizeSelection,
+  ROLE_FACETS,
 } from '../../content/facets.ts';
 import type { SectionMeta } from '../../content/types.ts';
 import { plural } from '../../lib/format.ts';
 
 /**
- * "What are you preparing for?": the way into the question bank.
+ * "What are you preparing for?": the way into the question bank, in two steps.
  *
- * Most people want one of a handful of goals (Frontend, Frontend · React, SRE,
- * Backend...), so those are one-tap *tracks*. Anything more specific lives under
- * "Fine-tune": individual facets in rows (Role, Language, Framework, Platform).
- * Facets and tracks with no published topic yet stay visible but disabled with a
+ * 1. Role: Frontend, Backend, Data engineering... one or several (a full-stack
+ *    engineer picks Frontend and Backend).
+ * 2. Focus areas: chips for what that role is made of: languages, frameworks and
+ *    subjects (JavaScript, React, Machine coding, System design, Performance...).
+ *    Pick any to narrow; pick none to see everything for the role.
+ *
+ * Roles and chips with no published topic yet stay visible but disabled with a
  * "Coming soon" tooltip, so people can see where the bank is going.
- *
- * Picking within a row widens the result (React or Angular); across rows it narrows
- * it, but general topics (those with no tag in a row) always stay: see filterSections.
  */
 export function FacetFilter({
   sections,
@@ -38,10 +38,9 @@ export function FacetFilter({
   onSuggest: () => void;
 }) {
   const baseId = useId();
-  const counts = useMemo(() => facetCounts(sections), [sections]);
-  const track = matchingTrack(selected);
-  const custom = selected.length > 0 && !track;
-  const [fineTune, setFineTune] = useState(custom);
+  const roleCounts = useMemo(() => facetCounts(sections), [sections]);
+  const chips = useMemo(() => focusChips(sections, selected), [sections, selected]);
+  const selectedRoles = selected.filter(isRoleId);
   // Touch screens have no hover: tapping a disabled pill pins its tooltip for a moment.
   const [pinned, setPinned] = useState<string | null>(null);
   useEffect(() => {
@@ -49,11 +48,11 @@ export function FacetFilter({
     const timer = window.setTimeout(() => setPinned(null), 2200);
     return () => window.clearTimeout(timer);
   }, [pinned]);
-  useEffect(() => {
-    if (custom) setFineTune(true);
-  }, [custom]);
 
-  const toggle = (id: string): void => onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]);
+  const toggle = (id: string): void => {
+    const next = selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id];
+    onChange(normalizeSelection(sections, next));
+  };
 
   const soon = (key: string, label: string, className: string) => {
     const tipId = `${baseId}-${key}-tip`;
@@ -75,59 +74,49 @@ export function FacetFilter({
         <h2 id={`${baseId}-title`} className="section-heading">
           What are you preparing for?
         </h2>
-        <p className="track-sub">Pick a track and the topics, progress and &ldquo;up next&rdquo; follow it. Everything else stays one tap away.</p>
+        <p className="track-sub">Pick your role, then the areas you want to focus on. Topics, progress and &ldquo;up next&rdquo; follow your choice.</p>
       </div>
 
-      <div className="track-pills" role="group" aria-label="Tracks">
-        <button type="button" className="track" aria-pressed={selected.length === 0} onClick={() => onChange([])}>
+      <div className="track-pills" role="group" aria-label="Role">
+        <button type="button" className="track" aria-pressed={selectedRoles.length === 0} onClick={() => onChange([])}>
           Everything
           <span className="chip-count tabular">{sections.length}</span>
         </button>
-        {TRACKS.map((t) =>
-          trackAvailable(t, counts) ? (
-            <button key={t.id} type="button" className="track" aria-pressed={track?.id === t.id} onClick={() => onChange(track?.id === t.id ? [] : t.facets)}>
-              {t.label}
-              <span className="chip-count tabular" aria-label={`, ${plural(filterSections(sections, t.facets).length, 'topic')}`}>
-                {filterSections(sections, t.facets).length}
+        {ROLE_FACETS.map((role) => {
+          const count = roleCounts.get(role.id) ?? 0;
+          if (count === 0) return soon(`role-${role.id}`, role.label, 'track');
+          return (
+            <button key={role.id} type="button" className="track" aria-pressed={selected.includes(role.id)} onClick={() => toggle(role.id)}>
+              {role.label}
+              <span className="chip-count tabular" aria-label={`, ${plural(count, 'topic')}`}>
+                {count}
               </span>
             </button>
-          ) : (
-            soon(`track-${t.id}`, t.label, 'track')
-          ),
-        )}
+          );
+        })}
       </div>
 
-      <details className="fine-tune" open={fineTune} onToggle={(event) => setFineTune(event.currentTarget.open)}>
-        <summary>
-          Fine-tune by role, language, framework or platform
-          {selected.length > 0 ? <span className="chip-count tabular">{selected.length}</span> : null}
-        </summary>
-        <div className="facet-rows">
-          {FACET_GROUPS.map((group) => (
-            <div key={group.id} className="facet-row" role="group" aria-label={group.label}>
-              <span className="facet-row-label" aria-hidden="true">
-                {group.label}
-              </span>
-              <span className="facet-row-chips">
-                {group.facets.map((facet) => {
-                  const count = counts.get(facet.id) ?? 0;
-                  if (count === 0) return soon(facet.id, facet.label, 'chip');
-                  const on = selected.includes(facet.id);
-                  return (
-                    <button key={facet.id} type="button" className="chip" aria-pressed={on} onClick={() => toggle(facet.id)}>
-                      {facet.label}
-                      <span className="chip-count tabular" aria-label={`, ${plural(count, 'topic')}`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </span>
-            </div>
-          ))}
-          <p className="facet-note">General topics (like Accessibility) stay in view when you pick a language, framework or platform.</p>
+      {chips.length > 1 ? (
+        <div className="focus-row" role="group" aria-label="Focus areas">
+          <p className="focus-label">
+            Focus areas <span>pick any, or none for everything in {selectedRoles.map((id) => ROLE_FACETS.find((r) => r.id === id)?.label).join(' + ')}</span>
+          </p>
+          <span className="focus-chips">
+            {chips.map(({ facet, count, soon: isSoon }) =>
+              isSoon ? (
+                soon(facet.id, facet.label, 'chip')
+              ) : (
+                <button key={facet.id} type="button" className="chip" aria-pressed={selected.includes(facet.id)} onClick={() => toggle(facet.id)}>
+                  {facet.label}
+                  <span className="chip-count tabular" aria-label={`, ${plural(count, 'topic')}`}>
+                    {count}
+                  </span>
+                </button>
+              ),
+            )}
+          </span>
         </div>
-      </details>
+      ) : null}
 
       <div className="track-foot">
         <span className="facet-status" role="status">

@@ -907,3 +907,58 @@ Math.abs(0.1 + 0.2 - 0.3) < Number.EPSILON // true
 ### Common trap
 
 `if (items.length)` is fine, but `if (value)` treats `0` and `''` as missing. Be explicit when those are meaningful values (a quantity of 0, an empty search string).
+
+## Closures: what they are, how they work and a real-world example
+<!--
+id: js-closures-basics
+level: junior
+tags: javascript, closures, scope, fundamentals, lexical scope
+minutes: 10
+-->
+
+> [!PROMPT]
+> Explain how closures work in JavaScript and give a real-world example. What does this print, and why?
+>
+> ```js
+> for (var i = 0; i < 3; i++) {
+>   setTimeout(() => console.log(i), 0);
+> }
+> for (let j = 0; j < 3; j++) {
+>   setTimeout(() => console.log(j), 0);
+> }
+> ```
+
+> [!TLDR]
+> A closure is a function bundled with references to the variables of the scope where it was created (its lexical environment), so it can keep using them after that scope has finished running. The snippet prints `3 3 3` and then `0 1 2`: `var` creates one `i` shared by every callback, which is `3` by the time they run, while `let` creates a fresh binding per loop iteration that each callback closes over. Closures power private state, factories, memoization, debounce and React hooks; the cost is that anything a closure references stays in memory as long as the closure does.
+
+### The mental model
+
+Scope in JavaScript is lexical: a function can see variables from the place it was *written*, not where it is called. When a function is created it keeps a hidden link to that environment. Calling it later still resolves names through that link, even if the outer function has returned.
+
+```js
+function counter() {
+  let count = 0;                 // lives on because the returned function references it
+  return () => ++count;
+}
+const next = counter();
+next(); // 1
+next(); // 2   (a second counter() gets its own independent count)
+```
+
+### Real-world uses
+
+- **Private state without classes:** `count` above cannot be touched from outside.
+- **Function factories:** `const withTax = (rate) => (price) => price * (1 + rate)`.
+- **Debounce, throttle and memoize:** the timer id or cache is the closed-over variable.
+- **Event handlers and callbacks:** a handler remembers the item it was created for.
+- **React hooks:** each render's function closes over that render's props and state, which is why stale closures happen.
+
+### The loop example
+
+With `var`, all three callbacks share the single function-scoped `i`; the loop finishes first, so each logs `3`. With `let`, the specification creates a new binding for each iteration, so the callbacks log `0`, `1`, `2`. Before `let`, the fix was an IIFE: `(function (n) { setTimeout(() => console.log(n)) })(i)`.
+
+### Pitfalls to mention
+
+- **Memory:** a long-lived closure keeps everything it references alive, which is a common leak with listeners and caches (see the memory-leak question).
+- **Stale values:** a closure captures the variable, not a snapshot, so later mutations are visible; in React the captured value is the one from the render it was created in.
+- **`this` is different:** closures capture variables, but `this` is decided by how a function is called (arrow functions capture it lexically).
