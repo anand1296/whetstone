@@ -188,7 +188,7 @@ test('filters, theme and keyboard basics', async ({ page }) => {
   await page.getByRole('radio', { name: 'Done' }).click();
   await expect(page.locator('.q')).toHaveCount(1);
   await page.getByRole('radio', { name: 'To do' }).click();
-  await expect(page.locator('.q')).toHaveCount(11);
+  await expect(page.locator('.q')).toHaveCount(13);
   await page.getByRole('radio', { name: 'All' }).click();
 
   await page.getByRole('button', { name: 'Settings' }).first().click();
