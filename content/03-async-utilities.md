@@ -1429,3 +1429,230 @@ Lint with `@typescript-eslint/no-floating-promises`, and test the failure path (
 ### Pitfalls
 
 `Promise.all` rejecting while other tasks keep running (consider `allSettled` or cancellation); `catch` that rethrows a new error without the original `cause`; relying on `try/catch` around a function that returns a promise without awaiting it.
+
+## A `TaskQueue` class that evolves: clear at N, priorities with a heap, failures, concurrency and private fields
+<!--
+id: async-task-queue-evolving
+level: senior
+tags: task queue, priority queue, heap, concurrency, retries, private fields, class design, machine coding
+minutes: 25
+-->
+
+> [!PROMPT]
+> Build a `TaskQueue` class. The interviewer adds one requirement at a time after you finish the previous one, so structure the code to absorb change.
+>
+> **Stages**
+> 1. `enqueue(task)` returns a promise for the task's result. Tasks run one at a time, in order.
+> 2. "When the 11th task is waiting, clear the queue." (Ask what that means before coding.)
+> 3. Tasks have priorities: higher runs first, equal priorities stay first-in, first-out.
+> 4. "A task fails: what happens?" Drop it, or retry it up to N times. The queue must keep going.
+> 5. "Sequential or parallel?" Allow up to `concurrency` tasks at once.
+> 6. Hide the internals behind private fields and a small public API.
+>
+> **Test cases**
+> - Three 5 ms tasks run in order and their promises resolve with the right values.
+> - Low, high, low, high, mid enqueued behind a running task run as high, high, mid, low, low.
+> - 50 tasks of equal priority run in exactly the order they were added.
+> - With `concurrency: 3` and 10 tasks, no more than 3 are ever running.
+> - A task that throws rejects only its own promise; the next task still runs.
+
+> [!TLDR]
+> Start with an array and a loop that runs the next task when the previous one settles. Treat each new requirement as a decision to state out loud: for "clear at N", ask whether the Nth task counts, whether it still runs, and what happens to the promises of dropped tasks (reject them, never leave them pending). For priorities replace the array with a **binary max-heap**, and break ties with an insertion sequence number, because a heap is not stable on its own. For failures, wrap each task so a throw rejects only that task's promise (or retries it) and the slot is always released in `finally`. For parallelism, keep a `running` counter and a `drain()` loop that starts tasks while `running < concurrency`; sequential is just `concurrency = 1`. Finish with `#private` fields, input validation, and `size`, `running`, `clear` and `onIdle` as the public surface.
+
+### Clarify before you code
+
+The stage-2 wording is deliberately vague. State your reading and move on: "I will count tasks that are *waiting*, not running. When `enqueue` leaves the waiting list at `clearAt` or more, I drop every waiting task and reject their promises with `QueueClearedError`." The reported wording used 11; make it an option, not a literal in the code. Checking the length inside `enqueue` is the simplest approach, and the interviewer is looking for that decision, not the number.
+
+### The final shape
+
+```ts
+export class QueueClearedError extends Error {
+  constructor() {
+    super('Task dropped: the queue was cleared before it started');
+    this.name = 'QueueClearedError';
+  }
+}
+
+export interface TaskQueueOptions {
+  /** How many tasks may run at once. 1 = sequential. */
+  concurrency?: number;
+  /** When this many tasks are waiting (not running), drop all of them. */
+  clearAt?: number;
+  /** Extra attempts after the first failure. 0 = drop the task and move on. */
+  retries?: number;
+}
+
+interface Entry {
+  priority: number;
+  seq: number; // insertion order: breaks ties so equal priorities stay FIFO
+  run: () => unknown;
+  resolve: (value: any) => void;
+  reject: (reason: unknown) => void;
+}
+
+// A binary max-heap. Higher priority first; for equal priority, lower seq first.
+class TaskHeap {
+  #items: Entry[] = [];
+
+  get size(): number {
+    return this.#items.length;
+  }
+
+  #before(a: Entry, b: Entry): boolean {
+    return a.priority !== b.priority ? a.priority > b.priority : a.seq < b.seq;
+  }
+
+  push(entry: Entry): void {
+    const items = this.#items;
+    items.push(entry);
+    let i = items.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (!this.#before(items[i], items[parent])) break;
+      [items[i], items[parent]] = [items[parent], items[i]];
+      i = parent;
+    }
+  }
+
+  pop(): Entry | undefined {
+    const items = this.#items;
+    if (items.length === 0) return undefined;
+    const top = items[0];
+    const last = items.pop()!;
+    if (items.length > 0) {
+      items[0] = last;
+      let i = 0;
+      for (;;) {
+        const left = 2 * i + 1;
+        const right = left + 1;
+        let best = i;
+        if (left < items.length && this.#before(items[left], items[best])) best = left;
+        if (right < items.length && this.#before(items[right], items[best])) best = right;
+        if (best === i) break;
+        [items[i], items[best]] = [items[best], items[i]];
+        i = best;
+      }
+    }
+    return top;
+  }
+
+  clear(): Entry[] {
+    return this.#items.splice(0);
+  }
+}
+
+export class TaskQueue {
+  #waiting = new TaskHeap();
+  #running = 0;
+  #seq = 0;
+  #idleWaiters: Array<() => void> = [];
+  readonly #concurrency: number;
+  readonly #clearAt: number;
+  readonly #retries: number;
+
+  constructor({ concurrency = 1, clearAt = Infinity, retries = 0 }: TaskQueueOptions = {}) {
+    if (!Number.isInteger(concurrency) || concurrency < 1) {
+      throw new RangeError('concurrency must be a positive integer');
+    }
+    this.#concurrency = concurrency;
+    this.#clearAt = clearAt;
+    this.#retries = retries;
+  }
+
+  get size(): number {
+    return this.#waiting.size;
+  }
+
+  get running(): number {
+    return this.#running;
+  }
+
+  enqueue<T>(task: () => T | Promise<T>, { priority = 0 }: { priority?: number } = {}): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      this.#waiting.push({ priority, seq: this.#seq++, run: task, resolve, reject });
+      this.#drain(); // start it now if a slot is free, so only truly waiting tasks are counted
+      if (this.#waiting.size >= this.#clearAt) this.clear();
+    });
+  }
+
+  clear(): void {
+    for (const entry of this.#waiting.clear()) entry.reject(new QueueClearedError());
+    this.#drain();
+  }
+
+  onIdle(): Promise<void> {
+    if (this.#running === 0 && this.#waiting.size === 0) return Promise.resolve();
+    return new Promise((resolve) => this.#idleWaiters.push(resolve));
+  }
+
+  #drain(): void {
+    while (this.#running < this.#concurrency && this.#waiting.size > 0) {
+      const entry = this.#waiting.pop()!;
+      this.#running++;
+      void this.#execute(entry);
+    }
+    if (this.#running === 0 && this.#waiting.size === 0) {
+      for (const resolve of this.#idleWaiters.splice(0)) resolve();
+    }
+  }
+
+  async #execute(entry: Entry): Promise<void> {
+    try {
+      entry.resolve(await this.#attempt(entry.run));
+    } catch (error) {
+      entry.reject(error); // a failure rejects only this task's promise; the queue keeps going
+    } finally {
+      this.#running--;
+      this.#drain();
+    }
+  }
+
+  async #attempt(run: () => unknown): Promise<unknown> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= this.#retries; attempt++) {
+      try {
+        return await run();
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  }
+}
+```
+
+### How each stage shows up in the code
+
+- **Stage 1 and 5:** `#drain()` starts tasks while a slot is free. Sequential execution is the same loop with `concurrency = 1`, so you do not rewrite anything when the interviewer asks for parallel.
+- **Stage 2:** `enqueue` calls `#drain()` first, so a task that can start immediately never counts as waiting, then checks `size >= clearAt`.
+- **Stage 3:** the heap's comparison is `priority` first and `seq` second. Without `seq`, two tasks of equal priority can come out in any order, because a binary heap does not preserve insertion order.
+- **Stage 4:** `#execute` catches the error and rejects that task's promise. `finally` always decrements `running` and drains, so one failure never stalls the queue. `retries: 0` means "drop it"; a positive number retries immediately.
+- **Stage 6:** `#waiting`, `#running`, `#drain`, `#execute` and `#attempt` are private; callers can only use `enqueue`, `size`, `running`, `clear` and `onIdle`, and the constructor validates `concurrency`.
+
+### Pitfalls
+
+- **Pending promises:** clearing the queue without rejecting leaves callers waiting forever. Rejecting means callers must handle the rejection, or an unhandled-rejection warning appears; document that, or offer a "settled" mode.
+- **Releasing the slot only on success:** a throw skips the `running--` and the queue slowly deadlocks. Use `finally`.
+- **Running the task inside the promise executor:** if `run` throws synchronously the error must still become a rejection; `#attempt` is `async` and `await`s the call, so both sync throws and rejections are handled.
+- **Unbounded retry:** an immediate retry loop hammers a failing service. Cap attempts and add backoff.
+- **Starvation:** a steady stream of high-priority tasks can keep a low-priority one waiting forever.
+
+### Complexity
+
+`enqueue` and starting a task are `O(log n)` with the heap; `clear` is `O(n)`; memory is `O(n)` for waiting tasks.
+
+### Follow-ups
+
+- **"Retry with backoff?"** Wait `base * 2 ** attempt` plus random jitter between attempts, and retry only errors that are safe to retry (see the backoff question).
+- **"Cancel a running task?"** Pass an `AbortSignal` into each task and abort it from `clear` (see the concurrency pool question).
+- **"Pause and resume?"** Add a `#paused` flag that `#drain` checks; `resume()` calls `#drain()`.
+- **"Prevent starvation?"** Aging: raise the effective priority of a task the longer it waits.
+- **"Rate limit instead of concurrency limit?"** A limit on starts per time window is a token bucket, a different constraint from "at most N at once".
+- **"How do you test it?"** Use tasks that resolve on a controllable promise (or fake timers) and assert on observed order and the maximum number running at once, not on elapsed time.
+
+### References
+
+- [MDN: Private class features](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Private_elements)
+- [Wikipedia: Binary heap](https://en.wikipedia.org/wiki/Binary_heap)
+
+Reported as a one-hour onsite coding round ("a task queue with follow-ups") in a candidate's LinkedIn write-up of a Netflix frontend loop; second-hand and unverified. The stages are paraphrased and extended here, and the code was tested against the cases above.

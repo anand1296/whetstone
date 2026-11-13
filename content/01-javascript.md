@@ -962,3 +962,350 @@ With `var`, all three callbacks share the single function-scoped `i`; the loop f
 - **Memory:** a long-lived closure keeps everything it references alive, which is a common leak with listeners and caches (see the memory-leak question).
 - **Stale values:** a closure captures the variable, not a snapshot, so later mutations are visible; in React the captured value is the one from the render it was created in.
 - **`this` is different:** closures capture variables, but `this` is decided by how a function is called (arrow functions capture it lexically).
+
+## Array to histogram with `reduce`, then growing requirements: counts, grouping, top-k and the `constructor` key trap
+<!--
+id: js-reduce-histogram-evolving
+level: junior
+tags: javascript, reduce, arrays, maps, coding, fundamentals
+minutes: 15
+-->
+
+> [!PROMPT]
+> Write `histogram(items)` that turns an array into a count per value, using `reduce` and no explicit loop. The interviewer then keeps changing the requirement, so write code you can extend at every stage.
+>
+> **Stages**
+> 1. Count how often each value appears: `['a', 'b', 'a']` gives `a: 2`, `b: 1`.
+> 2. Count by a derived key instead (first letter, day of the week).
+> 3. Return only the top `k` entries, with a deterministic order when counts tie.
+> 4. Group the items themselves, not just count them.
+> 5. Put numbers into buckets of width 10.
+>
+> **Also be ready for**
+> - "What happens if one of the values is the string `'constructor'`?"
+> - "When would you not use `reduce`?"
+
+> [!TLDR]
+> `reduce` folds an array into one accumulator, so each stage is the same fold with a different accumulator update. Use a `Map` as the accumulator, not a plain object: a plain object breaks on keys such as `'constructor'` (inherited from `Object.prototype`) and turns every key into a string. Always pass an initial value, because `reduce` on an empty array without one throws. Stage 2 adds a key function, stage 3 sorts the entries with an explicit tie-breaker, stage 4 stores arrays instead of numbers (or uses `Map.groupBy`), and stage 5 computes the bucket start by flooring the value divided by the width and multiplying back. Say out loud that a `for...of` loop is just as valid when it reads better.
+
+### Stage 1: count values
+
+```js
+const histogram = (items) =>
+  items.reduce((counts, item) => counts.set(item, (counts.get(item) ?? 0) + 1), new Map());
+
+histogram(['a', 'b', 'a']); // Map { 'a' => 2, 'b' => 1 }
+```
+
+`Map.prototype.set` returns the map, so the callback can return the accumulator in one expression. `?? 0` is safe because a stored count is never `null` or `undefined`.
+
+### The `constructor` trap
+
+The version most people write first uses a plain object:
+
+```js
+const naive = (items) =>
+  items.reduce((counts, item) => {
+    counts[item] = (counts[item] ?? 0) + 1;
+    return counts;
+  }, {});
+
+naive(['a', 'constructor']);
+// counts['constructor'] is Object (inherited), so Object + 1 becomes the string "function Object() { [native code] }1"
+```
+
+Inherited properties make `counts[item]` look like it already exists. A key of `'__proto__'` is worse because it targets the prototype itself. Fixes, in order of preference: a `Map`, or `Object.create(null)` as the initial value (no prototype, so no inherited keys), or `Object.hasOwn(counts, item)` before reading. A `Map` also keeps non-string keys (numbers stay numbers) and keeps insertion order.
+
+### Stage 2: count by a derived key
+
+```js
+const countBy = (items, keyOf) =>
+  items.reduce((counts, item) => {
+    const key = keyOf(item);
+    return counts.set(key, (counts.get(key) ?? 0) + 1);
+  }, new Map());
+
+countBy(['apple', 'avocado', 'banana'], (word) => word[0]); // a => 2, b => 1
+```
+
+`histogram(items)` is now `countBy(items, (item) => item)`.
+
+### Stage 3: top `k` with deterministic ties
+
+```js
+const topK = (counts, k) =>
+  [...counts]
+    .sort(([keyA, a], [keyB, b]) => b - a || String(keyA).localeCompare(String(keyB)))
+    .slice(0, k);
+```
+
+Say what you chose for ties (here: alphabetical) because `sort` alone would leave the order to insertion. Sorting is `O(n log n)`; for a huge input and a small `k`, keep a min-heap of size `k` for `O(n log k)`.
+
+### Stage 4: group the items
+
+```js
+const groupBy = (items, keyOf) =>
+  items.reduce((groups, item) => {
+    const key = keyOf(item);
+    (groups.get(key) ?? groups.set(key, []).get(key)).push(item);
+    return groups;
+  }, new Map());
+```
+
+Modern runtimes have this built in: `Map.groupBy(items, keyOf)` and `Object.groupBy(items, keyOf)`. Mention them, and still be able to write the fold, because the point of the exercise is the pattern.
+
+### Stage 5: numeric buckets
+
+```js
+const bucketize = (values, width) =>
+  values.reduce((buckets, value) => {
+    if (!Number.isFinite(value)) return buckets;          // skip NaN and Infinity
+    const start = Math.floor(value / width) * width;      // floor, not trunc, so -3 lands in [-10, 0)
+    return buckets.set(start, (buckets.get(start) ?? 0) + 1);
+  }, new Map());
+```
+
+### Pitfalls
+
+- **Missing initial value:** `[].reduce(fn)` throws a `TypeError`, and for a non-empty array the first element silently becomes the accumulator.
+- **Copying the accumulator on every step:** `({ ...counts, [key]: n })` or `[...list, item]` inside the callback makes the fold `O(n²)`. Mutate a local accumulator instead; it is private to the fold.
+- **Forgetting to return the accumulator:** the next iteration receives `undefined`.
+- **Clever over clear:** a three-line `for...of` is fine. Use `reduce` when it shows the shape of the result.
+
+### Follow-ups
+
+- **"Make it work on a stream."** Keep the same `Map` and update it per chunk, since the accumulator is the state.
+- **"Case-insensitive?"** Normalize in the key function (`word.toLowerCase()`), not in the fold.
+- **"What is the complexity?"** `O(n)` for counting (average `Map` operations are constant time), `O(u log u)` to sort `u` unique values.
+
+### References
+
+- [MDN: Array.prototype.reduce()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce)
+- [MDN: Map.groupBy()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map/groupBy)
+
+Reported as part of a frontend phone-screen coding exercise in a candidate's LinkedIn write-up; second-hand and unverified, and the stages are paraphrased.
+
+## Prototypal inheritance in practice: how lookups work and whether to add a method to `Array.prototype`
+<!--
+id: js-extend-builtin-prototypes
+level: senior
+tags: javascript, prototypes, inheritance, polyfills, built-ins, prototype pollution
+minutes: 12
+-->
+
+> [!PROMPT]
+> Explain how property lookup and assignment work on the prototype chain. Then: a teammate adds `Array.prototype.last = function () { return this[this.length - 1]; }` to your codebase. Is that acceptable? What are the safer options, and how would you write a correct polyfill such as `Array.prototype.myMap`?
+>
+> **Cover**
+> - The chain for `[]`, own versus inherited properties, and what assignment does.
+> - Concrete risks of changing a built-in prototype.
+> - A spec-shaped polyfill (holes, `thisArg`, argument checks, non-enumerable).
+> - Alternatives: utility function, subclass, wrapper.
+
+> [!TLDR]
+> Reading a property walks the `[[Prototype]]` chain (`[]` to `Array.prototype` to `Object.prototype` to `null`) until it finds the key. Assigning creates (or overwrites) an **own** property on the object itself, shadowing anything inherited, unless an inherited setter or read-only property intervenes. Because every array in the realm shares `Array.prototype`, adding a method there changes all code: it can collide with a future standard method or another library, shows up in `for...in` loops if it is enumerable, does not exist on arrays from another realm (an iframe), and is the same shape of mutation that prototype-pollution attacks abuse. Prefer a plain function (`last(array)`), a subclass with `Symbol.species`, or a wrapper. If you must polyfill a standardized method, guard it with a feature check, define it with `Object.defineProperty` as non-enumerable, and follow the specified semantics.
+
+### Lookup and assignment
+
+```js
+const animal = { speak() { return `${this.name} makes a sound`; } };
+const dog = Object.create(animal, { name: { value: 'Rex', enumerable: true } });
+
+dog.speak();                      // 'Rex makes a sound', found on animal, `this` is dog
+Object.hasOwn(dog, 'speak');      // false, it is inherited
+dog.speak = () => 'woof';         // creates an own property that shadows animal.speak
+Object.hasOwn(dog, 'speak');      // true, and animal.speak is unchanged
+```
+
+For arrays the chain is `[]`, then `Array.prototype`, then `Object.prototype`, then `null`. `this` inside an inherited method is the object you called it on, not the prototype that owns the function.
+
+### Why not mutate a built-in
+
+- **Collisions with the platform:** the standard library keeps growing. Two renames in the language itself (`contains` became `includes`, and `flatten` became `flat`) happened because code on the web already added methods with the first names and would have broken. Your `last` could collide with a future method that behaves differently.
+- **Collisions between libraries:** two packages defining the same name, and the last one loaded wins silently.
+- **Enumerability:** an assignment creates an enumerable property, so it leaks into `for...in`.
+
+```js
+Array.prototype.last = function () { return this[this.length - 1]; };
+for (const key in [10, 20]) console.log(key); // '0', '1', 'last'
+```
+
+- **Realms:** an array created in an iframe has a different `Array.prototype`, so your method is missing on it.
+- **Global blast radius and security:** a change visible to all code is hard to test and review, and tools that freeze or audit built-ins will reject it.
+
+### A correct polyfill
+
+```js
+if (!Array.prototype.myMap) {
+  Object.defineProperty(Array.prototype, 'myMap', {
+    value: function myMap(callback, thisArg) {
+      if (this == null) throw new TypeError('Array.prototype.myMap called on null or undefined');
+      if (typeof callback !== 'function') throw new TypeError(`${String(callback)} is not a function`);
+      const O = Object(this);
+      const length = O.length >>> 0;
+      const result = new Array(length);
+      for (let i = 0; i < length; i++) {
+        if (i in O) result[i] = callback.call(thisArg, O[i], i, O); // skip holes, like the real map
+      }
+      return result;
+    },
+    writable: true,
+    configurable: true,
+    enumerable: false, // keeps it out of for...in
+  });
+}
+```
+
+Details to mention: the feature check, non-enumerable, skipping holes (`[1, , 3]` stays sparse), passing `(value, index, array)`, honoring `thisArg`, working on array-likes through `Object(this)`, and that the native `map` also uses `Symbol.species` to create the result.
+
+### Safer alternatives
+
+```js
+// 1. A plain function: no shared state, tree-shakeable, easy to test
+const last = (array) => array.at(-1);
+
+// 2. A subclass: methods live on your own prototype
+class Stack extends Array {
+  peek() { return this.at(-1); }
+}
+const stack = Stack.from([1, 2, 3]);
+stack.peek();                        // 3
+stack.map((n) => n * 2) instanceof Stack; // true: map uses Symbol.species to build a Stack
+```
+
+Subclassing built-ins is fine, but remember that methods like `map` and `filter` return the subclass. Override `static get [Symbol.species]() { return Array; }` if you want plain arrays back. A wrapper object (`new List(items)`) avoids the question entirely.
+
+### Follow-ups
+
+- **"Is `class` different from `prototype` here?"** `class` is syntax over the same chain; `extends Array` sets `Stack.prototype`'s `[[Prototype]]` to `Array.prototype`.
+- **"What is prototype pollution?"** An attacker-controlled key such as `__proto__` or `constructor.prototype` in a merge or assignment writes onto `Object.prototype`, and every object then inherits the injected property. Mitigations: `Object.create(null)` or `Map` for dictionaries, key allowlists, and `Object.freeze(Object.prototype)` in hardened environments.
+- **"Can you override a method on one instance?"** Yes, by assigning an own property; that shadows the prototype method for that object only.
+
+### References
+
+- [MDN: Inheritance and the prototype chain](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Inheritance_and_the_prototype_chain)
+- [MDN: Symbol.species](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/species)
+- [MDN: Object.defineProperty()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/defineProperty)
+
+Reported as a prototypal-inheritance prompt in a frontend phone screen in a candidate's LinkedIn write-up; second-hand and unverified, and the details here are my own.
+
+## Closures in real code: `once`, `memoize`, a tiny store and the stale-closure trap (beyond the counter example)
+<!--
+id: js-closures-real-world
+level: junior
+tags: javascript, closures, memoize, once, factory, state, react
+minutes: 12
+-->
+
+> [!PROMPT]
+> Interviewers often say "give me a closure example that is not a counter". Write `once(fn)` and `memoize(fn)`, then a `createStore(initial)` with `get`, `set` and `subscribe` that uses no class and no globals. Name where you have used closures in real code, and one way they cause bugs.
+>
+> **Requirements**
+> - `once` runs `fn` a single time and returns the first result on later calls.
+> - `memoize` caches by arguments and must work when the result is `undefined` or falsy.
+> - `subscribe` returns an unsubscribe function, and state is not reachable from outside.
+
+> [!TLDR]
+> A closure is the mechanism that lets a function keep private state between calls. `once` closes over a `called` flag and the result; `memoize` closes over a `Map` cache (check with `has`, not truthiness, and say that the cache grows without bound); `createStore` closes over `state` and a `Set` of listeners, so nothing outside can touch them, and `subscribe` returns the function that removes the listener. Real uses: event handlers that remember their item, debounce and throttle timers, module-private state, React hooks. The classic bug is a **stale closure**: a callback captured a variable from an earlier render and keeps reading the old value.
+
+### `once`
+
+```js
+const once = (fn) => {
+  let called = false;
+  let result;
+  return function (...args) {
+    if (!called) {
+      called = true;
+      result = fn.apply(this, args);
+    }
+    return result;
+  };
+};
+
+const init = once(() => connectToDatabase());
+init(); init(); // connects one time
+```
+
+Note the `called` flag instead of checking `result`, so a function that returns `undefined` still runs only once.
+
+### `memoize`
+
+```js
+const memoize = (fn, keyOf = (...args) => JSON.stringify(args)) => {
+  const cache = new Map();
+  return (...args) => {
+    const key = keyOf(...args);
+    if (cache.has(key)) return cache.get(key); // has(), because a cached result can be 0, '' or undefined
+    const value = fn(...args);
+    cache.set(key, value);
+    return value;
+  };
+};
+```
+
+Say what is missing in production: the cache never shrinks (add an LRU limit or a `WeakMap` for object keys), `JSON.stringify` cannot key functions or cyclic objects (hence the `keyOf` hook), and impure functions must not be memoized. Promises are cached as promises, so a rejected promise stays cached unless you evict it on failure.
+
+### A tiny store
+
+```js
+const createStore = (initial) => {
+  let state = initial;
+  const listeners = new Set();
+  return {
+    get: () => state,
+    set(next) {
+      state = typeof next === 'function' ? next(state) : next;
+      listeners.forEach((listener) => listener(state));
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+};
+
+const store = createStore({ count: 0 });
+const unsubscribe = store.subscribe((s) => console.log(s.count));
+store.set((s) => ({ count: s.count + 1 })); // logs 1
+```
+
+This is the core of Redux, Zustand and the browser `EventTarget` pattern: private state behind a small public API.
+
+### Where closures show up in everyday code
+
+- Event handlers created in a loop or `map`: each remembers its own item.
+- `debounce` and `throttle`: the timer id is the closed-over variable.
+- Function factories and partial application: `const withTax = (rate) => (price) => price * (1 + rate)`.
+- The module pattern and private state in ES modules (top-level variables that are not exported).
+- React hooks: every render creates new functions that close over that render's props and state.
+
+### The stale-closure trap
+
+```js
+// React: the interval callback captured `count` from the first render and always sees 0
+useEffect(() => {
+  const id = setInterval(() => setCount(count + 1), 1000); // always 0 + 1
+  return () => clearInterval(id);
+}, []);
+
+// Fix: do not read the captured value; let React pass the current one
+useEffect(() => {
+  const id = setInterval(() => setCount((c) => c + 1), 1000);
+  return () => clearInterval(id);
+}, []);
+```
+
+Other fixes: list `count` in the dependency array (and re-create the interval), or keep the latest value in a ref. Related memory risk: a long-lived closure keeps everything it references alive, so unsubscribe listeners and clear timers.
+
+### Follow-ups
+
+- **"Closure versus class for private state?"** Closures give true privacy without `#` syntax and are cheap for one instance; classes share methods on the prototype, so they use less memory across many instances.
+- **"Why does `const fns = [1, 2, 3].map((id) => () => id)` work but `var` in a `for` loop does not?"** Each `map` callback call has its own `id`; a `var` loop shares one binding.
+
+### References
+
+- [MDN: Closures](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Closures)
+- [React docs: Removing Effect dependencies](https://react.dev/learn/removing-effect-dependencies)
+
+Reported as a "closures with a real use case, not the counter example" prompt in a frontend phone screen in a candidate's LinkedIn write-up; second-hand and unverified, and the examples are my own.
