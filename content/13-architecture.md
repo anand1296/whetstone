@@ -762,3 +762,128 @@ Document it in one page and encode it in config.
 ### Pitfalls
 
 Boundaries that exist only in a diagram; rules so strict that teams add exceptions everywhere; moving everything to `shared` to dodge a rule (turning `shared` into a second monolith).
+
+## Design a production-grade frontend architecture for 1M+ users: scalability, performance, routing, state and maintainability
+<!--
+id: arch-frontend-for-million-users
+level: lead
+tags: architecture, scalability, cdn, rendering, routing, state management, resilience, observability, maintainability
+minutes: 25
+-->
+
+> [!PROMPT]
+> Design a production-grade frontend for an application used by more than a million people. Cover how you handle scalability, performance, routing, state management and maintainability. Start by saying what "1M users" means to you.
+>
+> **Cover**
+> - The clarifying questions that change the design.
+> - Delivery and caching, rendering strategy and routing.
+> - State ownership and data fetching.
+> - Resilience during deploys and outages, observability, security.
+> - How the codebase and the team stay maintainable.
+
+> [!TLDR]
+> A million users is mostly a delivery, resilience and team-scale problem, not a browser CPU problem. Clarify what you are scaling (concurrent users, geography, device mix, SEO needs, real-time features, team size) before drawing boxes. Then design in layers: ship static assets from a CDN with immutable fingerprints; pick a rendering mode per route (static or cached for public pages, server rendering or streaming where SEO and first paint matter, client rendering behind a login); split code by route and prefetch on intent; separate server state (a cache library), client UI state (local first) and URL state; and plan for failure with error boundaries, retries with backoff and jitter, feature flags and kill switches, and handling of version skew during deploys. Add observability (real-user monitoring, errors tagged by release) and performance budgets in CI. Keep it maintainable with module boundaries, a design system, strict types, tests and clear ownership, and reach for micro-frontends only when many independent teams make a single deploy the bottleneck.
+
+### 1. Clarify what you are designing for
+
+| Question | Why it changes the design |
+| --- | --- |
+| Registered users or peak concurrent users? | Edge caching and API load depend on concurrency and traffic shape (spikes, launches). |
+| Where are the users? | A multi-region CDN, and latency to the API, matter more than raw server size. |
+| Devices and networks? | Low-end phones push you toward smaller bundles and less client work. |
+| Public pages or logged-in app? | SEO and first paint favor server or static rendering; an authenticated app can render on the client. |
+| Real-time features? | WebSocket or SSE connections add a connection-scaling problem, with reconnection and backpressure. |
+| How many teams, how often do they deploy? | This decides monorepo versus micro-frontends and how strict boundaries must be. |
+
+### 2. Shape of the system
+
+```
+Browser  ->  CDN / edge (static assets, cached HTML, edge rules)
+                |
+                +-> Web server or edge functions (SSR / streaming for chosen routes)
+                |
+                +-> BFF or API gateway (auth, aggregation, rate limits, API caching)
+                                |
+                                +-> Backend services
+Telemetry: RUM, errors (with release id), traces  ->  dashboards and alerts
+```
+
+### 3. Delivery, caching and rendering
+
+- **Assets:** content-hashed filenames with `Cache-Control: public, max-age=31536000, immutable`; HTML with `no-cache`; keep the previous release's assets available for a while so open tabs do not break. See the HTTP caching question.
+- **Rendering per route, not per app:** static or ISR for marketing and catalog pages, server rendering or streaming for personalized pages that need SEO, client rendering for dashboards behind login. See the rendering architecture question.
+- **Protect the backend:** CDN and BFF caching for public reads, request coalescing, and `stale-while-revalidate` so a cache expiry does not send every user to the origin at once (the thundering herd).
+- **Budgets:** a bundle size budget and Core Web Vitals targets enforced in CI and checked against field data.
+
+### 4. Routing and code loading
+
+- Route-level code splitting, with the shell small and shared code in stable vendor chunks.
+- Nested layouts so navigation replaces only what changes.
+- Prefetch the next route on hover, focus or when it enters the viewport; fetch data in parallel with the code, not after it.
+- Deep-linkable URLs that hold shareable state (filters, tabs, pagination).
+
+### 5. State and data
+
+- **Server state** (anything the server owns): a cache library with deduplication, `staleTime`, invalidation on mutation and optimistic updates for common actions.
+- **Client UI state:** local component state first, context for narrow cross-cutting values, a small store for genuinely global client state.
+- **URL state:** filters, sort and selection that should survive a refresh or be shared.
+- **Form state:** a form library, kept local to the form.
+- Avoid one global store holding everything; it recreates the coupling you were trying to avoid. See the state architecture question.
+
+### 6. Resilience
+
+- **Error boundaries** at route and widget level, so one failing panel does not blank the page.
+- **Retries** only for idempotent requests, with exponential backoff and jitter; a retry storm turns an incident into an outage.
+- **Graceful degradation:** cached or partial data, "try again" states, features that can be switched off.
+- **Feature flags and kill switches**, canary releases and fast rollback.
+- **Version skew:** a user with an old tab requests a chunk from a new deploy that no longer exists. Keep old assets, and treat a failed dynamic import as a reload trigger, guarded against loops:
+
+```js
+async function loadRoute(importer) {
+  try {
+    return await importer();
+  } catch (error) {
+    // A chunk from an older release may be gone: reload once to pick up the new build
+    if (!sessionStorage.getItem('reloaded-for-chunk')) {
+      sessionStorage.setItem('reloaded-for-chunk', '1');
+      location.reload();
+    }
+    throw error;
+  }
+}
+```
+
+### 7. Observability and security
+
+- Real-user monitoring for Core Web Vitals by route, device and country; error tracking with source maps and a release id; traces that connect a frontend action to backend calls.
+- Alerts on user-facing symptoms (error rate, failed key journeys), not only server metrics.
+- Security basics at this scale: a strict Content Security Policy, tokens in `HttpOnly` cookies through a BFF, dependency auditing and lockfiles, and no secrets in the bundle.
+- Accessibility and internationalization are requirements at this size, not later polish.
+
+### 8. Maintainability
+
+- A monorepo or clear package boundaries, with import rules enforced by lint (see the boundaries question).
+- A design system owned like a product, strict TypeScript, and a testing pyramid that includes a few end-to-end journeys.
+- CODEOWNERS and a clear contribution path so many engineers do not slow each other down.
+- Micro-frontends only when independent deploys across many teams are the real constraint; otherwise they add runtime cost and coordination (see the micro-frontends question).
+
+### What changes at 10x
+
+Most of the browser-side design holds. What breaks first is usually the origin and the API (cache hit ratios, rate limits, hot keys), deploy coordination across teams, observability volume, and the cost and speed of CI.
+
+### Pitfalls
+
+Designing for traffic you do not have, drawing boxes before asking what scale means, putting everything behind server rendering "for performance", a single global store, retries without backoff, and forgetting that old tabs outlive deploys.
+
+### Follow-ups
+
+- **"A launch will triple traffic in an hour. What do you do?"** Warm and extend CDN caches, check origin capacity and rate limits, load-test key journeys, enable a kill switch for heavy features, and watch dashboards with a rollback ready.
+- **"How do you roll out a risky change?"** Feature flag, canary a small percentage, compare error rate and vitals between cohorts, then ramp.
+- **"Where would you start if the app is slow today?"** Measure field data by route, find the worst journey, and fix the biggest cost first; architecture changes come after the data says so.
+
+### References
+
+- [web.dev: Rendering on the Web](https://web.dev/articles/rendering-on-the-web)
+- [web.dev: Performance budgets](https://web.dev/articles/performance-budgets-101)
+
+Appears in a widely shared list of "24 real-time frontend interview questions" (second-hand; source unverified), as both a short prompt and a longer scenario. The answer is original.
