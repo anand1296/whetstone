@@ -1065,3 +1065,229 @@ minutes: 14
 ### Pitfalls
 
 Gaming the score (hiding content, removing analytics only for the test); optimizing desktop while most users are on mid-range phones; ignoring a CDN or server response time because the front-end bundle looks fine; fixing the lab score and never checking field data afterwards.
+
+## A page slows to a crawl rendering 10,000+ records: how do you find the bottleneck and fix it?
+<!--
+id: perf-large-lists-10k-records
+level: senior
+tags: performance, large lists, virtualization, pagination, rendering, profiling, web workers
+minutes: 20
+-->
+
+> [!PROMPT]
+> A React table renders 10,000+ records. Opening the page takes seconds, scrolling stutters, and typing in the filter box lags. How do you identify the bottleneck and optimize rendering?
+>
+> **Cover**
+> - How you measure first, and what the numbers tell you.
+> - The fixes in order of effort and payoff, including the "do not render them at all" options.
+> - The cost of each fix: accessibility, find-in-page, selection, SEO.
+> - Which work should leave the main thread.
+
+> [!TLDR]
+> Measure before changing anything: record a Performance trace and split the time into scripting (components and data work), style and layout (too many DOM nodes), and paint. Then work from cheapest to most invasive. First, avoid the work: paginate, filter or search on the server, or show a summary with drill-down. Second, shrink the cost per row: memoized row components, stable props, no per-row closures or heavy formatting during render, and `content-visibility: auto` for a few thousand rows. Third, render only what is visible with virtualization (windowing), which brings 10,000 rows down to a few dozen mounted rows but gives up native find-in-page, needs explicit accessibility attributes, and complicates variable heights. Finally, keep sorting, filtering and parsing off the critical path with a Web Worker or the server, and keep typing responsive with a transition or debounce. Re-measure after every change.
+
+### 1. Measure: what is actually slow?
+
+- **Performance panel, 6x CPU throttle:** is the long task `Scripting` (your components), `Rendering` (style and layout) or `Painting`? Scripting dominates when every row re-renders; layout dominates when the DOM is huge.
+- **DOM size:** `document.querySelectorAll('*').length`. Lighthouse starts warning at roughly 800 nodes and flags an excessive size above about 1,400, and a 10,000-row table with 8 cells per row is 80,000 nodes before wrappers.
+- **React Profiler:** which components render, why, and how many times on one keystroke. Ten thousand rows re-rendering on a filter keystroke is the usual culprit.
+- **Network and parsing:** a 5 MB JSON response has its own parse and allocation cost, separate from rendering.
+
+### 2. Fix ladder (cheapest first)
+
+| Fix | When it fits | Cost |
+| --- | --- | --- |
+| Server pagination, server-side filter and sort | Users rarely need all rows at once | Needs API support, and "select all" semantics get harder |
+| Summary plus drill-down, or "load more" | Users scan, they do not read every row | Product change |
+| Memoized rows and stable props | Re-render cost dominates | Needs discipline with referential equality |
+| `content-visibility: auto` | A few thousand rows, simple rows | Needs `contain-intrinsic-size`; scrollbar can jump |
+| Virtualization (windowing) | Tens of thousands of rows, one scroll area | Find-in-page, accessibility, variable heights |
+| Worker or server for data work | Sort, filter or parse blocks input | Serialization cost; async state |
+
+### 3. Cut the cost per row
+
+```tsx
+// One stable handler for every row (receives the id), and a memoized row
+const Row = React.memo(function Row({ record, selected, onSelect }: RowProps) {
+  return (
+    <tr aria-selected={selected} onClick={() => onSelect(record.id)}>
+      <td>{record.name}</td>
+      <td>{record.status}</td>
+    </tr>
+  );
+});
+
+function Table({ records }: { records: AppRecord[] }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const onSelect = useCallback((id: string) => setSelectedId(id), []);
+  return (
+    <tbody>
+      {records.map((r) => (
+        <Row key={r.id} record={r} selected={r.id === selectedId} onSelect={onSelect} />
+      ))}
+    </tbody>
+  );
+}
+```
+
+With this, selecting a row re-renders two rows, not ten thousand. Common ways to break it: passing a new object or arrow function as a prop to every row, using the array index as the key for a list that is sorted or filtered, formatting dates or currency inside every cell on every render (precompute once), and storing the selected set in a structure that changes identity for all rows.
+
+For a long page that is not worth virtualizing, let the browser skip off-screen work:
+
+```css
+.row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 48px; /* a placeholder height so the scrollbar stays stable */
+}
+```
+
+### 4. Virtualize when the DOM itself is the problem
+
+Render only the rows in (and slightly beyond) the viewport inside a container sized to the full height, and position them with `transform`. Use a maintained library (TanStack Virtual, react-window, Angular CDK `cdk-virtual-scroll-viewport`, Vue virtual scroller) before writing your own; the "Build a virtualized list from scratch" question covers the mechanics. What you give up, and how to answer for it:
+
+- **Find-in-page (Ctrl+F):** only mounted rows can be found. Offer an in-app search.
+- **Accessibility:** set `aria-rowcount` and `aria-rowindex` on a grid so assistive technology knows the real size, and keep keyboard focus on a row that stays mounted.
+- **Variable heights:** measure after render and cache the heights; wrong estimates cause scroll jumps.
+- **Printing and SEO:** virtualized content is not in the DOM. Render critical content on the server or provide an export.
+
+### 5. Keep the main thread free
+
+- **Sort, filter and group in a Web Worker** (or on the server) and send back only the visible window or the ids, so typing never waits on a 10,000-item sort.
+- **Keep input responsive:** debounce the filter, or wrap the filtered list in `useDeferredValue` / `startTransition` so React can interrupt the heavy render for the next keystroke.
+- **Chunk work you cannot avoid** and yield between chunks:
+
+```js
+async function renderInChunks(rows, renderChunk, size = 200) {
+  for (let i = 0; i < rows.length; i += size) {
+    renderChunk(rows.slice(i, i + size));
+    await (globalThis.scheduler?.yield?.() ?? new Promise((resolve) => setTimeout(resolve)));
+  }
+}
+```
+
+### Angular and Vue notes
+
+Angular: use `trackBy` (or `@for` with `track`), `OnPush` change detection and signals so a row change does not check every row. Vue: `v-memo` for rows, `shallowRef` for large arrays so the list is not deeply proxied, and a stable `:key`.
+
+### Pitfalls
+
+Adding `React.memo` without fixing unstable props (it re-renders anyway), virtualizing a list that is only 300 rows (all cost, no gain), a progress spinner that hides a frozen main thread, and shipping the whole dataset to the client because the API had no pagination.
+
+### Follow-ups
+
+- **"How do you prove the fix worked?"** Compare the same trace before and after: long-task duration, INP on filter typing, and DOM node count. Check field data later.
+- **"The designer insists on seeing all rows at once."** Ask why, then offer a summary row, grouping or sticky headers, with virtualization as the engineering answer.
+- **"What about infinite scroll?"** Same problem over time: bound the DOM (windowing in both directions) or the list keeps growing.
+
+### References
+
+- [web.dev: Virtualize large lists with react-window](https://web.dev/articles/virtualize-long-lists-react-window)
+- [web.dev: content-visibility](https://web.dev/articles/content-visibility)
+- [web.dev: Avoid an excessive DOM size](https://developer.chrome.com/docs/lighthouse/performance/dom-size)
+
+Appears in a widely shared list of "24 real-time frontend interview questions" (second-hand; source unverified), in two forms: a short question and a longer scenario. The answer above is original.
+
+## How would you optimize frontend caching across the browser, the CDN, a service worker and the app's data layer?
+<!--
+id: perf-caching-layers
+level: senior
+tags: caching, http cache, cdn, service worker, stale-while-revalidate, react query, invalidation, performance
+minutes: 15
+-->
+
+> [!PROMPT]
+> "How would you optimize frontend caching?" is usually a prompt to map the layers and talk about invalidation. Describe each layer a request can be served from, what you would cache at each, how you keep it fresh, and what breaks when you get it wrong.
+>
+> **Cover**
+> - Browser HTTP cache, CDN or edge, service worker, in-app data cache, and persistent storage.
+> - How you decide a freshness rule for a given resource.
+> - Invalidation after a deploy and after a mutation.
+> - Personal data, errors and failure modes.
+
+> [!TLDR]
+> A response can be served from several layers, and each has its own freshness rule and its own way to go stale. Fingerprint static assets and cache them for a year as `immutable`; serve HTML with `no-cache` plus validators so it revalidates; give shared API data a short `s-maxage` with `stale-while-revalidate` at the CDN; use a service worker only when you need offline or custom strategies; and use a data library (TanStack Query, SWR, Apollo, RTK Query) for in-app caching with a `staleTime`, deduplication and invalidation after mutations. Choose per resource by asking how often it changes, how bad stale data is, and whether it is personal (personal responses must be `private` or `no-store`, never in a shared cache). Prefer changing the URL (versioning) over purging, and measure hit ratio instead of assuming.
+
+### The layers
+
+| Layer | Typical use | Control | Invalidation |
+| --- | --- | --- | --- |
+| Browser HTTP cache | Fingerprinted JS, CSS, images, fonts | `Cache-Control`, `ETag` | New URL per build |
+| CDN or edge | Shared HTML and public API responses | `s-maxage`, `Vary`, cache tags | Purge by tag or URL, or let the TTL lapse |
+| Service worker (Cache API) | Offline shell, custom strategies | Fetch handler code | A new worker version deletes old caches |
+| In-app data cache | Server state shown in the UI | `staleTime`, `gcTime`, query keys | Invalidate on mutation, refetch on focus |
+| Memoization | Expensive derived values | `useMemo`, selectors | Dependencies change |
+| Persistent storage | Offline data, drafts | IndexedDB, schema version | Migrations and eviction rules |
+
+### Choosing a rule: four questions
+
+1. **How often does it change?** Static for a year, changes per deploy, changes per minute, or per user action.
+2. **What does staleness cost?** A stale avatar is harmless; a stale price, balance or permission is a bug.
+3. **Is it personal?** Personal data must carry `Cache-Control: private` (or `no-store`) so a CDN never serves one user's response to another.
+4. **Who can change it?** If your own mutation changes it, you can invalidate precisely; if someone else's does, use a TTL plus background refresh.
+
+### Headers by resource
+
+```http
+# Fingerprinted asset: app.3f9a1c.js
+Cache-Control: public, max-age=31536000, immutable
+
+# index.html: always revalidate (cheap 304 with an ETag)
+Cache-Control: no-cache
+
+# Public API read at the edge: fresh 60 s, serve stale for 5 minutes while refreshing
+Cache-Control: public, s-maxage=60, stale-while-revalidate=300
+
+# Personal data
+Cache-Control: private, no-store
+```
+
+### In-app data cache
+
+```ts
+const user = useQuery({
+  queryKey: ['user', userId],           // the key is the cache identity: include every input
+  queryFn: () => api.getUser(userId),
+  staleTime: 60_000,                    // treat as fresh for a minute: no refetch on remount
+});
+
+const save = useMutation({
+  mutationFn: api.updateUser,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user', userId] }),
+});
+```
+
+The same idea in SWR (`mutate`), Apollo (cache policies, `refetchQueries`) or RTK Query (tags). Deduplication means ten components asking for the same key send one request.
+
+### Invalidation, the hard part
+
+- **After a deploy:** new filenames for assets, `no-cache` on HTML. A service worker needs an update flow, or users keep an old shell.
+- **After a mutation:** invalidate the affected keys, or update the cache optimistically and roll back on failure.
+- **Across layers:** purging the CDN does not clear browsers. That is why short TTLs plus versioned URLs beat long TTLs plus purges for anything that changes.
+- **Version skew:** an old tab can request a chunk that no longer exists. Keep previous assets for a while or handle the load failure with one reload.
+
+### Failure modes to name
+
+- Caching an error response (a 500 or 401 served from the CDN for minutes).
+- A missing `Vary` header, so a CDN serves the wrong language or encoding.
+- Personal data in a shared cache after someone sets `public` for convenience.
+- A service worker serving a stale app shell forever.
+- Query keys that omit an input, so two different screens share one cache entry.
+- Unbounded in-memory or persisted caches.
+
+### How to measure
+
+Track CDN hit ratio, the `Age` header on responses, repeat-visit load time (from the browser cache), and the share of requests served from the data cache. Use `Server-Timing` or a custom header to expose which layer answered during debugging.
+
+### Follow-ups
+
+- **"What would you cache offline?"** The shell and read-only data first; queue writes and sync later (see the offline-first design question).
+- **"Is `stale-while-revalidate` safe for everything?"** No. Use it where slightly old data is acceptable; prices, permissions and balances need strong freshness or an explicit refresh.
+- **"Why not just cache everything for a long time?"** Because invalidation, privacy and error caching become your problem; a long TTL is only safe when the URL changes with the content.
+
+### References
+
+- [web.dev: HTTP caching](https://web.dev/articles/http-cache)
+- [MDN: Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control)
+- [TanStack Query: Caching examples](https://tanstack.com/query/latest/docs/framework/react/guides/caching)
+
+Appears in a widely shared list of "24 real-time frontend interview questions" (second-hand; source unverified). The layered answer is original.

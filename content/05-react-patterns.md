@@ -2130,3 +2130,119 @@ const count = useStore((s) => s.cart.items.length);
 ### Pitfalls
 
 One giant context holding everything; mirroring server responses into client state; storing derived data; reaching for Redux because "that's what large apps use" without naming the problem it solves.
+
+## A 100-field form lags on every keystroke: how do you find the cause and make it fast?
+<!--
+id: forms-performance-large-forms
+level: senior
+tags: forms, performance, re-renders, react-hook-form, validation, field arrays, useDeferredValue
+minutes: 15
+-->
+
+> [!PROMPT]
+> A long onboarding form (about 100 fields, several repeatable sections, live validation and a running summary) lags on every keystroke, and the lag gets worse as users fill it in. How do you find the cause and optimize it?
+>
+> **Cover**
+> - How you confirm what is re-rendering and what is expensive.
+> - Where form state should live, and what "uncontrolled" buys you.
+> - Validation cost and timing.
+> - Long lists of fields, derived values and autosave.
+
+> [!TLDR]
+> Profile first, then fix the usual three causes. One: all values live in a single state object at the top of a controlled form, so every keystroke re-renders every field; move to uncontrolled inputs (react-hook-form `register`, or plain inputs read through `FormData` on submit) or keep state local to each field. Two: whole-form subscriptions such as `watch()` or reading all of `formState` re-render the form on every change; subscribe narrowly with `useWatch` in the one component that needs a value. Three: validation that runs the full schema on every keystroke; validate on blur or on a debounce, define the schema once outside the component, and keep expensive async checks on a delay. For long repeating sections, split the form into sections or steps and mount only what is visible, and debounce autosave. Re-measure with the profiler after each change.
+
+### 1. Find the cause before changing anything
+
+- **React Profiler with "Record why each component rendered":** type one character and count renders. A hundred field components rendering for one keystroke confirms a state-placement problem.
+- **Performance panel:** is the long task your render, your validation function, or something on `input` events (analytics, a debounced watcher that is not debounced)?
+- **Quick checks:** are there inline `onChange={(e) => setValues({...values, ...})}` handlers that depend on the entire object? Does something call `JSON.stringify(values)` for a preview or autosave on each change?
+
+### 2. State placement: the main fix
+
+```tsx
+// Slow: one state object, one render of the whole form per keystroke
+function SlowForm() {
+  const [values, setValues] = useState(initialValues);
+  return (
+    <form>
+      {fieldNames.map((name) => (
+        <Field
+          key={name}
+          label={name}
+          value={values[name]}
+          onChange={(e) => setValues({ ...values, [name]: e.target.value })}
+        />
+      ))}
+      <Summary values={values} />
+    </form>
+  );
+}
+```
+
+```tsx
+// Fast: inputs are uncontrolled, and only the summary subscribes to the two values it shows
+function FastForm() {
+  const { register, control, handleSubmit } = useForm<Values>({
+    defaultValues: initialValues,
+    mode: 'onTouched', // validate after the first blur, then as the user edits
+  });
+  return (
+    <form onSubmit={handleSubmit(save)}>
+      {fieldNames.map((name) => (
+        <Field key={name} label={name} {...register(name)} />
+      ))}
+      <TotalPreview control={control} />
+    </form>
+  );
+}
+
+function TotalPreview({ control }: { control: Control<Values> }) {
+  const [price, qty] = useWatch({ control, name: ['price', 'qty'] }); // re-renders only this component
+  return <output>{Number(price) * Number(qty)}</output>;
+}
+```
+
+The library keeps the values in refs and the DOM instead of React state, so typing does not render the form. Alternatives that give the same effect: a plain uncontrolled `<form>` read with `new FormData(form)` on submit, or small per-field components that own their own state and report up on blur.
+
+### 3. What re-renders the form even with a good library
+
+- `watch()` with no argument, or `watch('field')` in the form root, which re-renders the root on every change. Use `useWatch` in a leaf component.
+- Reading `formState.isValid`, `isDirty` or `errors` in the root when only one child needs them (the library only tracks what you read).
+- A `Controller` or controlled UI component for every field. Use it only for components that cannot take a ref (some UI kits) and keep each one small and memoized.
+- Passing a context value that changes on every update to all fields.
+
+### 4. Validation cost and timing
+
+- **Timing:** `onChange` validation for 100 fields is rarely worth it. Prefer `onTouched` or `onBlur`, then re-validate as the user fixes an error.
+- **Whole-schema validation:** with a schema resolver (zod, yup) the resolver typically runs the whole schema each time and the library picks out the field's errors, so cost grows with schema size. Build the schema once at module level, not inside the component, and consider splitting it per section or step.
+- **Async checks** (username taken): debounce, cancel in-flight requests, and ignore stale responses.
+- **Cross-field rules** belong in the section that owns the fields, so one edit does not re-check everything.
+
+### 5. Long forms and repeating sections
+
+- **Multi-step or accordion sections:** mount a section when it is visible. With react-hook-form, keep values when fields unmount (the library's default keeps them unless you opt into `shouldUnregister`).
+- **Field arrays:** use the stable `id` the library provides as the key, not the index, and memoize the row component. Very long arrays can be virtualized, but test focus and validation of rows that are not mounted.
+- **Derived values** (totals, previews): compute from a narrow subscription, or wrap an expensive preview in `useDeferredValue` so typing stays responsive while the preview catches up.
+- **Autosave:** debounce it (for example, 1 to 2 seconds after the last change) and send only changed fields, not the whole serialized form on each keystroke.
+
+### Angular and Vue notes
+
+Angular: reactive forms with `OnPush` components, `updateOn: 'blur'` for controls, and `trackBy` for `FormArray` rows. Vue: avoid one deep `reactive` object feeding every field; use per-field refs or a form library that tracks fields independently, and `v-memo` for expensive rows.
+
+### Pitfalls
+
+Memoizing every field without fixing the state structure, validating on `onChange` for the whole form "for better UX", storing the form in global state (Redux) and updating it per keystroke, and optimizing the render while a `JSON.stringify` in an effect does the real damage.
+
+### Follow-ups
+
+- **"Controlled or uncontrolled?"** Use uncontrolled by default for large forms; use controlled where the UI needs the value on every keystroke (a live preview, input masking), and isolate that field.
+- **"How do you test the improvement?"** Compare Profiler render counts and the long-task duration for one keystroke before and after, with the same CPU throttle.
+- **"What about accessibility while validating less often?"** Delay is fine if errors are announced and tied to fields (see the accessible forms question); do not remove validation, only change when it speaks.
+
+### References
+
+- [react-hook-form: useWatch](https://react-hook-form.com/docs/usewatch)
+- [React docs: useDeferredValue](https://react.dev/reference/react/useDeferredValue)
+- [React docs: Profiler](https://react.dev/reference/react/Profiler)
+
+Appears in a widely shared list of "24 real-time frontend interview questions" (second-hand; source unverified). The answer is original.
