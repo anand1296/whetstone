@@ -1468,3 +1468,141 @@ const timer = useRef<number | null>(null);
 ### Pitfalls
 
 Writing `ref.current` during render (breaks concurrent rendering assumptions); storing derived values in state so they go stale; using a ref when the UI should update; resetting state by key (`<Form key={id}/>`) is often cleaner than an effect that copies props into state.
+
+## Toggling dark mode re-renders and recalculates an expensive chart: how do you fix it with `React.memo` and `useMemo`?
+<!--
+id: memo-usememo-expensive-chart
+level: senior
+tags: react, memo, usememo, performance, re-renders, profiler, dashboards
+minutes: 12
+-->
+
+> [!PROMPT]
+> In the component below, toggling the theme state (`isDarkMode`) makes `HeavyAnalyticsChart` re-render and re-run an expensive data calculation, even though `rawMetrics` did not change. Fix the performance problem and explain which tool fixes which part.
+>
+> ```jsx
+> function Dashboard({ rawMetrics }) {
+>   const [isDarkMode, setIsDarkMode] = useState(false);
+>   return (
+>     <div className={isDarkMode ? 'dark' : 'light'}>
+>       <button onClick={() => setIsDarkMode((d) => !d)}>Toggle theme</button>
+>       <HeavyAnalyticsChart rawMetrics={rawMetrics} />
+>     </div>
+>   );
+> }
+>
+> function HeavyAnalyticsChart({ rawMetrics }) {
+>   const series = expensiveTransform(rawMetrics); // runs on every render
+>   return <Chart series={series} />;
+> }
+> ```
+>
+> **Cover**
+> - Why the chart re-renders (parent state change) and why the calculation re-runs.
+> - What `React.memo` fixes, what `useMemo` fixes, and when you need both.
+> - What silently breaks them, and a fix that needs neither.
+> - How you prove the improvement.
+
+> [!TLDR]
+> The chart re-renders because its parent's state changed: a component re-renders whenever its parent does, props are not compared unless it is wrapped in `React.memo`. The calculation re-runs because it sits in the render body. `useMemo(() => expensiveTransform(rawMetrics), [rawMetrics])` skips the calculation when `rawMetrics` is the same reference, but the component still renders. `React.memo(HeavyAnalyticsChart)` skips the whole render, calculation included, when its props are shallowly equal. Use `memo` to stop the render and `useMemo` to protect the calculation when the component renders for other reasons (its own state, context). Both depend on stable references: if the parent builds `rawMetrics` inline on every render, they never hit. A third option avoids both: keep the theme state in a small wrapper that takes `children`, so the chart element is created outside the state that changes. Confirm with the Profiler or a counter, and remember these are performance hints, not guarantees.
+
+### Why it happens
+
+Calling `setIsDarkMode` re-renders `Dashboard`. React then re-renders every child element that `Dashboard` returns, whether its props changed or not, so `HeavyAnalyticsChart` runs again, and `expensiveTransform` runs again because nothing remembers its last result.
+
+### Fix 1: `useMemo` for the calculation
+
+```jsx
+function HeavyAnalyticsChart({ rawMetrics }) {
+  const series = useMemo(() => expensiveTransform(rawMetrics), [rawMetrics]);
+  return <Chart series={series} />;
+}
+```
+
+The component function still runs, but the calculation does not, as long as `rawMetrics` has the same identity. This is the right tool when the component re-renders for reasons that are not related to the data (its own state, a context it reads).
+
+### Fix 2: `React.memo` for the render
+
+```jsx
+const HeavyAnalyticsChart = React.memo(function HeavyAnalyticsChart({ rawMetrics }) {
+  const series = useMemo(() => expensiveTransform(rawMetrics), [rawMetrics]);
+  return <Chart series={series} />;
+});
+```
+
+When `Dashboard` re-renders, React compares the new props with the old ones using `Object.is` for each prop. `rawMetrics` is unchanged, so the chart is skipped entirely, including its subtree and its calculation. Keep `useMemo` inside for the case where the chart renders because of its own state.
+
+### Which one fixes what
+
+| Tool | What it skips | Trigger it protects against | Needs |
+| --- | --- | --- | --- |
+| `React.memo` | The component's whole render and subtree | Parent re-rendering with equal props | Stable prop references |
+| `useMemo` | One calculation | Any re-render of this component | Stable dependency references |
+| State moved down or `children` | The render, with no comparison | State changing in an ancestor | A small structural change |
+
+### What silently breaks them
+
+```jsx
+// New array every render: memo and useMemo never hit
+<HeavyAnalyticsChart rawMetrics={data.map(normalize)} />
+
+// New function every render: a memoized child re-renders
+<HeavyAnalyticsChart rawMetrics={rawMetrics} onSelect={(id) => select(id)} />
+```
+
+- Build derived props once (`useMemo` in the parent, or compute at the data source) and pass handlers wrapped in `useCallback`.
+- Do not pass the theme as a prop if the chart does not need it. If the chart needs colors, either pass a primitive (`theme="dark"`, which changes only when the theme changes and then legitimately re-renders) while keeping the **data** calculation memoized on `rawMetrics` alone, or theme with CSS variables so toggling the theme does not re-render the chart at all.
+- A custom `areEqual` for `memo` that deep-compares large data costs more than it saves; fix the references instead.
+
+### Fix 3: move the state so nothing needs memoizing
+
+```jsx
+function ThemeScope({ children }) {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  return (
+    <div className={isDarkMode ? 'dark' : 'light'}>
+      <button onClick={() => setIsDarkMode((d) => !d)}>Toggle theme</button>
+      {children}
+    </div>
+  );
+}
+
+function Dashboard({ rawMetrics }) {
+  return (
+    <ThemeScope>
+      <HeavyAnalyticsChart rawMetrics={rawMetrics} />
+    </ThemeScope>
+  );
+}
+```
+
+`ThemeScope` re-renders when the theme changes, but the `children` element was created by `Dashboard`, which did not re-render, so React reuses it. This costs no comparison and no stale-closure risk, and it is the fix to reach for first when state only affects a small part of the tree.
+
+### What happens in practice
+
+In a test with React 19 (toggling the theme twice), the original component rendered 3 times and ran the calculation 3 times; with `useMemo` only it rendered 3 times and calculated once; with `memo` only it rendered once and calculated once; with the inline-built prop, `memo` still rendered 3 times and calculated 3 times; with the `children` wrapper it rendered once and calculated once.
+
+### Prove it
+
+- **React DevTools Profiler:** record a theme toggle and check whether the chart is highlighted. "Highlight updates when components render" and "Why did this render?" show the cause.
+- **A temporary counter:** log inside the `useMemo` factory or increment a ref in the component, then toggle. Remove it afterwards.
+- **Performance panel:** compare the long task duration of the toggle before and after.
+- **Do not guess:** memoizing a cheap component only adds comparison cost.
+
+### Pitfalls
+
+Wrapping everything in `memo` without fixing unstable props, memoizing a calculation that takes microseconds, depending on a memo for correctness (React may discard memoized values), and putting an object literal in a dependency array so the memo never hits.
+
+### Follow-ups
+
+- **"Does the React Compiler change this?"** It memoizes components and values automatically when your code follows the rules of React, so this hand-written memoization often becomes unnecessary (see the compiler question). You still need stable data sources and the knowledge to read a profile.
+- **"The calculation is genuinely huge."** Move it off the main thread (a Web Worker), to the server, or reduce the data first; memoization only avoids repeating it.
+- **"Angular and Vue?"** Angular: `OnPush` change detection with a pure pipe or a `computed` signal. Vue: a `computed` property caches until its dependencies change, `shallowRef` avoids deep reactivity on big arrays, and `v-memo` can skip a subtree.
+
+### References
+
+- [React docs: memo](https://react.dev/reference/react/memo)
+- [React docs: useMemo](https://react.dev/reference/react/useMemo)
+- [React docs: Profiler and React DevTools](https://react.dev/learn/react-developer-tools)
+
+Reported as a practical React coding question (preventing expensive chart re-renders with `React.memo` and `useMemo`) in a shared dashboard-developer interview paper (second-hand; source unverified). The code was tested with React 19 as described above.

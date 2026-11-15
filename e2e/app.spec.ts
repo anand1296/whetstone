@@ -28,7 +28,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   await items.nth(0).getByRole('button', { name: 'Reveal answer' }).click();
   await expect(items.nth(0).locator('.callout-tldr')).toBeVisible();
   await items.nth(0).getByRole('checkbox').check();
-  await expect(page.locator('.section-progress')).toContainText('1 of 14 done');
+  await expect(page.locator('.section-progress')).toContainText('1 of 15 done');
 
   await items.nth(1).locator('.q-trigger').click();
   await items.nth(1).getByRole('button', { name: 'Mark done & next' }).click();
@@ -45,7 +45,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
   await expect(resume.locator('.action-title')).toContainText('When does a component re-render');
-  await expect(page.locator('.loop-ring')).toContainText('2/248');
+  await expect(page.locator('.loop-ring')).toContainText('2/252');
 
   await resume.click();
   const third = page.locator('.q').nth(2);
@@ -175,7 +175,7 @@ test('import, spaced review and reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Yes, clear it' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.goto('/');
-  await expect(page.locator('.loop-ring')).toContainText('0/248');
+  await expect(page.locator('.loop-ring')).toContainText('0/252');
 });
 
 test('filters, theme and keyboard basics', async ({ page }) => {
