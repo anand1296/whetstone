@@ -1656,3 +1656,203 @@ export class TaskQueue {
 - [Wikipedia: Binary heap](https://en.wikipedia.org/wiki/Binary_heap)
 
 Reported as a one-hour onsite coding round ("a task queue with follow-ups") in a candidate's LinkedIn write-up of a Netflix frontend loop; second-hand and unverified. The stages are paraphrased and extended here, and the code was tested against the cases above.
+
+## Reshape flat API records into grouped totals and chart-ready series (and why the money math needs care)
+<!--
+id: async-flat-data-to-chart-series
+level: junior
+tags: reduce, group by, data transformation, charts, dashboards, floating point, maps, coding
+minutes: 15
+-->
+
+> [!PROMPT]
+> An analytics REST API returns a flat array of daily sales records, one row per region per day:
+> `{ date: '2026-01-02', region: 'EMEA', revenue: 1200.5 }`.
+> Write a function that transforms it into an object keyed by region, with the **total revenue** and the **list of dates** for each region, so a charting library can consume it. Then extend it to produce multi-series chart data.
+>
+> **Stages**
+> 1. Group by region: `{ EMEA: { totalRevenue, dates }, APAC: { ... } }`.
+> 2. Handle bad rows, duplicate days for the same region, and unsorted input.
+> 3. Produce chart data: one shared, sorted x-axis (`labels`) and one `data` array per region, aligned to it, with gaps for missing days.
+>
+> **Also be ready for**
+> - "Why is the total `5.300000000000001` instead of `5.3`?"
+> - "What if a region is called `__proto__`?"
+> - "What is the complexity?"
+
+> [!TLDR]
+> Make one pass over the array and accumulate into a `Map` per region, then convert it to the shape the chart needs. Add money as whole cents (`Math.round(revenue * 100)`) and divide once at the end, because binary floating point cannot represent values such as `0.1` exactly. Keep dates as ISO strings (they sort correctly as text and avoid time-zone bugs), de-duplicate them with a `Set`, and sort once. For multi-series charts, build one shared sorted `labels` axis and give every series a `data` array aligned to it, using `null` (not `0`) for a day with no data so the chart shows a gap. Skip or report malformed rows instead of letting `NaN` poison a total. The work is `O(n)` for the pass plus `O(d log d)` to sort `d` distinct dates.
+
+### Stage 1 and 2: group, total and list dates
+
+```js
+function groupSalesByRegion(records) {
+  const groups = new Map(); // a Map keeps keys such as "__proto__" safe while we build
+  for (const { region, date, revenue } of records) {
+    if (typeof region !== 'string' || typeof date !== 'string' || !Number.isFinite(revenue)) continue;
+    const group = groups.get(region) ?? { totalCents: 0, dates: new Set() };
+    group.totalCents += Math.round(revenue * 100); // add whole cents so 0.1 + 0.2 is exactly 0.30
+    group.dates.add(date);
+    groups.set(region, group);
+  }
+  return Object.fromEntries(
+    [...groups].map(([region, { totalCents, dates }]) => [
+      region,
+      { totalRevenue: totalCents / 100, dates: [...dates].sort() }, // ISO dates sort correctly as strings
+    ]),
+  );
+}
+
+groupSalesByRegion([
+  { date: '2026-01-02', region: 'EMEA', revenue: 0.2 },
+  { date: '2026-01-01', region: 'EMEA', revenue: 0.1 },
+  { date: '2026-01-01', region: 'APAC', revenue: 1200.5 },
+]);
+// { EMEA: { totalRevenue: 0.3, dates: ['2026-01-01', '2026-01-02'] },
+//   APAC: { totalRevenue: 1200.5, dates: ['2026-01-01'] } }
+```
+
+You can write the loop as `reduce` if the interviewer asks; the structure is the same (see the `reduce` histogram question). A loop with an early `continue` for bad rows reads more clearly here.
+
+### Why cents
+
+`0.1 + 0.2` is `0.30000000000000004` in JavaScript, and totals over thousands of rows drift in the same way. Adding whole cents keeps the arithmetic in exact integers. State your assumption: revenue arrives in major units with at most two decimals. If the API can return minor units (integers), use them directly and skip the rounding. For other currencies the number of decimals differs, and for money that really matters, use integers or a decimal library on the server.
+
+### Why `Map` and `Object.fromEntries`
+
+Accumulating into a plain object with `groups[region] ??= ...` fails for a region named `constructor` (inherited) and misbehaves for `__proto__`. A `Map` has none of those problems. `Object.fromEntries` then creates ordinary own properties, including one named `__proto__`, so the result is safe to hand to the chart library.
+
+### Stage 3: chart-ready series
+
+Charting libraries want one shared x-axis and aligned data arrays:
+
+```js
+function toChartSeries(records) {
+  const byRegion = new Map(); // region -> Map(date -> cents)
+  const allDates = new Set();
+  for (const { region, date, revenue } of records) {
+    if (typeof region !== 'string' || typeof date !== 'string' || !Number.isFinite(revenue)) continue;
+    const byDate = byRegion.get(region) ?? new Map();
+    byDate.set(date, (byDate.get(date) ?? 0) + Math.round(revenue * 100));
+    byRegion.set(region, byDate);
+    allDates.add(date);
+  }
+  const labels = [...allDates].sort(); // one shared x-axis for every series
+  const series = [...byRegion].map(([name, byDate]) => ({
+    name,
+    data: labels.map((day) => (byDate.has(day) ? byDate.get(day) / 100 : null)), // null = no data, not zero
+  }));
+  return { labels, series };
+}
+
+// { labels: ['2026-01-01', '2026-01-02', '2026-01-03'],
+//   series: [{ name: 'EMEA', data: [5.1, 0.2, null] }, { name: 'APAC', data: [1200.5, null, 99.99] }] }
+```
+
+Two details worth saying out loud: a missing day is `null` (a gap), not `0` (a real zero sale), and several records for the same region and day are summed into one point.
+
+### Dates
+
+Keep the API's `YYYY-MM-DD` strings as keys. Parsing them with `new Date('2026-01-01')` treats them as UTC midnight, and formatting in a local time zone can then show the previous day. If you must fill every calendar day between the first and last label, generate the days with UTC date arithmetic and format them back to ISO strings.
+
+### Edge cases and follow-ups
+
+- **Bad rows:** missing region, a non-numeric revenue, a negative value (refunds?). Skip silently, count and report them, or throw. Say which and why.
+- **Empty input:** returns `{}` for grouping and `{ labels: [], series: [] }` for the chart.
+- **Large input:** still `O(n)`. Stream or aggregate on the server if the response is huge.
+- **"Show only the top 5 regions."** Sort the series by total and slice; group the rest as "Other".
+- **"Add a second metric (units sold)."** Accumulate an object per cell instead of a number.
+- **"Where should this run?"** Server-side aggregation is better for big data; keep the client transform for shaping and small sets.
+
+### References
+
+- [MDN: Map](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map)
+- [MDN: Object.fromEntries()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/fromEntries)
+- [MDN: Number.EPSILON and floating-point precision](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/EPSILON)
+
+Reported as a practical JavaScript coding question in a shared dashboard-developer interview paper (second-hand; source unverified). The solution and tests are my own.
+
+## Write an immutable `deepMerge` for default and user config: arrays, `null`, `undefined` and `__proto__`
+<!--
+id: deep-merge-config
+level: senior
+tags: deep merge, immutability, recursion, config, prototype pollution, structural sharing, coding
+minutes: 15
+-->
+
+> [!PROMPT]
+> Dashboard widgets have a nested default configuration object, and users save partial overrides. Write a recursive `deepMerge(defaults, overrides)` that returns the merged configuration **without mutating** either input.
+>
+> **Decide and state**
+> - What happens to arrays: replace, concatenate, or merge by index?
+> - What do `null` and `undefined` in the override mean?
+> - What counts as an object that should be merged (plain objects only)?
+> - What if the overrides come from untrusted JSON containing `__proto__`?
+>
+> **Check cases**
+> - `deepMerge({ legend: { show: true, position: 'bottom' } }, { legend: { position: 'top' } })` keeps `show: true`.
+> - After merging, `defaults` is unchanged.
+
+> [!TLDR]
+> Recurse only when both sides are plain objects; everything else (arrays, `Date`, `Map`, class instances, primitives, `null`) is a value, so the override simply replaces the default. Build a new object at every level you merge (`{ ...base }`) and never assign into the inputs. Treat `undefined` as "not provided" so the default survives, and `null` as an explicit choice that overrides. Replacing arrays is the least surprising default for settings; say that concatenation or merge-by-index are options you would add behind a flag. Untouched branches can be shared with the defaults (structural sharing), which is cheap but means a consumer must not mutate the result, so freeze defaults or clone if they might. For untrusted JSON, skip the special prototype key so a crafted override cannot change an object's prototype.
+
+### A solution
+
+```js
+const isPlainObject = (value) => {
+  if (value === null || typeof value !== 'object') return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+};
+
+function deepMerge(base, override) {
+  if (override === undefined) return base; // "not provided" keeps the default
+  if (!isPlainObject(base) || !isPlainObject(override)) return override; // arrays, Dates, null and primitives replace
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    if (key === '__proto__') continue; // an own "__proto__" from JSON.parse would swap the prototype if assigned
+    result[key] = deepMerge(base[key], override[key]);
+  }
+  return result;
+}
+
+const defaults = { title: 'Sales', legend: { show: true, position: 'bottom' }, colors: ['a', 'b'], cache: null };
+deepMerge(defaults, { legend: { position: 'top' }, colors: ['z'], cache: { ttl: 60 } });
+// { title: 'Sales', legend: { show: true, position: 'top' }, colors: ['z'], cache: { ttl: 60 } }
+```
+
+### Why each decision
+
+- **New object per merged level:** `{ ...base }` copies the first level, and the recursive call replaces only the keys that were overridden. Inputs are never written to, which you can prove with a test that deep-freezes both arguments.
+- **Plain objects only:** merging a `Date`, `Map`, `Set` or class instance key by key would produce a broken half-object. Replacing them keeps them whole.
+- **Arrays replace:** `colors: ['z']` means "use these colors", not "append to the default palette". Merge by index is almost never what a user expects, because removing an item shifts everything.
+- **`undefined` versus `null`:** `JSON.stringify` drops `undefined` values, and UI forms often leave fields `undefined` when untouched, so it must not wipe a default. `null` is a deliberate value ("no cache"), so it overrides.
+- **Base is not an object:** if the default is a primitive or `null` and the override is an object, the override wins, which is how `cache: null` becomes `{ ttl: 60 }`.
+
+### Structural sharing
+
+Branches that the override does not touch are the same objects in the result as in the defaults (`merged.b === defaults.b`). That is fast and fine for read-only configuration. If a consumer might mutate the result, freeze the defaults in development or clone the result (`structuredClone`). State that trade-off instead of silently promising isolation.
+
+### The `__proto__` question
+
+`JSON.parse('{"__proto__": {"polluted": true}}')` creates an own property literally named `__proto__`. A naive merge that does `result[key] = ...` for that key invokes the prototype setter on `result`, changing its prototype; a naive merge that recurses into the shared prototype can reach `Object.prototype` and pollute every object in the process. Skipping `__proto__` avoids the first problem, and recursing only into own properties of plain objects avoids the second. A stricter implementation also skips `constructor` and `prototype`, or builds results with `Object.create(null)`, or validates overrides against a schema before merging.
+
+### Pitfalls
+
+Merging with `Object.assign` or the spread operator (shallow, so nested defaults vanish), recursing into arrays and mangling them, mutating the defaults (`defaults.legend.position = 'top'`) so the next widget sees the change, treating `null` like `undefined`, and recursing on a `Date` and producing `{}`.
+
+### Follow-ups
+
+- **"Handle cycles?"** Track visited pairs in a `WeakMap`, or reject cyclic input; configuration data from JSON cannot contain cycles.
+- **"Make it variadic?"** `deepMerge(a, b, c)` as a left fold: `[b, c].reduce(deepMerge, a)`.
+- **"TypeScript signature?"** A `DeepPartial<T>` override type: `type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T`, and return `T`.
+- **"Use a library?"** Lodash `merge` mutates its first argument (use `merge({}, a, b)`) and merges arrays by index, which is often not what you want. Know the behavior of whatever you adopt.
+- **"Related question?"** See the deep clone question for cloning without sharing.
+
+### References
+
+- [MDN: Object.getPrototypeOf()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/getPrototypeOf)
+- [MDN: structuredClone()](https://developer.mozilla.org/en-US/docs/Web/API/Window/structuredClone)
+- [OWASP: Prototype Pollution Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Prototype_Pollution_Prevention_Cheat_Sheet.html)
+
+Reported as a practical JavaScript coding question ("deep merge default widget configuration") in a shared dashboard-developer interview paper (second-hand; source unverified). The solution and tests are my own.

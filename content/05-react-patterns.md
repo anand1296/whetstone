@@ -2246,3 +2246,116 @@ Memoizing every field without fixing the state structure, validating on `onChang
 - [React docs: Profiler](https://react.dev/reference/react/Profiler)
 
 Appears in a widely shared list of "24 real-time frontend interview questions" (second-hand; source unverified). The answer is original.
+
+## Implement a reusable `useDebouncedValue` hook: cleanup, delay changes and the object-identity trap
+<!--
+id: use-debounced-value-hook
+level: junior
+tags: react hooks, debounce, useEffect, cleanup, search, custom hooks, strictmode
+minutes: 10
+-->
+
+> [!PROMPT]
+> Typing in a live dashboard table filter fires an expensive API call on every keystroke. Implement a reusable `useDebouncedValue(value, delay)` hook that only updates its output after the user pauses typing, and clean up properly on unmount.
+>
+> **Requirements**
+> - The first render returns the initial value immediately (no delay on mount).
+> - Each new input restarts the timer; only the last value after a pause is emitted.
+> - No state update after unmount, no leaked timers, and it works in React StrictMode.
+>
+> **Also be ready for**
+> - "Why a hook for the value rather than debouncing the callback?"
+> - "What goes wrong if I pass an object or array?"
+> - "How does this combine with request cancellation?"
+
+> [!TLDR]
+> Keep the debounced copy in state, initialized from the input so the first render has no delay. An effect depending on `[value, delay]` starts a `setTimeout` that copies the latest value into state, and its cleanup function clears the timer: that cleanup is what restarts the wait on every keystroke and also cancels the pending update on unmount. Use it by debouncing the search term and putting the debounced value in the query key or effect dependencies. Pass primitives (or a memoized value): if the caller builds a new object or array on every render, the value changes identity every time, and after the first re-render the component keeps re-rendering once per delay. Debouncing reduces how many requests start; it does not replace cancelling or ignoring stale responses.
+
+### The hook
+
+```tsx
+import { useEffect, useState } from 'react';
+
+export function useDebouncedValue<T>(value: T, delay = 300): T {
+  const [debounced, setDebounced] = useState(value); // first render: no delay
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id); // runs before the next effect and on unmount
+  }, [value, delay]);
+
+  return debounced;
+}
+```
+
+### Using it
+
+```tsx
+function OrdersTable() {
+  const [input, setInput] = useState('');
+  const search = useDebouncedValue(input, 400);
+
+  // Fires once after the user pauses, not on every keystroke
+  const { data, isFetching } = useQuery({
+    queryKey: ['orders', search],
+    queryFn: ({ signal }) => fetchOrders(search, { signal }), // signal cancels an in-flight request
+  });
+
+  return (
+    <>
+      <input value={input} onChange={(e) => setInput(e.target.value)} aria-label="Filter orders" />
+      {isFetching && <Spinner />}
+      <Table rows={data ?? []} />
+    </>
+  );
+}
+```
+
+The input stays controlled by `input`, so typing is instant; only the value that drives the request is delayed.
+
+### How it works, step by step
+
+1. First render: `debounced` equals `value`, and the effect schedules a timer that sets the same value, which React ignores because nothing changed.
+2. The user types `a`, `ab`, `abc`: each new `value` re-runs the effect. React runs the previous cleanup first, so the previous timer is cleared before a new one starts. Only the last timer survives.
+3. The user pauses for `delay` ms: the timer fires, `setDebounced('abc')` runs, and the consumer re-renders once with the new value.
+4. On unmount: cleanup clears the pending timer, so there is no state update on an unmounted component.
+5. Changing `delay` also restarts the timer, because it is in the dependency array.
+
+StrictMode runs effects twice in development (setup, cleanup, setup), which is safe here because the cleanup clears the timer.
+
+### The object-identity trap
+
+```tsx
+// Bug: a new object every render
+const debouncedFilters = useDebouncedValue({ status, owner }, 300);
+```
+
+Each render creates a new `{ status, owner }`, so `value` changes identity every time. The timer fires, `setDebounced` stores a new object, the component re-renders, a new object is created, and the cycle repeats once per delay. Fixes: debounce the primitives separately, `useMemo` the object from its parts, or debounce a serialized key (`JSON.stringify`).
+
+### Value or callback?
+
+Debouncing the **value** fits React data flow: the debounced value feeds query keys, effects and derived UI, and the data library handles caching and cancellation. Debouncing a **callback** (`useDebouncedCallback`) fits event-driven work such as "save on pause" or "send analytics". See the debounce question for the callback version with `flush` and `cancel`.
+
+### Edge cases
+
+- **Submit on Enter:** the user should not have to wait. Use the raw `input` for that action, or expose a way to flush.
+- **Leading edge:** to react to the first keystroke immediately, add an option and set the value at once when the timer is idle; say it is extra.
+- **Clearing the field:** often you want an empty search to apply immediately; special-case `''` if the product needs it.
+- **Stale responses:** a slow earlier request can still arrive after a newer one. Pass an `AbortSignal` or use a data library that keys by the debounced value (see the "latest wins" question).
+- **Alternatives:** `useDeferredValue` lets React postpone a heavy render, but it does not delay network calls the way a timer does.
+
+### Testing
+
+Use fake timers: render with `'a'`, update to `'ab'` and `'abc'` while advancing less than `delay`, assert the output is still `'a'`, then advance past `delay` and assert it is `'abc'`. Also assert that unmounting before the timer fires causes no warning or update.
+
+### Pitfalls
+
+Putting `delay` or `value` out of the dependency array, creating the timer outside an effect (it runs on every render), forgetting the cleanup, debouncing an object built inline, and using the debounced value for the input's own `value` so the field feels laggy.
+
+### References
+
+- [React docs: Synchronizing with Effects](https://react.dev/learn/synchronizing-with-effects)
+- [React docs: useDeferredValue](https://react.dev/reference/react/useDeferredValue)
+- [MDN: AbortSignal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal)
+
+Reported as a practical React coding question (`useDebouncedValue` for dashboard search and filtering) in a shared dashboard-developer interview paper (second-hand; source unverified). The code was tested with React 19 and fake timers, including StrictMode and unmount.
