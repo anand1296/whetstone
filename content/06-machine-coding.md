@@ -3243,3 +3243,199 @@ function StarRating({ value, defaultValue = 0, onChange, count = 5, readOnly = f
 ### Pitfalls
 
 Using `div` with `onClick` only, no focus ring, hover state that sticks after a touch, and ARIA `aria-checked` that disagrees with the visual state.
+
+## Build a page that fetches and displays remote data: loading, error and empty states, shared state, deduped requests and stale responses
+<!--
+id: remote-data-page
+level: senior
+tags: machine coding, data fetching, loading states, error handling, race conditions, caching, shared state, usesyncexternalstore
+minutes: 35
+-->
+
+> [!PROMPT]
+> Build a small web page that fetches a list from a remote API and displays it. You may use any framework (the examples use React). The interviewer will probe how you handle asynchronous data, every UI state, sharing data between components and avoiding wasted or out-of-date requests.
+>
+> **Requirements**
+> - Fetch the list when the page opens and render it. Show a loading state, an error state with a retry button, and an empty state.
+> - A filter (a query string or a dropdown) changes the request. Switching filters quickly must never show data for an older filter.
+> - Two separate components (for example the list and a "N results" badge) use the same data without triggering two requests.
+> - Revisiting a view within 30 seconds should not refetch; after that it should show the cached data and refresh in the background.
+>
+> **Test cases**
+> - Two components that ask for `/users` send exactly one request and both update when it resolves.
+> - Request `/items?filter=a`, then `/items?filter=b`; if the `b` response arrives first and the `a` response arrives later, the screen shows the `b` data.
+> - A 500 response shows the error message and a Retry button; Retry sends a new request and a success replaces the error.
+> - A successful response with `[]` shows "No results", not a blank screen or an error.
+> - After the cache window, remounting shows the previous data immediately and refetches.
+
+> [!TLDR]
+> Model the request as a state machine (idle, loading, success, error) plus the data, and handle the empty case as a successful response with no items. Race conditions disappear when state is keyed by the request: store the result under its own URL, and let the component read the entry for the URL it currently shows, so a late response for an old filter updates an entry nobody is looking at. Put that keyed state in a small shared store outside the components, which also lets any number of components read the same entry, lets you share a single in-flight promise per URL (deduping), and gives you a place for a freshness window (a stale time) and for retry. Keep previous data while refetching so the page does not flash empty. Read the store with `useSyncExternalStore` (or an equivalent subscription in other frameworks), and return a new snapshot object only when something changes.
+
+### What the round is checking
+
+| Area | What you should show |
+| --- | --- |
+| Asynchronous fetching | Handle non-2xx responses (`fetch` does not reject on 404 or 500), network errors and parsing errors |
+| Loading, error and empty states | Three distinct UIs, plus "refreshing with old data visible" |
+| State across components | One source of truth that more than one component can read |
+| Efficient requests | No duplicate in-flight requests, a freshness window, debounce for typing, pagination for large lists |
+| Stale responses and races | A late response cannot overwrite what the user is looking at |
+
+### The simplest version, and why it is not enough
+
+```jsx
+function Users({ filter }) {
+  const [state, setState] = useState({ status: 'loading' });
+  useEffect(() => {
+    fetch(`/api/users?filter=${filter}`)
+      .then((r) => r.json())
+      .then((data) => setState({ status: 'success', data }));
+  }, [filter]);
+  // ...
+}
+```
+
+It never handles errors (a 500 still calls `r.json()`), has no empty state, refetches in every component that mounts it, and lets a slow response for the previous filter overwrite a newer one. Say these four problems out loud, then fix them in the order below.
+
+### Keyed shared store
+
+```js
+import { useEffect, useSyncExternalStore } from 'react';
+
+// One entry per URL. Each entry keeps its own state, so a late response can only update the entry for ITS url.
+export function createQueryStore({ fetcher = defaultFetcher, staleTime = 30_000, now = Date.now } = {}) {
+  const entries = new Map(); // url -> { snapshot, listeners, inflight, fetchedAt }
+  const IDLE = Object.freeze({ status: 'idle', data: undefined, error: undefined });
+
+  const entry = (url) => {
+    let e = entries.get(url);
+    if (!e) entries.set(url, (e = { snapshot: IDLE, listeners: new Set(), inflight: null, fetchedAt: 0 }));
+    return e;
+  };
+  const set = (e, snapshot) => {
+    e.snapshot = snapshot; // a new object per change; useSyncExternalStore compares snapshots by identity
+    e.listeners.forEach((listener) => listener());
+  };
+
+  async function load(url, { force = false } = {}) {
+    const e = entry(url);
+    if (e.inflight) return e.inflight; // dedupe: concurrent callers share one request
+    const fresh = e.snapshot.status === 'success' && now() - e.fetchedAt < staleTime;
+    if (fresh && !force) return;
+    set(e, { status: 'loading', data: e.snapshot.data, error: undefined }); // keep old data while refetching
+    e.inflight = fetcher(url)
+      .then((data) => { e.fetchedAt = now(); set(e, { status: 'success', data, error: undefined }); })
+      .catch((error) => set(e, { status: 'error', data: e.snapshot.data, error }))
+      .finally(() => { e.inflight = null; });
+    return e.inflight;
+  }
+
+  return {
+    load,
+    get: (url) => entry(url).snapshot,
+    subscribe(url, listener) {
+      const e = entry(url);
+      e.listeners.add(listener);
+      return () => e.listeners.delete(listener);
+    },
+  };
+}
+
+async function defaultFetcher(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`); // fetch only rejects on network failure, so check ok yourself
+  return res.json();
+}
+
+export function makeUseQuery(store) {
+  return function useQuery(url) {
+    useEffect(() => { store.load(url); }, [url]); // fetch (or reuse) when the key changes
+    const state = useSyncExternalStore(
+      (listener) => store.subscribe(url, listener),
+      () => store.get(url),
+    );
+    return {
+      ...state,
+      isLoading: state.status === 'idle' || (state.status === 'loading' && state.data === undefined),
+      isEmpty: state.status === 'success' && Array.isArray(state.data) && state.data.length === 0,
+      retry: () => store.load(url, { force: true }),
+    };
+  };
+}
+```
+
+### Using it in components
+
+```jsx
+const store = createQueryStore();
+const useQuery = makeUseQuery(store);
+
+function UserList({ filter }) {
+  const { status, data, error, isLoading, isEmpty, retry } = useQuery(`/api/users?filter=${encodeURIComponent(filter)}`);
+  if (isLoading) return <Skeleton />;
+  if (status === 'error' && !data) return <ErrorMessage error={error} onRetry={retry} />;
+  if (isEmpty) return <p>No results</p>;
+  return (
+    <ul aria-busy={status === 'loading'}>
+      {data.map((user) => <li key={user.id}>{user.name}</li>)}
+    </ul>
+  );
+}
+
+function ResultCount({ filter }) {
+  const { data } = useQuery(`/api/users?filter=${encodeURIComponent(filter)}`); // same key: no second request
+  return <span>{data ? `${data.length} results` : '...'}</span>;
+}
+```
+
+### How each requirement is met
+
+- **Every UI state:** `isLoading` is only true while there is no data yet, so a refetch keeps showing the old list (with `aria-busy`) instead of a spinner. An error with old data available can show a banner over the list; an error with nothing to show gets the full error view with Retry. The empty state is a successful response with zero items, which is different from an error and from "not loaded yet".
+- **Stale responses:** the response for `/items?filter=a` is written to the `a` entry, while the component reads the entry for `b`. There is no flag to forget and no ordering logic, because the data never lands in the wrong place. This is also why you do not need `AbortController` for correctness here (see the aborting note below).
+- **Shared state:** state lives in the store, not in a component, so the list and the count badge read the same snapshot, and the in-flight promise is shared (`e.inflight`).
+- **Efficient requests:** deduping, a 30 second freshness window (`staleTime`), a background refetch after it, and `force` for retry.
+- **No tearing:** `useSyncExternalStore` makes every component see the same snapshot in a single render, and requires `get` to return the same object until something changes (hence a new snapshot object only inside `set`).
+
+### Aborting requests
+
+Aborting is still useful for saving bandwidth and server work, but with a shared in-flight promise one consumer cannot abort for everyone. Options: count subscribers per entry and abort when the count reaches zero, or let requests finish and cache them (cheap for small payloads). For a single component without a store, abort in the effect cleanup:
+
+```jsx
+useEffect(() => {
+  const controller = new AbortController();
+  fetch(url, { signal: controller.signal }).then(/* ... */).catch((e) => { if (e.name !== 'AbortError') /* handle */; });
+  return () => controller.abort(); // runs when the url changes or the component unmounts
+}, [url]);
+```
+
+Also set a timeout with `AbortSignal.timeout(10_000)` so a hung request becomes an error instead of an endless spinner.
+
+### Extensions interviewers ask for
+
+- **Search box:** debounce the input value and use the debounced value in the key (see the `useDebouncedValue` question).
+- **Pagination or infinite scroll:** key by cursor or page, and append pages in the view; see the infinite scroll question.
+- **Mutations:** after a successful POST or PATCH, call `load(url, { force: true })` for affected keys, or update the cached snapshot optimistically and roll back on failure.
+- **Window focus refetch, polling, retry with backoff:** all are `load(url, { force: true })` triggered by an event or timer.
+- **Server rendering and hydration:** seed the store with the data the server fetched.
+- **Garbage collection:** drop entries nobody subscribes to after a delay so the map does not grow without bound.
+- **"Why not a library?"** TanStack Query, SWR and RTK Query do exactly this and more; the exercise checks that you know what they do for you.
+
+### Testing
+
+Inject a fetcher that returns promises you resolve by hand. Then the tests are deterministic: two components with one URL give one call; resolve the `b` request before the `a` request and assert the screen shows `b`; reject then retry; fake the clock to cross the stale time. These cases were run against the code above with React 19.
+
+### Angular and Vue
+
+Angular: `HttpClient` with `switchMap` cancels the previous request when the filter changes, a service with `shareReplay` shares one request between components, and signals can hold the state. Vue: a composable with `watch` and the `onCleanup` callback to abort, and a store (Pinia) keyed by URL for shared state.
+
+### Pitfalls
+
+Treating `fetch` resolving as success, showing "No results" while loading, storing one `data` variable for all filters, creating a new snapshot object on every `get` (an infinite render loop with `useSyncExternalStore`), a cache that never expires, and not unsubscribing listeners.
+
+### References
+
+- [React docs: useSyncExternalStore](https://react.dev/reference/react/useSyncExternalStore)
+- [MDN: Using the Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)
+- [TanStack Query: Important defaults](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)
+
+Reported as a frontend coding round ("build a web application that fetches and displays remote data; any framework") in a candidate's interview-loop outline shared online (second-hand; source unverified). The stages, solution and tests are my own.
