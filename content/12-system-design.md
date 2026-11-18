@@ -895,3 +895,499 @@ function receive(n: Notification) {
 ### Pitfalls
 
 Opening a connection per tab; no resume after reconnect (silent gaps); trusting the local unread count forever; asking for push permission immediately on page load.
+
+## Design the frontend of a chat application (WhatsApp Web or Slack-style): optimistic sending, ordering, reconnection, unread counts and long histories
+<!--
+id: design-chat-application
+level: senior
+tags: system design, chat, websocket, optimistic ui, message ordering, reconnection, offline, accessibility
+minutes: 30
+-->
+
+> [!PROMPT]
+> Design the frontend of a web chat application: a conversation list, a message pane and a composer, with delivery and read state, typing indicators and image sharing, on networks that drop.
+>
+> **Cover**
+> - Transport, reconnection and not losing or duplicating messages.
+> - Optimistic sending, ordering and the client data model.
+> - Long histories: pagination, scroll behavior and virtualization.
+> - Unread counts, receipts, typing and presence, multiple tabs.
+> - Accessibility, security, offline behavior and what you would build first.
+
+> [!TLDR]
+> Treat the connection as unreliable and the server as the authority on order. Keep normalized conversations and messages in a client store, and deliver events over a WebSocket (with a polling or SSE fallback) that reconnects with exponential backoff and jitter and resumes from the last sequence number it saw, so nothing is lost. Sending is optimistic: show the message at once with a client-generated id and a sending status, reconcile it with the server's echo by that id (the server dedupes on it, so retries are safe), and offer retry on failure. Order messages by the server's per-conversation sequence number, detect gaps, and fetch the missing range. Load history upward in pages, keep the scroll position stable, stick to the bottom only when the user is already there, and virtualize long lists. Track unread with a last-read sequence number, send read receipts when messages are actually visible, throttle ephemeral events such as typing, use one connection per browser rather than per tab, sanitize every message, and announce new messages politely to screen readers.
+
+### Requirements
+
+- **Functional:** one-to-one and group conversations, send and receive text and images, history, unread counts, delivery and read receipts, typing indicator, presence, search later.
+- **Non-functional:** messages appear within a second on a good network; no lost, duplicated or misordered messages on a bad one; smooth scrolling in a conversation with thousands of messages; works after a reload and briefly offline; accessible; safe against injected content.
+
+### Architecture
+
+```text
+┌────────────────────────── Browser ───────────────────────────┐        ┌──────────── Server ────────────┐
+│ ConversationList  (unread badges, last message preview)      │        │ Gateway: auth, fan-out         │
+│ MessagePane       (virtualized, scroll anchoring)            │◀──────▶│ Message service: assigns seq,  │
+│ Composer          (outbox, attachments, typing events)       │  WS    │   dedupes on clientId          │
+│ Connection manager (WebSocket, backoff, heartbeat, resume)   │  +     │ History API (REST, paginated)  │
+│ Store             (conversations, messages, lastSeq, outbox) │  REST  │ Media: signed upload + CDN     │
+│ IndexedDB         (recent messages, outbox)                  │        │ Push (web push when closed)    │
+└──────────────────────────────────────────────────────────────┘        └────────────────────────────────┘
+```
+
+### Client data model
+
+```ts
+interface Message {
+  clientId: string;                 // generated on the device: the idempotency key
+  id?: string;                      // assigned by the server
+  seq?: number;                     // per-conversation order, assigned by the server
+  conversationId: string;
+  senderId: string;
+  text: string;
+  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  createdAt: number;
+}
+
+interface Conversation {
+  id: string;
+  lastSeq: number;                  // highest contiguous seq we have
+  lastReadSeq: number;              // what this user has read (synced across devices)
+  unread: number;
+}
+```
+
+Store messages by conversation and look them up by `clientId` and `id`. Pending messages have no `seq` and sort after confirmed ones.
+
+### Events and API
+
+- **Client to server over the socket:** `send { conversationId, clientId, text }`, `typing { conversationId }`, `read { conversationId, upToSeq }`.
+- **Server to client:** `message { id, seq, clientId, ... }` (this is also the echo of our own send), `receipt`, `typing`, `presence`.
+- **REST:** `GET /conversations/:id/messages?before=seq&limit=50` for older history, and `?after=seq` to fill gaps after a reconnect.
+
+### Optimistic send, ordering and gaps
+
+```js
+const byOrder = (a, b) => (a.seq ?? Infinity) - (b.seq ?? Infinity) || a.createdAt - b.createdAt;
+
+function contiguousSeq(messages) {
+  const seqs = messages.filter((m) => m.seq != null).map((m) => m.seq).sort((a, b) => a - b);
+  let last = 0;
+  for (const s of seqs) {
+    if (s === last + 1) last = s;
+    else if (s > last + 1) break;
+  }
+  return last;
+}
+
+function withDerived(messages) {
+  const sorted = [...messages].sort(byOrder);
+  const lastSeq = contiguousSeq(sorted);
+  const maxSeq = Math.max(0, ...sorted.map((m) => m.seq ?? 0));
+  return { messages: sorted, lastSeq, hasGap: maxSeq > lastSeq };
+}
+
+export function chatReducer(state, action) {
+  switch (action.type) {
+    case 'send': // optimistic: show it now, identified by a client-generated id
+      return withDerived([...state.messages, { clientId: action.clientId, text: action.text, status: 'sending', createdAt: action.at }]);
+    case 'failed':
+      return { ...state, messages: state.messages.map((m) => (m.clientId === action.clientId && m.status === 'sending' ? { ...m, status: 'failed' } : m)) };
+    case 'retry':
+      return { ...state, messages: state.messages.map((m) => (m.clientId === action.clientId && m.status === 'failed' ? { ...m, status: 'sending' } : m)) };
+    case 'receive': // also the server echo of our own message, and resync batches
+    case 'resync': {
+      const incoming = action.type === 'receive' ? [action.message] : action.messages;
+      let messages = state.messages;
+      for (const msg of incoming) {
+        const i = messages.findIndex((m) => (msg.clientId && m.clientId === msg.clientId) || (m.id && m.id === msg.id));
+        messages = i === -1
+          ? [...messages, { ...msg, status: 'sent' }]
+          : messages.map((m, j) => (j === i ? { ...m, ...msg, status: 'sent' } : m)); // reconcile, never duplicate
+      }
+      return withDerived(messages);
+    }
+    default:
+      return state;
+  }
+}
+```
+
+When `hasGap` becomes true, request `?after=lastSeq` and dispatch `resync`. The same path handles reconnects, a missed event and a duplicate delivery. Tested cases: the echo replaces the pending message instead of adding a second one, out-of-order arrival sorts by `seq`, a missing `seq` is detected and filled, and a failed message can be retried.
+
+### Deep dives
+
+**Reconnection and resume**
+- Reconnect with exponential backoff and jitter (for example, wait a random time up to `min(30 s, 1 s * 2^attempt)`), reset the counter after a stable connection, and reconnect immediately on the browser's `online` event or when the tab becomes visible.
+- Send heartbeats (ping and pong) so a half-open connection is detected within seconds; a socket can look open while the network is gone.
+- On reconnect, send the last `seq` per active conversation, or fetch `?after=lastSeq` for each, and refresh the conversation list for conversations that changed.
+- Fall back to SSE or long polling where WebSockets are blocked.
+
+**Idempotent sending**
+- The client generates `clientId` before sending. If no echo arrives (timeout, dropped socket), the outcome is unknown, so retrying with the same `clientId` is safe because the server returns the existing message.
+- Keep unsent messages in an outbox (in IndexedDB) so they survive a reload, and replay them in order after reconnecting. Show `failed` with a retry after a bounded time.
+
+**Scroll behavior**
+- Load older messages with an `IntersectionObserver` sentinel at the top and keep the visible message in place: after prepending, adjust `scrollTop` by the change in `scrollHeight`, or rely on `overflow-anchor` where supported.
+- Stick to the bottom for new messages only if the user was already at the bottom; otherwise show a "N new messages" pill.
+- Reserve image dimensions (width and height from the server) to avoid layout shift, and use a blurred placeholder.
+- Virtualize with variable heights for very long histories, and make "jump to first unread" work with an unmounted list (scroll by `seq`, not by DOM node).
+
+**Unread counts and receipts**
+- Store `lastReadSeq` per conversation on the server; `unread` is `lastSeq - lastReadSeq` for the active user. Send a `read` event (debounced) only when the latest message is visible, the tab is visible and the window is focused.
+- Update the badge in the tab title, and keep other tabs in sync with a `BroadcastChannel`.
+
+**Typing and presence**
+- Typing events are ephemeral: send at most one every few seconds while the user types, and expire the indicator on the receiver after about 5 seconds without a refresh. Never persist them.
+- Presence is coarse (online or last seen) and skipped for very large groups.
+
+**Multiple tabs**
+- Opening a socket per tab multiplies load and creates duplicate notifications. Elect a leader tab (Web Locks API or `BroadcastChannel`) to hold the socket and relay events, or use a `SharedWorker` where supported.
+
+**Media**
+- Upload directly to storage with a signed URL, with progress and cancel; send the message with the file reference after upload succeeds. Show a local preview immediately.
+
+**Offline**
+- Cache recent conversations in IndexedDB for instant open, show a connection banner, queue sends, and sync on reconnect.
+
+### Accessibility
+
+- The message list uses `role="log"` with `aria-live="polite"` and `aria-relevant="additions"`; do not announce history loads or the user's own messages twice.
+- A labelled composer, a visible focus ring, keyboard shortcuts for sending and for moving between conversations, timestamps in `<time>` elements, and status text (not only icons) for sent, delivered, read and failed.
+- Respect reduced motion for scroll animations, and do not rely on color alone for unread state.
+
+### Security
+
+- Render message bodies as text or run them through a sanitizer; never insert raw HTML. Escape mentions and links, add `rel="noopener noreferrer"` to links, and keep a strict Content Security Policy.
+- Fetch link previews on the server (with SSRF protections), never from the browser with the user's cookies.
+- End-to-end encryption changes the design (keys, search, multi-device history) and is a separate discussion.
+
+### Performance
+
+- Batch incoming events and render once per animation frame during bursts.
+- Memoize message rows, and keep typing and presence state out of the message list so a typing event does not re-render hundreds of messages.
+- Subscribe to full detail only for the open conversation, and keep lightweight counters for the others.
+- Code-split the emoji picker and the attachment preview.
+
+### Failure modes to name
+
+Duplicate messages after a retry without an idempotency key, silent gaps after a reconnect with no resume, a scroll jump when older messages load, a badge that disagrees across tabs, an unbounded outbox, and a socket per tab.
+
+### Follow-ups
+
+- **Group chats with thousands of members:** do not broadcast typing and presence; paginate member lists; fan-out is the server's problem.
+- **Reactions and edits:** optimistic with an idempotent operation id, applied by `seq`.
+- **Search:** server-side, with results that jump to a message by `seq`.
+- **Threads:** a separate conversation keyed by parent message.
+- **What would you build first?** Text messaging with optimistic send, reconnect and resume, then history and unread, then media.
+
+### References
+
+- [MDN: WebSockets API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+- [MDN: Broadcast Channel API](https://developer.mozilla.org/en-US/docs/Web/API/Broadcast_Channel_API)
+- [MDN: ARIA log role](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/log_role)
+- [MDN: Web Locks API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)
+
+Listed ("Chat Application") among example frontend system design problems in a candidate's interview-loop outline shared online (second-hand; source unverified). The design and reducer tests are my own.
+
+## Design the frontend of a calendar (Google Calendar-style): views, overlapping events, drag to create, time zones and recurring events
+<!--
+id: design-calendar
+level: senior
+tags: system design, calendar, time zones, recurring events, drag and drop, layout algorithm, accessibility
+minutes: 30
+-->
+
+> [!PROMPT]
+> Design the frontend of a calendar application with month, week and day views. Users create and edit events by dragging on the grid, see overlapping events side by side, have events in different time zones, and use recurring events.
+>
+> **Cover**
+> - The data model, including time zones, all-day events and recurrence.
+> - Rendering: grid math, overlapping event layout, multi-day events, performance.
+> - Fetching and caching by visible range, and real-time updates.
+> - Interaction: drag to create, move and resize, with keyboard and screen reader support.
+> - Edge cases (daylight saving, editing one event in a series) and what you would build first.
+
+> [!TLDR]
+> Model an event as either a timed instant (stored in UTC with the time zone it was created in) or an all-day date with no time zone, and a recurring event as a rule (start, time zone, recurrence rule, exceptions) that you expand only for the visible range, never forever. Render the week and day views as a time grid where each event is positioned by minutes since midnight, and lay out overlapping events with a column-packing algorithm that groups connected events into clusters and gives every event in a cluster the same width. Fetch by visible range plus a buffer, cache by range, invalidate on changes, and push updates over SSE or a WebSocket. Drag, resize and create with pointer events that snap to 15 minutes, update optimistically, and send changes with a version check; provide a keyboard path and an agenda view for accessibility. Do all date arithmetic in a time-zone-aware way, because the hard bugs are daylight saving changes and editing one occurrence of a series.
+
+### Requirements
+
+- **Functional:** month, week, day and agenda views; create, edit and delete events; drag to move and resize; recurring events; multiple calendars with colors and visibility toggles; invitations and reminders (out of scope for depth).
+- **Non-functional:** smooth dragging, fast navigation between ranges, correct times in any time zone, works with hundreds of events in a month, accessible, and correct around daylight saving changes.
+
+### Architecture
+
+```text
+┌──────────────────────────── Browser ─────────────────────────────┐        ┌────── Server ───────┐
+│ Toolbar (range, view, time zone)    Sidebar (calendars, mini month) │        │ Events API (range) │
+│ MonthView / TimeGridView / AgendaView                              │◀──────▶│ Recurrence expand  │
+│   └─ EventLayout (overlap columns)  └─ DragLayer (pointer events)  │  REST  │ Sync / push (SSE)  │
+│ Range cache (calendarId + start + end)  Optimistic edits           │        │ Free/busy, invites │
+└────────────────────────────────────────────────────────────────────┘        └────────────────────┘
+```
+
+### Data model
+
+```ts
+type TimedEvent = {
+  id: string;
+  title: string;
+  start: string;            // ISO instant in UTC: '2026-11-18T06:30:00Z'
+  end: string;
+  timeZone: string;         // the zone it was created in: 'Asia/Kolkata'
+  version: number;          // for conflict detection on edit
+  recurrence?: { rule: string; exceptions?: string[] }; // 'FREQ=WEEKLY;BYDAY=MO,WE', excluded or changed dates
+};
+
+type AllDayEvent = { id: string; title: string; startDate: string; endDate: string }; // '2026-11-18', no time zone
+```
+
+- **Instants versus dates:** a meeting at a moment in time is an instant; a birthday or holiday is a date. Do not store "all day" as 00:00 to 23:59 in some zone, because it moves when the viewer's zone changes.
+- **Recurring events:** keep the rule and the start time in the event's own zone. A "9:00 every Monday" event stays at 9:00 local time across a daylight saving change, so the UTC instant changes; storing a fixed UTC offset would be wrong half the year.
+- **Expansion:** generate occurrences only for the requested range (on the server or in a library), and treat edits to one occurrence as exceptions.
+
+### Time zones with the platform
+
+```js
+const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' });
+fmt.format(new Date('2026-11-18T06:30:00Z')); // '12:00 PM' for a viewer in India
+
+// Month grid: always 6 rows of 7 days, built with UTC date arithmetic so daylight saving cannot shift a day
+function monthGrid(year, month, weekStartsOn = 0) { // month is 0-11
+  const first = Date.UTC(year, month, 1);
+  const offset = (new Date(first).getUTCDay() - weekStartsOn + 7) % 7;
+  const start = first - offset * 86_400_000;
+  return Array.from({ length: 42 }, (_, i) => new Date(start + i * 86_400_000).toISOString().slice(0, 10));
+}
+```
+
+Format and compare in the viewer's chosen zone, take the first day of the week from the user's locale, and let the user pick a display zone. Use a maintained library (Temporal when available, or date-fns-tz, Luxon, Day.js with plugins) for recurrence and zone conversion instead of hand-rolling it.
+
+### Laying out overlapping events
+
+Position by time: `top = startMinutes * pxPerMinute`, `height = (endMinutes - startMinutes) * pxPerMinute` (with a minimum height so short events stay clickable). Then place events side by side:
+
+```js
+export function layoutDay(events, minDuration = 15) {
+  const items = events
+    .map((e) => ({ id: e.id, start: e.start, end: Math.max(e.end, e.start + minDuration) })) // minutes from midnight
+    .sort((a, b) => a.start - b.start || b.end - a.end); // earlier first; for equal starts, longer first
+  const layout = new Map(); // id -> { column, columns }
+  let cluster = [];
+  let columnEnds = []; // end time of the last event placed in each column of the current cluster
+  let clusterEnd = -Infinity;
+  const flush = () => {
+    const columns = columnEnds.length;
+    for (const { id, column } of cluster) layout.set(id, { column, columns });
+    cluster = [];
+    columnEnds = [];
+    clusterEnd = -Infinity;
+  };
+  for (const e of items) {
+    if (e.start >= clusterEnd) flush(); // nothing overlaps from before: start a new cluster
+    let column = columnEnds.findIndex((end) => end <= e.start); // first column that is free again
+    if (column === -1) column = columnEnds.length;
+    columnEnds[column] = e.end;
+    cluster.push({ id: e.id, column });
+    clusterEnd = Math.max(clusterEnd, e.end);
+  }
+  flush();
+  return layout;
+}
+// width = 100 / columns %, left = column * width %
+```
+
+A cluster is a group of events connected by overlaps, so events that merely touch (one ends at 10:00 and the next starts at 10:00) get full width. Tested cases: two overlapping events plus one that overlaps only the second share two columns, a three-way overlap needs three columns, equal start times put the longer event first, and zero-length events get a minimum duration. Sorting is `O(n log n)` and the pass is linear. Good extensions: expand an event to the right across empty columns, and compute layout per day, memoized.
+
+### Month view and multi-day events
+
+Render weeks as rows. A multi-day event is split into one segment per week row (a bar spanning the days it covers in that row), stacked into lanes by the same column-packing idea. A day cell with more events than fit shows "+N more" that opens a popover or day view.
+
+### Fetching and caching
+
+- Fetch by visible range plus a buffer (the previous and next range), keyed by `calendarId + start + end`, and prefetch the adjacent range so navigation is instant.
+- Invalidate affected ranges after a mutation, and update the cache optimistically.
+- Push changes from other devices or invitees over SSE or a WebSocket and invalidate the affected range; use incremental sync tokens if the API supports them.
+- Show cached data immediately while refreshing.
+
+### Interaction: create, move and resize
+
+- Use pointer events with pointer capture on the grid. Convert the pointer's `y` to minutes, snap to 15 minutes, and show a ghost event while dragging.
+- Move and resize with `transform` during the drag to avoid layout thrash, and commit on release.
+- Save with the event's `version` (an `If-Match` header or a version field); on a conflict, reload the event and tell the user.
+- Cancel with Escape, support touch (long press to start a drag, to avoid fighting with scrolling), and handle events that cross midnight.
+- **Editing a recurring event:** ask "this event", "this and following" or "all events". "This event" creates an exception; "this and following" ends the old series just before and starts a new one; "all" edits the rule.
+
+### Accessibility
+
+- Provide a keyboard path: arrow keys move between days and events, Enter opens an event, and keys (or a form) move or resize an event; drag alone is not accessible.
+- Give each event an accessible name with the title, time and calendar ("Design review, 10:00 to 11:00, Calendar: Work"). Use a grid or table structure for the month view with day labels.
+- Offer an agenda (list) view as a fully accessible alternative; announce view and date changes; do not rely on color alone; support reduced motion.
+
+### Performance
+
+- Render only the visible range, memoize each day's layout, and avoid re-rendering the whole grid on every pointer move.
+- Update the "now" line with one timer per minute, and pause it when the tab is hidden.
+- For hundreds of events per month, the month view needs lanes and "+N more", not one DOM node per event per cell.
+
+### Edge cases to name
+
+Daylight saving days (23 or 25 hours), events that span midnight or several days, all-day events across zones, a recurring series with an exception moved to another day, an event edited on two devices at once, a leap day, and users whose week starts on Saturday, Sunday or Monday.
+
+### Follow-ups
+
+- **"Find a time that works for everyone."** A free/busy API and an interval-intersection algorithm; the UI shows overlaid availability.
+- **"Offline?"** Cache the recent range and queue edits (see the offline-first question).
+- **"Scale to a team calendar with 50 people?"** Fetch and render columns per person with virtualization, and batch the free/busy requests.
+- **"What would you build first?"** The week view with range fetching and overlap layout, then create and drag, then the month view, then recurrence.
+
+### References
+
+- [MDN: Intl.DateTimeFormat](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat)
+- [MDN: Pointer events](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events)
+- [RFC 5545: iCalendar recurrence rules](https://www.rfc-editor.org/rfc/rfc5545)
+
+Listed ("Calendar") among example frontend system design problems in a candidate's interview-loop outline shared online (second-hand; source unverified). The design, layout algorithm and tests are my own. For the object-oriented version of a scheduler, see the meeting scheduler question.
+
+## Design an e-commerce app (Amazon-lite) beyond the product page: listing and search, cart, checkout and payments
+<!--
+id: design-ecommerce-cart-checkout
+level: senior
+tags: system design, e-commerce, cart, checkout, payments, idempotency, search, seo, accessibility
+minutes: 30
+-->
+
+> [!PROMPT]
+> Design the frontend of an e-commerce application: category and search results, the product page, a cart and a checkout with online payment. Focus on what is hard about the cart and checkout, not only on rendering product grids.
+>
+> **Cover**
+> - Listing and search: URL state, filters, pagination, SEO and performance.
+> - Cart ownership, optimistic updates, price and stock changes, guests and login.
+> - Checkout as a flow: forms, validation, payment, double-submit protection, async payment outcomes.
+> - Security, accessibility, resilience and what you would build first.
+>
+> The product page itself is covered by the product page design question.
+
+> [!TLDR]
+> Split the app by how each part behaves. Catalog pages (listing, search results, product pages) are public and cacheable, so render them on the server or the edge for SEO and fast loading, keep filters, sort and page in the URL, and keep personalization out of the cached HTML. The cart and checkout are private, stateful and money-related, so the server owns the cart, prices, taxes and stock; the client shows an optimistic view, sends quantity changes debounced, and always re-validates before payment. Treat checkout as a state machine with steps in the URL and saved form data, collect payment through the provider's hosted fields so card numbers never touch your code, and make order placement safe to retry with an idempotency key plus a double-click guard. Payment results can arrive later, so the confirmation page reads the order from the server instead of trusting client state. Cover accessibility of forms, cross-tab cart sync, and failure handling (sold out, price changed, expired session).
+
+### Requirements
+
+- **Functional:** browse categories, search with filters and sorting, view products, add to cart, edit the cart, check out as a guest or a user, pay, see order confirmation and order history.
+- **Non-functional:** fast listing pages on mobile (LCP), indexable by search engines, correct money amounts, no double charges, resilient to price and stock changes, accessible forms, safe handling of payment data.
+
+### Architecture
+
+```text
+┌──────────────────────── Browser ─────────────────────────┐       ┌────────── Edge / Server ──────────┐
+│ Listing + Search (URL = filters, sort, page)             │       │ CDN / SSR / ISR for catalog pages │
+│ Product page (see PDP design)                            │◀─────▶│ Catalog + search API (cacheable)  │
+│ Cart (mini cart, cart page)  optimistic quantity edits   │       │ Cart API (private, versioned)     │
+│ Checkout state machine: address > shipping > pay > review│       │ Checkout / orders (idempotent)    │
+│ Payment hosted fields (iframe from the provider)         │       │ Payment provider + webhooks       │
+└──────────────────────────────────────────────────────────┘       └───────────────────────────────────┘
+```
+
+### Listing and search
+
+- **Filters in the URL:** `/shoes?brand=nike&size=10&sort=price_asc&page=2` makes pages shareable, restores state on back, and gives search engines stable pages. Keep a canonical URL, and avoid indexing endless filter combinations (`noindex` or canonical to the base category).
+- **Rendering:** server-render or statically regenerate category pages for first paint and SEO; hydrate the filters. Cache catalog responses at the CDN; cart, price-for-this-user and stock calls are separate and uncached.
+- **Facets and counts** come from the server with each result set. Debounce typing in the search box and use the autocomplete design (see the search autocomplete question).
+- **Pagination or "load more":** for commerce, URL-addressable pages or a "load more" that updates the URL usually beat unbounded infinite scroll (footers stay reachable, state is restorable).
+- **Performance:** responsive images with explicit dimensions, the first row of images prioritized for LCP, skeletons that match the final layout, and prefetching a product page on hover or touch intent.
+- **States:** a zero-results page with suggestions, an error state with retry, and stock labels that do not rely on color alone.
+
+### Cart design
+
+```ts
+type Money = { amount: number; currency: string };   // amount in minor units (cents), never floating point
+
+interface Cart {
+  id: string;
+  version: number;                                    // increments on every change; detects a stale client
+  lines: { lineId: string; sku: string; quantity: number; unitPrice: Money; available: boolean }[];
+  totals: { subtotal: Money; discount: Money; shipping: Money; tax: Money; total: Money };
+}
+```
+
+- **The server owns the cart and the numbers.** The client never computes authoritative totals, taxes or discounts; it displays what the server returns and may show an estimate while an update is in flight.
+- **Guests and login:** a guest gets a cart id in a cookie; on login merge it into the user's cart (decide and show how conflicts are resolved, for example by summing quantities up to the stock limit).
+- **Optimistic updates:** add to cart and quantity changes update the UI immediately, debounce quantity edits per line, send the new quantity (not "+1"), and roll back with a message if the server rejects it. Use the cart `version` so a stale response does not overwrite a newer state.
+- **Revalidation:** when the cart opens and again at checkout, the server returns price changes, items now unavailable, and reduced stock. Show these explicitly ("The price of X changed from $20 to $22") instead of silently changing the total.
+- **Sync across tabs:** a `BroadcastChannel` or the `storage` event updates the cart badge in other tabs.
+- **Accessibility:** quantity steppers with labels, an `aria-live="polite"` region announcing "Added to cart", and focus handling when a line is removed.
+
+### Checkout as a state machine
+
+```text
+cart > address > shipping > payment > review > placing > (confirmed | requires_action | failed)
+```
+
+- Keep each step at its own URL so refresh and back work, persist entered data (session storage or the server) so a reload does not lose the form, and allow guest checkout.
+- **Forms:** correct input types and `autocomplete` attributes, address validation and autocomplete, inline errors tied to fields, and an error summary that moves focus to the first problem.
+- **Payment:** use the provider's hosted fields or redirect (an iframe from the payment provider) so card numbers never enter your DOM; this keeps most PCI scope off your code. Support wallets through the Payment Request API where available. Load payment scripts from the provider directly with a strict Content Security Policy.
+- **Strong authentication (3-D Secure):** the provider may require an extra step, so the state includes `requires_action` (a modal or redirect) and a return path that resumes the flow.
+- **Stock and price at placement:** the server re-checks and may reserve stock for a short time; handle "sold out while you paid" with a clear recovery path.
+
+### Safe order placement
+
+```js
+export function createSubmitter(placeOrder) {
+  let attempt = null; // { cartKey, idempotencyKey }
+  let inflight = null;
+  return (cart) => {
+    if (inflight) return inflight; // a double click gets the same promise, not a second request
+    const cartKey = JSON.stringify(cart);
+    if (!attempt || attempt.cartKey !== cartKey) attempt = { cartKey, idempotencyKey: crypto.randomUUID() };
+    const key = attempt.idempotencyKey;
+    inflight = placeOrder(cart, key)
+      .then((order) => { attempt = null; return order; }) // success: the next order gets a new key
+      .finally(() => { inflight = null; }); // failure keeps the key, so a retry is the same order
+    return inflight;
+  };
+}
+
+const submit = createSubmitter((cart, key) =>
+  fetch('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+    body: JSON.stringify({ cartId: cart.id, cartVersion: cart.version }),
+  }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))),
+);
+```
+
+Behaviors that were tested: two clicks send one request, a failed attempt retried with an unchanged cart reuses the same key (the server returns the original order instead of charging twice), a successful order rotates the key, and a changed cart gets a new key. Also disable the button while the request is in flight, and never charge from a "retry" that has a different key.
+
+### Async payment outcomes and the confirmation page
+
+Payment confirmation can arrive later (a bank redirect, a webhook). The confirmation page loads the order by id from the server and shows its real status (`paid`, `pending`, `failed`), polling or listening briefly for `pending`. Do not rely on client state or the URL alone to decide that the payment succeeded, and make the page safe to reload and to open from an email.
+
+### Security
+
+- Protect state-changing requests with `SameSite` cookies plus a CSRF token, validate everything on the server, and never trust a price or total sent by the client.
+- Isolate third-party scripts (tag managers, chat widgets, A/B tools) from the checkout, or load none there; they are a common source of slowdowns and skimming attacks.
+- Sanitize user-generated content such as reviews and questions.
+
+### Resilience and observability
+
+- Show clear messages for out of stock, price changed, session expired, address invalid and payment declined, each with a next step.
+- Track funnel events (view item, add to cart, begin checkout, add payment info, purchase) with deduplication, plus errors by step and the drop-off at each one.
+- Keep a fallback path: if the payment widget fails to load, say so and offer retry instead of a blank page.
+
+### Follow-ups
+
+- **"Flash sale traffic?"** Cache catalog at the edge, queue or rate-limit checkout, show inventory honestly, and keep the cart and order APIs separate from catalog.
+- **"Saved payment methods and one-click buy?"** Tokens from the provider; require re-authentication for sensitive actions.
+- **"Multiple currencies and taxes?"** Money in minor units with a currency; formatting with `Intl.NumberFormat`; tax calculated on the server.
+- **"Recommendations?"** Fetched separately and lazily, so they never block the cart or LCP.
+- **"What would you build first?"** Cacheable catalog pages with URL filters, then the server-owned cart with optimistic edits, then a minimal one-page checkout with hosted payment and idempotent placement.
+
+### References
+
+- [web.dev: Payment and address forms best practices](https://web.dev/articles/payment-and-address-form-best-practices)
+- [MDN: Payment Request API](https://developer.mozilla.org/en-US/docs/Web/API/Payment_Request_API)
+- [MDN: Idempotent (glossary)](https://developer.mozilla.org/en-US/docs/Glossary/Idempotent)
+- [web.dev: Optimize Largest Contentful Paint](https://web.dev/articles/optimize-lcp)
+
+Listed ("E-commerce application") among example frontend system design problems in a candidate's interview-loop outline shared online (second-hand; source unverified). The design and the order-placement tests are my own. For the object-oriented version, see the e-commerce platform question.
