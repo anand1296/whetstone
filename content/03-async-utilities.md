@@ -1856,3 +1856,126 @@ Merging with `Object.assign` or the spread operator (shallow, so nested defaults
 - [OWASP: Prototype Pollution Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Prototype_Pollution_Prevention_Cheat_Sheet.html)
 
 Reported as a practical JavaScript coding question ("deep merge default widget configuration") in a shared dashboard-developer interview paper (second-hand; source unverified). The solution and tests are my own.
+
+## An error thrown inside an asynchronous callback escapes the surrounding try/catch. Why, and where should it be handled?
+<!--
+id: async-try-catch-callback-errors
+level: junior
+tags: javascript, async, errors, try-catch, promises, callbacks, event-loop
+minutes: 10
+-->
+
+> [!PROMPT]
+> `try { setTimeout(() => { throw new Error('late'); }, 0); } catch (e) { handle(e); }` never reaches `handle`, and the error shows up as an uncaught exception. Explain why, then show every place the error can be handled correctly, including a small `safe(fn, onError)` wrapper.
+>
+> **Requirements**
+> - Explain the call stack and why `try/catch` only covers synchronous code that runs inside the block.
+> - Show the fixes: catch inside the callback, wrap in a promise and `await`, and handle rejections.
+> - Name the missing-`await` variant of the same bug.
+
+> [!TLDR]
+> `try/catch` guards the call stack that is running while the block executes. `setTimeout` only registers the callback and returns; the `try` block has finished long before the timer fires, and the callback later runs on a fresh, empty stack with no surrounding `catch`. So the error goes to the global handler. Fix it by handling the error where it is thrown (a `try/catch` inside the callback), by turning the callback into a promise and using `await` inside `try`, or by routing everything through one `safe(fn, onError)` wrapper. The same bug appears when you forget to `await` or `return` a promise inside `try`, and a throw inside a timer inside a promise executor is not converted to a rejection.
+
+### Why the catch is skipped
+
+```js
+try {
+  setTimeout(() => { throw new Error('late'); }, 0);
+} catch (e) {
+  console.log('never runs');
+}
+// 1. setTimeout registers the callback and returns; the try block ends.
+// 2. Later the event loop runs the callback on an empty call stack.
+// 3. The throw finds no catch on that stack, so it becomes an uncaught exception
+//    (window.onerror in the browser, 'uncaughtException' in Node).
+```
+
+The same holds for event handlers, `XMLHttpRequest` callbacks, `EventEmitter` listeners registered with `on`, and any callback API: the code that registers the callback is not on the stack when it runs.
+
+### Fix 1: handle it where it is thrown
+
+```js
+setTimeout(() => {
+  try {
+    riskyWork();
+  } catch (e) {
+    reportError(e);
+  }
+}, 0);
+```
+
+### Fix 2: promisify, then `await` inside `try`
+
+```js
+const failAfter = (ms) =>
+  new Promise((_, reject) => setTimeout(() => reject(new Error('rejected')), ms));
+
+try {
+  await failAfter(10);
+} catch (e) {
+  console.log(e.message); // 'rejected'
+}
+```
+
+The timer callback must call `reject`. A plain `throw` inside it is still uncaught even though it sits inside `new Promise(...)`, because the executor has already returned by then:
+
+```js
+new Promise((resolve) => {
+  setTimeout(() => { throw new Error('in timer'); }, 0); // still uncaught, promise never settles
+});
+
+new Promise(() => { throw new Error('sync in executor'); }); // this one IS turned into a rejection
+```
+
+### The same bug without a timer: missing `await`
+
+```js
+async function task() { throw new Error('task failed'); }
+
+async function buggy() {
+  try { task(); }            // promise created, not awaited: catch is skipped
+  catch { console.log('never runs'); }
+}                            // later: unhandledrejection
+
+async function fixed() {
+  try { await task(); }      // await rethrows the rejection inside the try
+  catch (e) { return e.message; }
+}
+```
+
+`return task()` inside `try` has the same flaw (the catch does not see it); use `return await task()` when the `catch` or `finally` must run for it.
+
+### One handling point: `safe`
+
+```js
+const safe = (fn, onError) => (...args) => {
+  try {
+    const result = fn(...args);
+    return result instanceof Promise ? result.catch(onError) : result;
+  } catch (e) {
+    onError(e);
+  }
+};
+
+button.addEventListener('click', safe(async () => { await save(); }, showToast));
+```
+
+This covers both a synchronous throw and an async rejection from a handler. Keep a last-resort net as well:
+
+- Browser: `window.addEventListener('error', ...)` and `'unhandledrejection'`.
+- React: an error boundary catches render errors only, **not** errors in event handlers or timers.
+- Node: `process.on('uncaughtException')` and `'unhandledRejection'` for logging, then exit.
+
+### Follow-ups
+
+- **"Does `.then(...).catch(...)` catch a throw in the `then` callback?"** Yes; a throw inside a promise callback becomes a rejection of the returned promise.
+- **"What about `Promise.all`?"** The first rejection rejects the whole thing; the others are still running and their rejections are handled (silently), so use `Promise.allSettled` when you need every outcome.
+- **"Why not wrap the whole app in one try/catch?"** It sees only synchronous errors during startup; the global handlers are the correct net.
+
+### References
+
+- [MDN: try...catch](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch)
+- [MDN: unhandledrejection event](https://developer.mozilla.org/en-US/docs/Web/API/Window/unhandledrejection_event)
+- [Node.js: Process events](https://nodejs.org/api/process.html#process-events)
+
+Appears in a shared list of JavaScript scenario prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
