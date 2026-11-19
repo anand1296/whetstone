@@ -1291,3 +1291,239 @@ Track CDN hit ratio, the `Age` header on responses, repeat-visit load time (from
 - [TanStack Query: Caching examples](https://tanstack.com/query/latest/docs/framework/react/guides/caching)
 
 Appears in a widely shared list of "24 real-time frontend interview questions" (second-hand; source unverified). The layered answer is original.
+
+## A page feels slow even though the API responses are fast. How do you find whether JavaScript, reflow, repaint or compositing is the cause?
+<!--
+id: perf-slow-page-fast-api-diagnosis
+level: senior
+tags: performance, rendering, layout, paint, composite, profiling, long-animation-frames
+minutes: 15
+-->
+
+> [!PROMPT]
+> The network tab is green and every API call returns in under 100ms, but scrolling janks, clicks lag and animations stutter. Walk through how you decide whether the time goes to **JavaScript execution**, **style and layout (reflow)**, **paint** or **compositing**, which tool shows each, what the typical fix is for each, and how you would measure it in code.
+>
+> **Requirements**
+> - Name the stages of a frame and what triggers each.
+> - Give a reproducible layout-thrash example and its fix.
+> - Show a compositor-only animation and prove it avoids layout.
+
+> [!TLDR]
+> A frame is script, then style, layout, paint and composite, and each later stage re-runs only if something earlier invalidated it. Record a Performance trace and read the colours: yellow is script, purple is Recalculate Style and Layout, green is Paint and Composite. Long yellow means JavaScript (split, defer or move off the main thread); purple that repeats inside a script means forced synchronous layout from interleaved reads and writes (batch reads before writes); wide green Paint means expensive paint (reduce paint area, avoid costly effects); smooth motion should use `transform` and `opacity`, which skip layout and paint and run on the compositor. Confirm with Long Animation Frames or the CDP counters, not by feel.
+
+### The pipeline and what invalidates each stage
+
+| Stage | What it does | Typical trigger |
+| --- | --- | --- |
+| Script | Runs your JS | Event handlers, timers, promises, framework renders |
+| Style | Resolves which CSS applies | Class or attribute changes |
+| Layout (reflow) | Computes geometry | `width`, `height`, `top`, `font-size`, DOM insertion, reading `offsetHeight` after a write |
+| Paint | Draws pixels into layers | `color`, `background`, `box-shadow`, `filter` |
+| Composite | Moves and blends layers on the GPU | `transform`, `opacity` (can skip layout and paint) |
+
+### Step 1: capture, then classify
+
+1. Record in the Performance panel (CPU throttling 4x and a mid-tier device profile) while reproducing the jank.
+2. Find the long frames. Each long task or frame tells you which colour dominates.
+3. Use the Summary tab: Scripting, Rendering and Painting totals give the answer in one glance.
+4. Open the **Layers** and **Rendering** tools (Paint flashing, Layout shift regions, Layer borders) to see what repaints.
+
+In production, observe it with Long Animation Frames:
+
+```js
+new PerformanceObserver((list) => {
+  for (const frame of list.getEntries()) {
+    const end = frame.startTime + frame.duration;
+    const scriptMs = frame.scripts.reduce((sum, s) => sum + s.duration, 0);
+    const styleLayoutMs = frame.styleAndLayoutStart ? end - frame.styleAndLayoutStart : 0;
+    const renderMs = frame.renderStart ? end - frame.renderStart : 0;
+    console.log({ total: frame.duration, scriptMs, renderMs, styleLayoutMs, blocking: frame.blockingDuration });
+  }
+}).observe({ type: 'long-animation-frame', buffered: true });
+```
+
+If `scriptMs` is most of `total`, it is JavaScript. If `renderMs` is large with small `scriptMs`, it is style, layout or paint.
+
+### Step 2: the common culprits, with a measurable demo
+
+**Forced synchronous layout (layout thrash).** Writing a style and then reading a geometry property makes the browser run layout immediately, once per element:
+
+```js
+// Thrash: write, read, write, read ...
+for (const el of rows) {
+  el.style.width = `${100 + Math.random() * 50}px`;
+  el.dataset.h = el.offsetHeight; // forces layout every iteration
+}
+
+// Batched: all reads, then all writes (layout runs once)
+const heights = rows.map((el) => el.offsetHeight);
+rows.forEach((el, i) => {
+  el.style.width = `${100 + Math.random() * 50}px`;
+  el.dataset.h = heights[i];
+});
+```
+
+On a 3,000-row list in headless Chromium the thrash version took seconds and the batched one a few milliseconds (software rendering exaggerates the gap, but the ratio is the point). In a trace you see many small purple Layout blocks inside one script task, with a warning on each.
+
+**Expensive animation properties.** Animating `width`, `top` or `margin` re-runs layout every frame; animating `transform` or `opacity` does not.
+
+```js
+// Count the work with Chrome DevTools Protocol counters (Playwright)
+const cdp = await page.context().newCDPSession(page);
+await cdp.send('Performance.enable');
+const read = async () =>
+  Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+
+const before = await read();
+await animate(); // 30 frames of box.style.width = ...  or  box.style.transform = ...
+const after = await read();
+console.log('layouts', after.LayoutCount - before.LayoutCount);
+// width: 29 layouts.  transform: 1.  background-color change: 0 layouts (paint only).
+```
+
+I ran this against three animations: `width` caused one layout per frame, `transform` caused at most one in total, and a `background-color` change caused none (it still repaints). That is the stage table above, measured.
+
+**Heavy JavaScript.** A single yellow block that dominates the frame: split the work (see the microtask starvation question), debounce handlers, memoize expensive pure work (carefully, see the memoization question), virtualise long lists, or move computation to a Web Worker.
+
+**Paint cost.** Large repainted areas, big blurs, `box-shadow` on many elements, and `filter` effects show up as wide green Paint. Reduce the area, promote a stable layer sparingly (`will-change` costs memory), and use `content-visibility: auto` for off-screen sections.
+
+**Layout cost from the DOM itself.** Tens of thousands of nodes, deep trees and global selectors make every style and layout pass slow even when you do not thrash. Fix the size of the DOM first.
+
+### What does not belong in this diagnosis
+
+If INP is bad on click but frames are fine, the cost is in the event handler and the render it triggers, so profile React (see the profiling workflow) rather than the rendering pipeline.
+
+### Follow-ups
+
+- **"Which properties force layout when read?"** `offsetWidth/Height`, `getBoundingClientRect()`, `scrollTop`, `getComputedStyle` of geometry properties, and a few more. A reference list of them is in Paul Irish's gist.
+- **"Is `will-change: transform` free?"** No: it creates a layer that consumes GPU memory. Use it on elements that will actually animate and remove it afterwards.
+- **"How do you stop regressions?"** A Playwright test that records `LayoutCount` or Long Animation Frames for a key interaction and fails above a budget.
+
+### References
+
+- [web.dev: Rendering performance](https://web.dev/articles/rendering-performance)
+- [web.dev: Avoid large, complex layouts and layout thrashing](https://web.dev/articles/avoid-large-complex-layouts-and-layout-thrashing)
+- [Chrome DevTools: Analyze runtime performance](https://developer.chrome.com/docs/devtools/performance)
+- [MDN: Long Animation Frames API](https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Long_animation_frame_timing)
+- [CSS Triggers](https://csstriggers.com/)
+
+Appears in a shared list of frontend scenario prompts (second-hand; source unverified). The pipeline walk-through is mine; the demos were run in headless Chromium.
+
+## Memoization was added to speed things up, but the app got slower and used more memory. How is that possible?
+<!--
+id: perf-memoization-backfires
+level: senior
+tags: performance, memoization, caching, react-memo, usememo, memory, lru
+minutes: 12
+-->
+
+> [!PROMPT]
+> You wrapped functions in a `memoize` helper and components in `React.memo` and `useMemo`. Profiling now shows more time and a growing heap. Explain every way memoization can make things worse, then write a safe `memoize` (bounded, cheap key) and say when memoization is the right tool.
+>
+> **Requirements**
+> - Show that a cache with no repeated inputs is pure overhead.
+> - Show the memory growth from an unbounded cache and the bounded fix.
+> - Show why `React.memo` does nothing when props are recreated on every render.
+
+> [!TLDR]
+> Memoization trades memory and bookkeeping for skipped work, and it only wins when the function is expensive, pure, and called repeatedly with the same inputs. It backfires when the inputs rarely repeat (every call pays for key building, hashing and a cache write and never gets a hit), when the key is costly (`JSON.stringify` of the arguments can cost more than the function), when the cache is unbounded (every distinct input stays alive, so the heap grows and GC work rises), and in React when props or dependencies are new objects or functions each render (the comparison runs and still fails). The fix is to measure first, memoize only expensive pure work, use a cheap key, bound the cache (LRU or a `WeakMap`), and stabilise props before reaching for `memo`.
+
+### Pure overhead: no repeated inputs
+
+```js
+const memoize = (fn) => {
+  const cache = new Map();
+  return (...args) => {
+    const key = JSON.stringify(args);          // costly key
+    if (cache.has(key)) return cache.get(key);
+    const value = fn(...args);
+    cache.set(key, value);                     // never evicted
+    return value;
+  };
+};
+
+const add = (a, b) => a + b;
+const memoAdd = memoize(add);
+// 300,000 calls with a different first argument each time: every call misses.
+// Measured in Node: add took about 2ms, memoAdd about 140ms.
+```
+
+Each call stringifies, hashes, looks up, computes, and stores. With zero hits that is all cost.
+
+### Memory: the cache keeps every input and result
+
+```js
+const makeRow = memoize((n) => new Array(50).fill(n));
+for (let i = 0; i < 100_000; i++) makeRow(i);
+// after global.gc(): tens of megabytes stay retained, because the Map holds every key and value.
+```
+
+Besides the heap size, a large long-lived `Map` makes garbage collection slower and keeps results alive after anything uses them.
+
+### The fix: bounded LRU, cheap key, expensive pure work only
+
+```js
+function lruMemoize(fn, { max = 500, key = (x) => x } = {}) {
+  const cache = new Map();
+  return (arg) => {
+    const k = key(arg);
+    if (cache.has(k)) {
+      const value = cache.get(k);
+      cache.delete(k);
+      cache.set(k, value);                      // refresh recency
+      return value;
+    }
+    const value = fn(arg);
+    cache.set(k, value);
+    if (cache.size > max) cache.delete(cache.keys().next().value); // evict the oldest
+    return value;
+  };
+}
+
+const fib = (n) => (n < 2 ? n : fib(n - 1) + fib(n - 2));
+const cachedFib = lruMemoize(fib, { max: 10 });
+// 20 calls of fib(25): about 19ms uncached versus under 1ms through the cache.
+```
+
+Also:
+
+- **Object arguments:** a `Map` keyed by an object uses identity, so `{ w: 2, h: 3 }` built fresh each call never hits. Key by the fields you need (`${w}x${h}`) or normalise first.
+- **Results tied to an object's lifetime:** use a `WeakMap` keyed by that object so the cache is collected with it.
+- **Impure functions:** reading the clock, `Math.random`, or mutable globals makes cached results wrong, not just slow.
+
+### The React versions
+
+```jsx
+const Row = memo(function Row({ item, onSelect }) { /* ... */ });
+
+function List({ ids }) {
+  return ids.map((id) => (
+    <Row key={id} item={{ id }} onSelect={(x) => select(x)} /> // new object and function every render
+  ));
+}
+```
+
+`memo` compares props shallowly on each parent render and then renders anyway, because `item` and `onSelect` are new references. You paid for the comparison and got nothing. I tested this with a test renderer: with unstable props all rows re-rendered on every parent update; with a stable `items` array and a `useCallback` handler they rendered zero times.
+
+Other React traps: a `useMemo` whose dependency is an object created in render never hits; memoizing trivial work costs more than the work; `memo` around components that nearly always receive changed props is overhead; and with the React Compiler you often should delete manual memoization instead of adding it.
+
+### When it is the right tool
+
+1. Profile first and find a specific expensive computation or a re-render that you can show is wasted.
+2. The input space repeats (selectors, derived data, pagination, `fib`-style recursion).
+3. The cache is bounded and the key is cheap.
+4. You re-measure afterwards and keep it only if the number moved.
+
+### Follow-ups
+
+- **"Where does stale data come from?"** Caching by arguments only, when the result also depends on something else (a locale, a feature flag, time). Include everything the result depends on in the key, or give entries a TTL.
+- **"`useMemo` or move it outside the component?"** Work that does not depend on props or state belongs at module level and needs no hook at all.
+
+### References
+
+- [React docs: memo](https://react.dev/reference/react/memo)
+- [React docs: useMemo](https://react.dev/reference/react/useMemo)
+- [MDN: WeakMap](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakMap)
+- [React Compiler](https://react.dev/learn/react-compiler)
+
+Appears in a shared list of frontend scenario prompts (second-hand; source unverified). The explanation and code are my own and were run in Node and a React test renderer.

@@ -1309,3 +1309,264 @@ Other fixes: list `count` in the dependency array (and re-create the interval), 
 - [React docs: Removing Effect dependencies](https://react.dev/learn/removing-effect-dependencies)
 
 Reported as a "closures with a real use case, not the counter example" prompt in a frontend phone screen in a candidate's LinkedIn write-up; second-hand and unverified, and the examples are my own.
+
+## Promises are asynchronous, so why can a long chain of resolved Promises still freeze the UI?
+<!--
+id: js-microtask-starvation
+level: senior
+tags: javascript, event-loop, promises, microtasks, performance, scheduler
+minutes: 12
+-->
+
+> [!PROMPT]
+> A button click starts a job that walks 200,000 items with a chain of `.then` calls (or an `async` loop that awaits an already-resolved value). Every step is "asynchronous", yet the page does not repaint and clicks are ignored until the whole job ends. Explain why, prove it with code, and fix it.
+>
+> **Requirements**
+> - Explain microtasks versus tasks and where rendering happens.
+> - Show a reproduction that a timer cannot fire during the chain.
+> - Write `processChunked(items, work)` that keeps the page responsive.
+
+> [!TLDR]
+> "Asynchronous" only means "later", not "on another thread". A promise reaction runs as a microtask, and the event loop drains the whole microtask queue, including microtasks queued by microtasks, before it takes the next task or renders a frame. A long chain of resolved promises therefore starves timers, input and painting exactly like a synchronous loop. The fix is to cut the work into slices of a few milliseconds and yield to a real task boundary between slices (`setTimeout`, `MessageChannel`, `scheduler.yield()`), or move the work to a Web Worker. `await Promise.resolve()` is not a yield.
+
+### Why it freezes
+
+One turn of the event loop is: run one task, then drain **all** microtasks, then (if due) update rendering, then pick the next task. Promise callbacks and `await` continuations are microtasks. If each microtask queues another one, the queue never becomes empty, so the loop never reaches "render" or "next task". Timers, clicks and paints are all waiting behind it.
+
+```js
+// Reproduction (runs in Node and the browser): the timer cannot fire during the chain
+const order = [];
+setTimeout(() => order.push('timer'), 0);
+
+let p = Promise.resolve(0);
+for (let i = 0; i < 200_000; i++) p = p.then((v) => v + 1);
+
+p.then(() => {
+  order.push('chain done');
+  setTimeout(() => console.log(order), 0); // ['chain done', 'timer']
+});
+```
+
+The timer was due first, but the chain finished first. A recursive `queueMicrotask` loop behaves the same way.
+
+### The fix: slice the work and yield to a task
+
+```js
+const yieldToMacrotask = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+async function processChunked(items, work, budgetMs = 8) {
+  let i = 0;
+  while (i < items.length) {
+    const start = performance.now();
+    while (i < items.length && performance.now() - start < budgetMs) work(items[i++]);
+    await yieldToMacrotask(); // task boundary: input, timers and rendering get a turn
+  }
+}
+
+// usage
+await processChunked(rows, (row) => index.add(row));
+```
+
+Choosing the yield:
+
+- **`scheduler.yield()`**: best where available (Chromium); it resumes with higher priority than other queued tasks. Feature-detect it and fall back to `setTimeout`.
+- **`MessageChannel`**: yields without the ~4ms clamp that nested `setTimeout` gets. React's scheduler uses it.
+- **`requestIdleCallback`**: only for work that may wait; it can be starved on a busy page.
+- **Web Worker**: the right answer when the work is CPU-heavy rather than merely long.
+
+> [!WARNING]
+> `await Promise.resolve()` and `await somethingAlreadyResolved` yield only to other microtasks. They never let the browser paint.
+
+### Follow-ups
+
+- **"Does the chunked loop make the job faster?"** No, slightly slower in total. It makes the page responsive, which is what INP measures.
+- **"How do you find this in a profile?"** One long task in the Performance panel with the work attributed to promise callbacks; Long Animation Frames shows the script that blocked.
+- **"Is `process.nextTick` the same in Node?"** It runs before promise microtasks and can starve the loop even more easily.
+
+### References
+
+- [MDN: Using microtasks in JavaScript with queueMicrotask()](https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide)
+- [web.dev: Optimize long tasks](https://web.dev/articles/optimize-long-tasks)
+- [Jake Archibald: Tasks, microtasks, queues and schedules](https://jakearchibald.com/2015/tasks-microtasks-queues-and-schedules/)
+
+Appears in a shared list of JavaScript scenario prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
+
+## You copied an object with the spread operator, yet updating the copy changed the original. Where did the shared reference remain?
+<!--
+id: js-shallow-copy-shared-reference
+level: junior
+tags: javascript, objects, references, immutability, spread, structuredClone, react-state
+minutes: 10
+-->
+
+> [!PROMPT]
+> `const next = { ...state }; next.user.name = 'Grace';` and `state.user.name` is now `'Grace'` too. Explain exactly where the shared reference is, list the ways to copy that have the same problem, and show how to update nested state without mutating the original.
+>
+> **Requirements**
+> - Prove the sharing with `===`.
+> - Show a path-copy update and a real deep copy, and say when each is right.
+> - Name what `structuredClone` and `JSON.parse(JSON.stringify(x))` cannot copy.
+
+> [!TLDR]
+> Spread, `Object.assign`, `slice`, `Array.from` and `[...arr]` are shallow: they copy the top-level properties, and each property that holds an object copies the reference, not the object. So `copy.user` and `state.user` point at one object, and a write through either is visible through both. For state updates, copy along the path you change and reuse the rest (`{ ...state, user: { ...state.user, name } }`); for a genuinely independent copy use `structuredClone`, which cannot copy functions and drops prototypes, while a JSON round trip also loses `Date`, `Map`, `undefined` and more.
+
+### Where the reference stays shared
+
+```js
+const state = { user: { name: 'Ada', tags: ['a'] }, items: [{ id: 1, done: false }] };
+
+const copy = { ...state };
+copy.user.name = 'Grace';
+
+console.log(state.user.name);          // 'Grace'
+console.log(copy.user === state.user); // true  (same object)
+console.log(copy.items === state.items); // true  (same array, and same item objects)
+copy.items.push({ id: 2, done: false });
+console.log(state.items.length);       // 2
+```
+
+Only the top level was copied. `copy` is a new object, but its properties still hold the original `user` and `items` references. The same is true of `Object.assign({}, x)`, `arr.slice()`, `[...arr]` and `Array.from(arr)`. Spread also copies only **own enumerable** properties, so inherited ones are dropped and getters become plain values.
+
+### Fix 1: copy along the path you change (React state)
+
+```js
+const next = { ...state, user: { ...state.user, name: 'Grace' } };
+console.log(state.user.name);            // 'Ada'
+console.log(next.items === state.items); // true: untouched branches stay shared, which is cheap and correct
+
+// update one array item immutably
+const toggled = {
+  ...state,
+  items: state.items.map((it) => (it.id === 1 ? { ...it, done: true } : it)),
+};
+```
+
+Sharing untouched branches is the point: React compares by reference, so a changed branch gets a new reference (and re-renders), and an unchanged one keeps its old reference (and can be skipped). Mutating `state.user.name` and then spreading gives React a new top-level object but an unchanged `user`, so `memo` children that receive `user` never update.
+
+### Fix 2: a real deep copy
+
+```js
+const deep = structuredClone(state);
+deep.user.tags.push('b');
+console.log(state.user.tags); // ['a']
+```
+
+Limits you should name:
+
+- `structuredClone` throws on functions, and class instances lose their prototype (you get a plain object).
+- It handles `Date`, `Map`, `Set`, typed arrays and cycles.
+- `JSON.parse(JSON.stringify(x))` turns `Date` into a string, drops `undefined` and functions, turns `Map` and `Set` into `{}`, and throws on cycles.
+
+```js
+class P { x = 1 }
+structuredClone(new P()) instanceof P; // false
+structuredClone({ f() {} });           // DataCloneError
+```
+
+> [!WARNING]
+> A deep copy on every update is the expensive default. In state management, prefer path copying (or Immer, which does it for you with a draft) and keep deep copies for boundaries such as snapshots and `postMessage`.
+
+### Follow-ups
+
+- **"Does `Object.freeze` help?"** It is shallow too. It stops writes to the top level only, so freeze recursively in tests or use a type system (`readonly`, `as const`) to catch mutation.
+- **"How would you write `deepClone` yourself?"** See the deep clone question; handle cycles with a `WeakMap` of already-copied objects.
+
+### References
+
+- [MDN: Spread syntax](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Spread_syntax)
+- [MDN: structuredClone()](https://developer.mozilla.org/en-US/docs/Web/API/Window/structuredClone)
+- [React docs: Updating objects in state](https://react.dev/learn/updating-objects-in-state)
+
+Appears in a shared list of JavaScript scenario prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
+
+## A closure keeps returning an outdated value. Why, and how is that different from closures retaining memory?
+<!--
+id: js-stale-closure-vs-retention
+level: senior
+tags: javascript, closures, stale-closure, memory, garbage-collection, react-hooks
+minutes: 12
+-->
+
+> [!PROMPT]
+> Two bugs get called "closure problems": a callback that reads an **old value**, and a callback that keeps **memory alive**. Explain what is actually going on in each, why they are different, and show a runnable demonstration of both with a fix.
+>
+> **Requirements**
+> - Show a stale read and the fix that reads the current value.
+> - Show that a closure keeps what it references alive, and that releasing the closure releases it.
+> - Say how to tell which problem you have.
+
+> [!TLDR]
+> A **stale** closure is a correctness bug: the function captured a value (or an old object) that was current when it was created, and the variable you are watching now lives somewhere else, for example a new binding from a later render. It is fixed by reading through something that is current at call time (a functional update, a ref, or re-creating the function when the value changes). A **retention** closure is a memory bug: the function stays reachable, so everything it references stays alive; it is fixed by dropping the reference (unsubscribe, clear the timer, null the handler). Stale means the wrong data is read; retained means the right data is never freed.
+
+### Stale value: the closure saw a snapshot
+
+```js
+// A closure reads the variable's current value only if it closed over the SAME binding
+let live = 0;
+const readLive = () => live;
+live = 5;
+readLive(); // 5, not stale
+
+// Stale: it closed over an old object, then the variable was reassigned
+let config = { theme: 'light' };
+const readTheme = ((c) => () => c.theme)(config);
+config = { theme: 'dark' };
+readTheme(); // 'light'
+
+// Fix: read through a box that is always the latest
+const latest = { current: config };
+const read = () => latest.current.theme;
+latest.current = { theme: 'blue' };
+read(); // 'blue'
+```
+
+In React every render creates fresh `const` bindings, and a function created in render N closes over render N's values. An interval or listener created once keeps render 0's `count` forever:
+
+```js
+useEffect(() => {
+  const id = setInterval(() => setCount(count + 1), 1000); // count is always 0
+  return () => clearInterval(id);
+}, []);
+// Fixes: setCount((c) => c + 1), list count in deps, or keep the latest value in a ref
+```
+
+### Retention: the closure keeps its data alive
+
+```js
+function makeLeaky() {
+  const big = new Array(1e6).fill(0);
+  const ref = new WeakRef(big);                // lets us observe collection without keeping big alive
+  return { handler: () => big.length, ref };   // the closure uses big, so big stays reachable
+}
+
+let leaky = makeLeaky();
+global.gc(); // run with: node --expose-gc
+console.log(leaky.ref.deref() !== undefined);  // true: still alive
+
+const keep = leaky.ref;
+leaky = null;                                  // drop the closure
+global.gc();
+console.log(keep.deref() !== undefined);       // false after collection (collection timing is not guaranteed)
+```
+
+A closure that only uses a small copy (`const small = big.length; return () => small`) lets V8 collect `big`, because engines retain only the variables a closure actually references (but a single `eval` or a shared function scope can keep more). Listeners, timers, subscriptions and module-level caches are what keep such closures reachable.
+
+### How to tell them apart
+
+| Symptom | Likely cause | First check |
+| --- | --- | --- |
+| A handler uses old props or state | Stale closure | Is the function created once (empty deps, a listener added on mount)? |
+| Memory grows after navigating around | Retention | Heap snapshot comparison; look for detached DOM nodes and the retaining closure |
+
+### Follow-ups
+
+- **"Can a fix for one cause the other?"** Yes: putting every value in `deps` fixes staleness but re-subscribes each time; forgetting the cleanup then retains one closure per run.
+- **"Is a ref a stale-closure fix or a leak risk?"** The ref box is stable; it only retains the latest value, one at a time.
+
+### References
+
+- [MDN: Closures](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Closures)
+- [MDN: WeakRef](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef)
+- [React docs: Removing Effect dependencies](https://react.dev/learn/removing-effect-dependencies)
+
+Appears in a shared list of JavaScript scenario prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
