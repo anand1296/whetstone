@@ -15,8 +15,8 @@ minutes: 12
 
 > [!PROMPT]
 > A teammate builds a custom dropdown from `div`s with `role="button"` and `aria-label` on everything, and a screen reader announces it badly. Review it using the rules of ARIA.
->
-> **Cover**
+
+> [!HINT]
 > - The five rules of ARIA, with "no ARIA is better than bad ARIA" in practice.
 > - Roles, states and properties: what each does (and doesn't) change, including accessible name computation.
 > - Replacing the custom pieces with native elements, and when ARIA is genuinely needed.
@@ -89,8 +89,8 @@ minutes: 12
 
 > [!PROMPT]
 > In your SPA, after navigating to a new route keyboard focus stays on the old link, deleting a list item sends focus to the top of the page, and a modal doesn't return focus when closed. Fix focus management across these cases.
->
-> **Cover**
+
+> [!HINT]
 > - Route change: moving focus (to heading or main), updating `document.title` and announcing the new page.
 > - Deletions, dialogs, and menus: where focus goes and why.
 > - Skip links, `focus-visible`, and testing with only a keyboard and a screen reader.
@@ -240,8 +240,8 @@ minutes: 15
 
 > [!PROMPT]
 > Implement keyboard behavior for a toolbar of 6 buttons and for a listbox with 100 options. Choose between roving `tabindex` and `aria-activedescendant` for each, and justify it.
->
-> **Cover**
+
+> [!HINT]
 > - One Tab stop per composite widget, arrow keys inside, Home/End, wrapping behavior.
 > - How each technique moves focus and what screen readers announce; the trade-offs for virtualization and for text inputs.
 > - Behavior checks: Tab leaves the widget, Shift+Tab returns to the last active item.
@@ -458,8 +458,8 @@ minutes: 10
 
 > [!PROMPT]
 > Your app shows toasts, form errors, a "3 results found" count after filtering and a chat feed. Screen reader users miss most of them, and one region announces everything twice.
->
-> **Cover**
+
+> [!HINT]
 > - `aria-live` polite versus assertive, `role="status"`, `role="alert"`, and why the region must exist before its content changes.
 > - Designing accessible toasts (duration, focus, dismissal) and result counts.
 > - Common failures (re-rendering the region, too many announcements) and how to test with a screen reader.
@@ -628,8 +628,8 @@ minutes: 12
 
 > [!PROMPT]
 > Audit and fix a checkout form: placeholders used as labels, errors shown only in red below the field, an error summary missing, and the form validates on every keystroke.
->
-> **Cover**
+
+> [!HINT]
 > - Labels, descriptions and errors tied to fields (`label`, `aria-describedby`, `aria-invalid`), grouping with `fieldset`.
 > - Validation timing and the error summary pattern with focus management.
 > - `autocomplete` tokens, input types, required indicators, and a quick manual test plan.
@@ -795,8 +795,8 @@ minutes: 12
 
 > [!PROMPT]
 > You are the principal engineer for a product with 50 engineers and recurring accessibility regressions. Leadership asks for a plan to make accessibility stick, not another one-off audit.
->
-> **Cover**
+
+> [!HINT]
 > - Prevention: accessible design-system primitives, lint rules, and code review checklists.
 > - Detection: CI checks, manual audit cadence, assistive-technology testing, and metrics that matter.
 > - People and process: training, ownership, how issues are triaged against the roadmap.

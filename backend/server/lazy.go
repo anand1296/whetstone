@@ -105,6 +105,15 @@ func Build(ctx context.Context, cfg Config, log *slog.Logger) (http.Handler, err
 		_ = st.Close()
 		return nil, err
 	}
+	// A deploy carries the repository content. Apply what changed so merging content to main is enough. A failure
+	// here must not take the API down: the admin Sync screen still shows and applies the same changes.
+	syncCtx, cancelSync := context.WithTimeout(ctx, 15*time.Second)
+	defer cancelSync()
+	if plan, ran, err := st.AutoSync(syncCtx, repo, compiler.Check); err != nil {
+		log.Warn("automatic content sync failed; use Admin, Content, Sync from repository", "error", err)
+	} else if ran {
+		log.Info("content synced from the deployment", "newTopics", len(plan.NewSections), "newQuestions", len(plan.NewQuestions), "updated", len(plan.ChangedQuestions))
+	}
 	if cfg.OwnerLogin == "" {
 		log.Warn("OWNER_GITHUB_LOGIN is not set: nobody will be an admin")
 	}

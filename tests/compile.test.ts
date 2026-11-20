@@ -79,7 +79,22 @@ describe('compileContent', () => {
     const { prompt: head, rest } = splitPrompt(html);
     assert.match(head, /Test cases/);
     assert.ok(rest.startsWith('\n<aside class="callout callout-tldr"') || rest.startsWith('<aside class="callout callout-tldr"'));
-    assert.deepEqual(splitPrompt('<p>plain</p>'), { prompt: '', rest: '<p>plain</p>' });
+    assert.deepEqual(splitPrompt('<p>plain</p>'), { prompt: '', hint: '', rest: '<p>plain</p>' });
+  });
+
+  it('renders [!HINT] after the prompt and splits it off separately', () => {
+    const body = '> [!PROMPT]\n> Explain it.\n\n> [!HINT]\n> - the model\n> - the fix\n\n';
+    const source = answer().replace('> [!TLDR]', `${body}> [!TLDR]`);
+    const { sections, answers } = compileContent([file(`## What is it?\n${source}`)]);
+    assert.equal(sections[0]?.questions[0]?.summary, 'A short summary with bold and code.');
+    const html = answers.sec?.['q-one'] ?? '';
+    const { prompt, hint, rest } = splitPrompt(html);
+    assert.match(prompt, /Explain it/);
+    assert.doesNotMatch(prompt, /the fix/);
+    assert.ok(hint.startsWith('<aside class="callout callout-hint"><p class="callout-label">Hint</p>'));
+    assert.match(hint, /<li>the fix<\/li>/);
+    assert.match(rest, /^\s*<aside class="callout callout-tldr"/);
+    assert.doesNotMatch(rest, /callout-hint/);
   });
 
   it('escapes raw HTML in answers', () => {

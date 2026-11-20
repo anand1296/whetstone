@@ -68,8 +68,8 @@ minutes: 12
 
 > [!PROMPT]
 > "Tell me about a large migration you led." The interviewer will probe your decisions, the risks you managed and the results.
->
-> **Prepare to cover**
+
+> [!HINT]
 > - The business case: why now, and what you chose not to do.
 > - The strategy: incremental approach, tooling and guardrails, how work was split across teams.
 > - A hard moment, how you handled stakeholders, and measurable results (delivery speed, defects, performance).
@@ -110,8 +110,8 @@ minutes: 10
 
 > [!PROMPT]
 > "Tell me about a time you disagreed with a technical decision." They are looking for judgment and collaboration, not for a story where you were simply right.
->
-> **Prepare to cover**
+
+> [!HINT]
 > - The decision, the other person's reasoning and the constraints you didn't see at first.
 > - How you raised the disagreement (evidence, a prototype, a written proposal) and what you committed to.
 > - The outcome, including if you were wrong or if you changed your mind, and what you'd do differently.
@@ -151,8 +151,8 @@ minutes: 10
 
 > [!PROMPT]
 > "How do you mentor engineers and raise the bar of a team?" Give an answer grounded in specific examples, not a philosophy.
->
-> **Prepare to cover**
+
+> [!HINT]
 > - How you tailor mentoring to a person (goals, gaps, stretch assignments) with a concrete story.
 > - Mechanisms that raise the bar: code review culture, design reviews, standards, hiring.
 > - How you measure growth, handle underperformance and avoid becoming the bottleneck.
@@ -188,8 +188,8 @@ minutes: 12
 
 > [!PROMPT]
 > Product says there's no room for tech debt this quarter. You believe a slow build and brittle tests are costing the team a day a week. How do you get it prioritized?
->
-> **Prepare to cover**
+
+> [!HINT]
 > - Quantifying the cost (delivery speed, incidents, onboarding) and linking it to business goals.
 > - Options: a dedicated percentage, bundling with features, incremental refactoring, a one-off project with milestones.
 > - How you communicate and negotiate, and what you do when the answer is still no.
@@ -232,8 +232,8 @@ minutes: 15
 
 > [!PROMPT]
 > You are asked to write an RFC proposing a company-wide frontend platform change (for example, a shared design system and framework upgrade) that affects ten teams.
->
-> **Prepare to cover**
+
+> [!HINT]
 > - The structure: problem with evidence, goals and non-goals, options with trade-offs, recommendation, rollout and migration, risks.
 > - How you get early feedback, build consensus and handle objections.
 > - Decision records, ownership after approval, and how you measure success.
@@ -281,8 +281,8 @@ minutes: 10
 
 > [!PROMPT]
 > "Tell me about a failure or production incident you owned." Interviewers listen for ownership, calm under pressure and what changed afterwards.
->
-> **Prepare to cover**
+
+> [!HINT]
 > - What happened and your role, without blaming others.
 > - Detection, mitigation and communication during the incident; the root cause found afterwards.
 > - The follow-up changes (tests, monitoring, process) and how you know they worked.
@@ -318,8 +318,8 @@ minutes: 12
 
 > [!PROMPT]
 > You want ten teams to adopt a new frontend platform (build tooling, design system and lint rules) and none of them report to you. How do you get alignment and adoption?
->
-> **Prepare to cover**
+
+> [!HINT]
 > - Understanding each team's goals and pain, and positioning the change in their interest.
 > - Tactics: pilots with a friendly team, data, champions, migration tooling, a clear support path.
 > - Handling resistance and escalation, and measuring adoption honestly.

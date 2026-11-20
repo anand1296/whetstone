@@ -15,8 +15,8 @@ minutes: 18
 
 > [!PROMPT]
 > A team wants an assistant that answers questions about company policies, in the company's tone, with up-to-date information. Someone proposes fine-tuning a model. How do you decide between prompting, retrieval-augmented generation (RAG) and fine-tuning?
->
-> **Cover**
+
+> [!HINT]
 > - What each technique changes: knowledge, behavior or format.
 > - Cost, freshness, controllability and risk.
 > - How you would validate the choice.
@@ -59,8 +59,8 @@ minutes: 22
 
 > [!PROMPT]
 > You are shipping an LLM-powered feature. How do you know it is good enough to launch, and how do you stop quality from regressing when someone changes the prompt, model or retrieval settings?
->
-> **Cover**
+
+> [!HINT]
 > - Building datasets and choosing metrics.
 > - Automatic graders, including LLM judges, and their limits.
 > - Offline evals, online monitoring and feedback loops.
@@ -109,8 +109,8 @@ minutes: 20
 
 > [!PROMPT]
 > Explain how embedding-based search works, how you choose an index and chunking strategy, and why pure vector search often underperforms. How would you improve retrieval quality for a document search product?
->
-> **Cover**
+
+> [!HINT]
 > - Embeddings, similarity metrics and approximate nearest neighbor indexes.
 > - Chunking, metadata filters and hybrid search.
 > - Reranking and how you measure improvements.
@@ -159,8 +159,8 @@ minutes: 22
 
 > [!PROMPT]
 > A team wants an agent that reads customer emails, looks up orders and issues refunds. How do you design it to be reliable and safe, and how do you decide whether an agent is the right tool at all?
->
-> **Cover**
+
+> [!HINT]
 > - Workflow versus autonomous agent.
 > - Tool design, permissions and validation.
 > - Prompt injection, human approval, monitoring and cost.
@@ -208,8 +208,8 @@ minutes: 20
 
 > [!PROMPT]
 > You built a fraud classifier on data where 0.5% of transactions are fraud and report 99.5% accuracy. Is that good? How do you evaluate and improve the model, and how do you detect overfitting?
->
-> **Cover**
+
+> [!HINT]
 > - Precision, recall, F1, ROC-AUC and PR-AUC, and choosing thresholds from costs.
 > - Handling class imbalance.
 > - Overfitting, validation strategy and the bias-variance trade-off.
@@ -259,8 +259,8 @@ minutes: 22
 
 > [!PROMPT]
 > A model that performed well at launch is degrading six months later. How do you design deployment, monitoring and retraining so you notice quickly and fix safely?
->
-> **Cover**
+
+> [!HINT]
 > - Reproducible training and versioned artifacts.
 > - Serving patterns, skew and rollout strategies.
 > - Drift detection and retraining triggers.

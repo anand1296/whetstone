@@ -15,8 +15,8 @@ minutes: 15
 
 > [!PROMPT]
 > A product manager wants rich-text comments with links and images. Security review asks how React protects you from XSS and where it doesn't. Walk through the design.
->
-> **Cover**
+
+> [!HINT]
 > - What React escapes by default and the unsafe sinks: `dangerouslySetInnerHTML`, `javascript:` URLs, `href`/`src`, third-party widgets.
 > - Sanitizing with DOMPurify (allowlists, hooks, when to sanitize: input or output), and Markdown pipelines.
 > - Defense in depth: CSP, Trusted Types, and testing with payloads.
@@ -173,8 +173,8 @@ minutes: 15
 
 > [!PROMPT]
 > Security wants a strict Content Security Policy. Your app has inline scripts, third-party tags and several teams shipping independently. Roll it out without breaking production.
->
-> **Cover**
+
+> [!HINT]
 > - A nonce-based `strict-dynamic` policy versus allowlists, and what inline scripts and `eval` need.
 > - Report-only first, collecting and triaging violation reports, and a rollout plan.
 > - Trusted Types for DOM sinks, and how you keep the policy from eroding over time.
@@ -243,8 +243,8 @@ minutes: 15
 
 > [!PROMPT]
 > You are reviewing a SPA that stores access and refresh tokens in `localStorage`. A security engineer says this is an XSS time bomb. Decide where tokens should live.
->
-> **Cover**
+
+> [!HINT]
 > - Options (localStorage, memory, `HttpOnly` cookies) with the threats each handles.
 > - The BFF pattern: how it works, what it costs and when it is worth it.
 > - Refresh handling, logout, token expiry, and the CSRF implications of cookies.
@@ -492,8 +492,8 @@ minutes: 10
 
 > [!PROMPT]
 > Your API uses cookie sessions. A pen tester forges a cross-site `POST` that changes a user's email. You are told `SameSite=Lax` is the default, so is CSRF solved?
->
-> **Cover**
+
+> [!HINT]
 > - How CSRF works and what `SameSite` Strict, Lax and None change (and the gaps: subdomains, GET side effects, older browsers).
 > - Defenses that still matter: CSRF tokens, custom headers, origin checks and `Sec-Fetch-Site`.
 > - How CSRF differs from XSS and CORS, and how you'd test for it.
@@ -544,8 +544,8 @@ minutes: 12
 
 > [!PROMPT]
 > Implement login with a third-party identity provider in a pure SPA. Walk through OAuth authorization code flow with PKCE end to end, and say what the attacks are that each step prevents.
->
-> **Cover**
+
+> [!HINT]
 > - The sequence: `code_verifier`, `code_challenge`, `state`, redirect, code exchange, tokens.
 > - Why the implicit flow was dropped, and what `state` and PKCE protect against.
 > - Where tokens end up, refresh strategy, logout, and common implementation mistakes.
@@ -636,8 +636,8 @@ minutes: 12
 
 > [!PROMPT]
 > A popular npm package you depend on is compromised, and a post-install script runs in your CI. Describe how you reduce the likelihood and blast radius of supply-chain attacks.
->
-> **Cover**
+
+> [!HINT]
 > - Dependency hygiene: lockfiles, pinning, `npm ci`, install scripts, provenance and auditing.
 > - Third-party scripts: Subresource Integrity, CSP, sandboxed iframes, a tag-manager policy.
 > - Detection and response: monitoring advisories, automated updates with review, and an incident playbook.

@@ -91,6 +91,22 @@ test('the answer waits behind a Reveal answer button, and the full question stay
   await expect(first.locator('.callout-tldr')).toBeVisible();
 });
 
+test('what a strong answer covers stays behind "Need a nudge?" until asked for, then shows with the answer', async ({ page }) => {
+  await page.goto('/#csrf-samesite');
+  const question = page.locator('#q-csrf-samesite');
+  await expect(question.locator('.callout-prompt')).toBeVisible();
+  await expect(question.locator('.callout-hint')).toBeHidden();
+  const nudge = question.getByRole('button', { name: 'Need a nudge?' });
+  await nudge.click();
+  await expect(question.locator('.callout-hint')).toBeVisible();
+  await question.getByRole('button', { name: 'Hide the hint' }).click();
+  await expect(question.locator('.callout-hint')).toBeHidden();
+
+  await question.getByRole('button', { name: 'Reveal answer' }).click();
+  await expect(question.locator('.callout-hint')).toBeVisible(); // the same list now doubles as a self-check
+  await expect(question.getByRole('button', { name: /nudge|hint/i })).toHaveCount(0);
+});
+
 test('framework switch shows React, Angular or Vue code and remembers the choice', async ({ page }) => {
   await page.goto('/#typeahead-combobox');
   const question = page.locator('#q-typeahead-combobox');

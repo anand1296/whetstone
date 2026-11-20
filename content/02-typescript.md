@@ -876,8 +876,8 @@ minutes: 12
 
 > [!PROMPT]
 > The backend renamed a field and the web app crashed in production for users with old `localStorage` data, even though everything type checked. You are asked to prevent this class of bug.
->
-> **Cover**
+
+> [!HINT]
 > - Which inputs are trust boundaries (API responses, storage, URL params, `postMessage`, feature flags, AI output).
 > - A schema-first approach with zod (or valibot): infer the type from the schema, parse at the edge, and what to do on failure.
 > - Sharing types with the backend (OpenAPI or GraphQL codegen) without trusting them blindly, and how you version stored data.
@@ -951,8 +951,8 @@ minutes: 12
 
 > [!PROMPT]
 > An interviewer asks: "TypeScript says this code is fine, yet it throws at runtime. Show me three ways that happens and how you'd defend against them."
->
-> **Cover**
+
+> [!HINT]
 > - Concrete examples: `any` leakage, unchecked index access, array covariance, method parameter bivariance, `as` casts, `JSON.parse`.
 > - Compiler options that help (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `useUnknownInCatchVariables`).
 > - Lint rules and runtime validation at boundaries, and how you would roll these out in a large codebase.

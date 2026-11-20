@@ -15,8 +15,8 @@ minutes: 20
 
 > [!PROMPT]
 > A product page has LCP 4.8 s, INP 420 ms and CLS 0.31 on mobile field data. You have one week. Describe how you diagnose each metric and what you change first.
->
-> **Cover**
+
+> [!HINT]
 > - For each metric: the tools you open, the breakdown you look for (LCP subparts, long tasks and input delay, layout shift sources).
 > - The likely fixes in order of payoff, and how you avoid regressions.
 > - How you verify with both lab and field data, and what targets you'd set.
@@ -97,8 +97,8 @@ minutes: 18
 
 > [!PROMPT]
 > Users report that clicking "Add to cart" feels sticky: INP is 380 ms at the 75th percentile. The click handler updates React state, which re-renders a large list and runs analytics.
->
-> **Cover**
+
+> [!HINT]
 > - The three parts of an interaction (input delay, processing, presentation delay) and how to see each in a trace.
 > - Fixes: yielding to the main thread, `startTransition`, deferring analytics, reducing renders, and avoiding layout thrash.
 > - How you measure in the field (`web-vitals` attribution) and what threshold you commit to.
@@ -163,8 +163,8 @@ minutes: 15
 
 > [!PROMPT]
 > The main bundle is 1.4 MB gzip and keeps growing. Design a bundle strategy for a large React app: where to split, how to share vendor code, and how to stop regressions.
->
-> **Cover**
+
+> [!HINT]
 > - Route-level and interaction-level code splitting; prefetching on intent.
 > - Diagnosing the bundle (visualizer, duplicate packages), tree-shaking failures (side effects, barrel files, CJS) and polyfills.
 > - Budgets in CI and ownership, so the number doesn't creep back up.
@@ -319,16 +319,16 @@ minutes: 18
 > [!PROMPT]
 > Explain `React.lazy` and `Suspense` and how lazy loading works. A heavy charts page is slowing down first load: split it, choose the fallback, and handle the case where the chunk fails to load.
 >
-> **Cover**
-> - What `lazy` does with a dynamic `import()`, and what Suspense does while it is pending.
-> - Where to split (routes, heavy widgets, modals) and where not to.
-> - Preloading on intent, avoiding waterfalls and fallback flashes, and chunk load failures.
->
 > **Test cases**
 > - The charts bundle is not requested until the user opens the Reports route.
 > - Hovering the "Reports" link starts downloading the chunk before the click.
 > - A failed chunk request (offline or stale deploy) shows a retry UI, and the rest of the app keeps working.
 > - Navigating to Reports inside a transition keeps the current page visible instead of flashing a spinner.
+
+> [!HINT]
+> - What `lazy` does with a dynamic `import()`, and what Suspense does while it is pending.
+> - Where to split (routes, heavy widgets, modals) and where not to.
+> - Preloading on intent, avoiding waterfalls and fallback flashes, and chunk load failures.
 
 > [!TLDR]
 > `lazy(() => import('./Reports'))` returns a component that does not load its code until it is first rendered. On first render React calls the loader; the pending promise makes the component **suspend**, the nearest `<Suspense>` boundary shows its `fallback`, and when the module resolves React retries the render with the real component (the result is cached). Split at **route level first**, then heavy optional UI (charts, editors, modals); preload on hover or idle; pair Suspense with an **error boundary** for failed chunks; use a **transition** to avoid replacing visible UI with a spinner.
@@ -490,8 +490,8 @@ minutes: 12
 
 > [!PROMPT]
 > A marketing page loads 6 MB of images, shifts layout when fonts load, and its hero image is the LCP element. Fix images and fonts.
->
-> **Cover**
+
+> [!HINT]
 > - Formats (AVIF/WebP), `srcset` and `sizes`, explicit dimensions, lazy loading and `fetchpriority`.
 > - Font loading: subsetting, `font-display`, preload, and metric-compatible fallbacks to avoid layout shift.
 > - A checklist you'd enforce in review or CI.
@@ -567,8 +567,8 @@ minutes: 15
 
 > [!PROMPT]
 > Your team says "the app is slow" and wants to wrap everything in `memo`. Describe a repeatable workflow for finding and fixing a React performance problem.
->
-> **Cover**
+
+> [!HINT]
 > - Reproducing reliably (CPU throttling, a specific interaction) and deciding whether it is scripting, rendering or layout.
 > - Using the React Profiler and the browser Performance panel; reading flame charts and "why did this render".
 > - Fixing the biggest cost first, proving the improvement and keeping a regression test or budget.
@@ -695,8 +695,8 @@ minutes: 12
 
 > [!PROMPT]
 > Leadership wants "no performance regressions" after a redesign. Lighthouse in CI is flaky and field data shows different numbers than the lab. Design the measurement and enforcement setup.
->
-> **Cover**
+
+> [!HINT]
 > - Lab versus field data, and why they disagree; RUM with the `web-vitals` library and segmentation.
 > - Budgets that can gate a pull request without flakiness (bundle size, lab metrics on stable runners), and alerts for field data.
 > - Ownership: who is paged, how regressions are triaged, how budgets change.
@@ -745,8 +745,8 @@ minutes: 12
 
 > [!PROMPT]
 > A dashboard takes 1.2 s to load data, and users say it feels slow while a competitor with similar timings feels instant. Improve perceived performance without changing the backend.
->
-> **Cover**
+
+> [!HINT]
 > - Immediate feedback, skeletons versus spinners, optimistic updates and their rollback rules.
 > - Prefetching on intent (hover, viewport), view transitions and keeping content stable.
 > - How you measure perception (INP, time to useful content, user research) and when these tricks backfire.
@@ -1076,8 +1076,8 @@ minutes: 20
 
 > [!PROMPT]
 > A React table renders 10,000+ records. Opening the page takes seconds, scrolling stutters, and typing in the filter box lags. How do you identify the bottleneck and optimize rendering?
->
-> **Cover**
+
+> [!HINT]
 > - How you measure first, and what the numbers tell you.
 > - The fixes in order of effort and payoff, including the "do not render them at all" options.
 > - The cost of each fix: accessibility, find-in-page, selection, SEO.
@@ -1197,8 +1197,8 @@ minutes: 15
 
 > [!PROMPT]
 > "How would you optimize frontend caching?" is usually a prompt to map the layers and talk about invalidation. Describe each layer a request can be served from, what you would cache at each, how you keep it fresh, and what breaks when you get it wrong.
->
-> **Cover**
+
+> [!HINT]
 > - Browser HTTP cache, CDN or edge, service worker, in-app data cache, and persistent storage.
 > - How you decide a freshness rule for a given resource.
 > - Invalidation after a deploy and after a mutation.

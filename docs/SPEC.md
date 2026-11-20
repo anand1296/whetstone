@@ -115,7 +115,7 @@ IDs are stable; tests and ADRs refer to them.
 | --- | --- |
 | FR-1 | Topics listed in order on the overview (and in the sidebar inside a topic), with per-topic progress. Questions inside a topic are shown easiest level first. |
 | FR-2 | Each question is an accordion: collapsed shows title, level (Junior, Senior, Lead/Staff, Principal), study minutes and the first three tags; expanded shows the answer. |
-| FR-3 | Answers render Markdown with callouts (TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL), highlighted code with a copy button, scrollable tables. |
+| FR-3 | Answers render Markdown with callouts (PROMPT, HINT, TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL), highlighted code with a copy button, scrollable tables. |
 | FR-4 | Tick done from the row or "Mark done & next" inside the answer. |
 | FR-5 | Resume: the overview's main action opens the last visited question if not done, else the next not-done question in order. |
 | FR-6 | Spaced review at 2, 5, 12, 30, 75 days; graded Again (un-ticks), Hard, Good or Easy, with the next gap shown on each button. *(feature flag `review`)* |
@@ -154,7 +154,7 @@ IDs are stable; tests and ADRs refer to them.
 | FR-34 | Optimistic concurrency: a save based on an outdated revision is rejected with a clear message and an option to load the newer version. |
 | FR-35 | Every edit and delete keeps the previous version; any version can be loaded into the editor; deleted questions can be restored (as drafts). |
 | FR-36 | Drafts are visible to admins inside the app, marked "Draft"; never to learners. |
-| FR-37 | Sync from repository: compare the database with the `content/*.md` deployed with the app; add what's missing, or overwrite changed questions (with history kept). Console-created content is never deleted by sync. |
+| FR-37 | Sync from repository: compare the database with the `content/*.md` deployed with the app; add what's missing, or overwrite changed questions (with history kept). Console-created content is never deleted by sync. FR-37a: a deploy runs the overwrite sync by itself when the embedded content changed, skipping questions edited or deleted in the console. |
 | FR-38 | Export one topic as Markdown or everything as a zip of `content/*.md`, in the exact repository format (round-trips through the parser). |
 | FR-39 | Learner dashboard: people, roles, % complete, topics finished, reviews due, last active, current topic; filter; role changes, disable/enable, remove (per permissions). |
 | FR-40 | Feature flags switch built-in features for everyone instantly. |

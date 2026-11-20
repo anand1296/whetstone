@@ -15,8 +15,8 @@ minutes: 15
 
 > [!PROMPT]
 > A product manager asks: "When I call `setState`, how long until the user sees the change, and what does React do in between?" You are asked to explain it with a concrete component whose child uses `useLayoutEffect` and `useEffect`.
->
-> **Cover**
+
+> [!HINT]
 > - Trigger, render, reconcile, commit, and where the browser paints.
 > - When each effect type runs, and what batching and lanes change in React 18/19.
 > - Why render must be pure, and what Strict Mode's double render is checking.
@@ -90,15 +90,15 @@ minutes: 18
 > [!PROMPT]
 > Explain what reconciliation is in React and how its diffing algorithm works. Then explain why a list of inputs "swaps the typed text" when items are inserted at the top, and fix it.
 >
-> **Cover**
-> - Why a general tree diff is too slow, and the two heuristics React uses instead.
-> - What happens for same type, different type, and a changed `key`.
-> - How keyed children are matched and moved, and what makes a good key.
->
 > **Test cases**
 > - A list rendered with `key={index}` has an input per row. Typing in row 2 and then prepending an item leaves the typed text on the wrong row. Using a stable id fixes it.
 > - Changing `<div>` to `<section>` at the same position resets the state of everything below it.
 > - `<Profile key={userId} />` discards the old user's draft state when `userId` changes.
+
+> [!HINT]
+> - Why a general tree diff is too slow, and the two heuristics React uses instead.
+> - What happens for same type, different type, and a changed `key`.
+> - How keyed children are matched and moved, and what makes a good key.
 
 > [!TLDR]
 > **Reconciliation** is how React compares the element tree your components just returned with the tree it already has, and decides the smallest set of changes to commit. A generic tree diff is O(n³), so React uses two heuristics to make it O(n): **elements of different types produce different trees** (unmount the old subtree, mount the new one), and **keys tell React which children are the same across renders**. Same type at the same position means "update in place and keep state"; a different type or a different key means "start over".
@@ -219,8 +219,8 @@ minutes: 15
 
 > [!PROMPT]
 > A table of 2,000 rows re-renders on every keystroke in a search box above it, and the page feels slow. You are asked to explain what triggers renders and fix it without sprinkling `useMemo` everywhere.
->
-> **Cover**
+
+> [!HINT]
 > - Exactly what causes a component to re-render (state, parent, context) and what doesn't.
 > - Optimizations that work in order: move state down, split components, pass children, `memo` with stable props, virtualization.
 > - How you prove the fix with the React Profiler, and where the React Compiler changes the advice.
@@ -458,8 +458,8 @@ minutes: 15
 
 > [!PROMPT]
 > Review this component: it fetches data in `useEffect`, mirrors props into state with another effect, resets a form when an id changes using an effect, and subscribes to a store manually. Which of these effects shouldn't exist?
->
-> **Cover**
+
+> [!HINT]
 > - The mental model: effects synchronize with external systems; events and derived data don't need them.
 > - For each smell, the replacement (compute during render, `key` to reset state, event handlers, `useSyncExternalStore`, a data library).
 > - The remaining legitimate effect and how to write its cleanup correctly, including Strict Mode double-invocation.
@@ -672,8 +672,8 @@ minutes: 18
 
 > [!PROMPT]
 > A search page filters 20,000 items on every keystroke and typing lags. Someone says "just wrap it in `startTransition`". Explain what that does, what `useDeferredValue` does differently, and what Suspense adds.
->
-> **Cover**
+
+> [!HINT]
 > - Urgent versus transition updates, interruptible rendering and what is discarded.
 > - When `useDeferredValue` is the better fit (you don't own the state update).
 > - What concurrency does not fix (expensive renders that never yield, effects) and how to verify an improvement.
@@ -772,15 +772,15 @@ minutes: 20
 > [!PROMPT]
 > Explain React Fiber and concurrent rendering. Why was the reconciler rewritten, how does React pause and resume rendering, and what does "Concurrent Mode" mean today?
 >
-> **Cover**
-> - What a fiber is and why a linked structure replaced recursion.
-> - Work loop, double buffering (current and work-in-progress), lanes and time slicing.
-> - What stays synchronous, what is interruptible, and the rules this places on your code.
->
 > **Test cases**
 > - Typing in a search input stays responsive while a 5,000-row list re-renders from a transition.
 > - A component's render function is called twice in development and its side effect in the body runs twice. Say why.
 > - A Suspense fallback does not flash when navigating inside `startTransition`.
+
+> [!HINT]
+> - What a fiber is and why a linked structure replaced recursion.
+> - Work loop, double buffering (current and work-in-progress), lanes and time slicing.
+> - What stays synchronous, what is interruptible, and the rules this places on your code.
 
 > [!TLDR]
 > Before React 16 the reconciler was a recursive function: once it started it could not stop until the whole tree was processed, blocking the main thread. **Fiber** (React 16) rewrote it around a **fiber**: a JS object per component instance that holds its type, props, state, effects and `child`/`sibling`/`return` pointers. Because the traversal is a loop over linked fibers rather than the call stack, React can stop after any unit of work, yield to the browser, and resume or discard the work. React 18 turned that capability into features (transitions, deferred values, Suspense). **"Concurrent Mode" as a separate mode no longer exists**: using `createRoot` makes concurrent rendering possible, and it only happens when you use a concurrent feature.
@@ -866,8 +866,8 @@ minutes: 15
 
 > [!PROMPT]
 > You are building a "rename project" form that should feel instant: show the new name immediately, disable the button while saving, roll back on error and show the server's validation message. Do it with React 19 features instead of manual `isLoading` state.
->
-> **Cover**
+
+> [!HINT]
 > - Actions, `useActionState`, `useFormStatus` and `useOptimistic`: what each owns.
 > - Behavior on error and on overlapping submissions.
 > - Where `use()` fits for reading promises, and what still needs a library (caching, retries).
@@ -972,15 +972,15 @@ minutes: 18
 > [!PROMPT]
 > How does server-side rendering differ from client-side rendering in React? Walk through what the browser receives and does in each case, explain hydration and why mismatches happen, and say what streaming SSR improves.
 >
-> **Cover**
-> - The request timeline and Core Web Vitals impact of CSR vs SSR.
-> - What `hydrateRoot` does and the usual hydration errors.
-> - Streaming SSR and selective hydration, costs of SSR, and how to choose.
->
 > **Test cases**
 > - Viewing the page source of a CSR app shows an empty root; an SSR app shows the real content.
 > - A component that renders `new Date().toLocaleString()` produces a hydration mismatch warning; fix it.
 > - A slow comment section does not delay the article if it sits in its own Suspense boundary.
+
+> [!HINT]
+> - The request timeline and Core Web Vitals impact of CSR vs SSR.
+> - What `hydrateRoot` does and the usual hydration errors.
+> - Streaming SSR and selective hydration, costs of SSR, and how to choose.
 
 > [!TLDR]
 > **CSR**: the server sends a nearly empty HTML shell; the browser downloads and runs the JS bundle, fetches data, and React builds the DOM, so users see content late but navigation afterwards is fast and hosting is just static files. **SSR**: the server runs React to produce real HTML for each request, so users see content (and crawlers read it) before the JS arrives; the page then needs **hydration**, where React attaches event handlers to the existing HTML and checks it matches. SSR improves first paint and SEO at the cost of server work, higher TTFB, a page that looks ready before it is interactive, and the requirement that server and client render **identically**. Streaming SSR with Suspense sends HTML in chunks and hydrates parts independently.
@@ -1090,8 +1090,8 @@ minutes: 20
 
 > [!PROMPT]
 > Your team is deciding whether to adopt React Server Components for a dashboard with mostly read-only data and a few interactive widgets. Explain the model so the team can decide.
->
-> **Cover**
+
+> [!HINT]
 > - What runs where, the `"use client"` boundary and what can cross it (serializable props only).
 > - Benefits (bundle size, data access near the source) and costs (mental model, caching, waterfalls, testing, hosting).
 > - A boundary design for the dashboard, and the mistakes you've seen (client component at the root, passing functions).
@@ -1183,8 +1183,8 @@ minutes: 12
 
 > [!PROMPT]
 > A homegrown store works fine in React 17 but shows inconsistent numbers in two parts of the screen under React 18 transitions. Explain the bug and how `useSyncExternalStore` fixes it.
->
-> **Cover**
+
+> [!HINT]
 > - What tearing is and why interruptible rendering makes it possible.
 > - The `subscribe` and `getSnapshot` contract (stable snapshots, no new object per call) and the infinite-loop trap.
 > - How Redux, Zustand or Jotai integrate, and when you'd skip an external store entirely.
@@ -1258,8 +1258,8 @@ minutes: 10
 
 > [!PROMPT]
 > Your codebase has hundreds of `useMemo` and `useCallback` calls, some wrong. The team is considering turning on the React Compiler. What changes, and what do you do on day one?
->
-> **Cover**
+
+> [!HINT]
 > - What the compiler memoizes, and what it refuses to compile (rules of React violations).
 > - How you adopt it incrementally (directives, ESLint plugin, measuring) and what you stop writing.
 > - Where manual memoization remains justified, and how to confirm the compiler actually helped.
@@ -1316,8 +1316,8 @@ minutes: 12
 
 > [!PROMPT]
 > A counter shows the right number but a `setInterval` callback inside `useEffect` always logs `0`, and a "Save" button sometimes saves the previous form values. Diagnose both and give the fixes.
->
-> **Cover**
+
+> [!HINT]
 > - Why every render closes over its own props and state.
 > - Fixes: functional updates, correct dependency arrays, refs for the latest value, effect events (`useEffectEvent`), or restructuring.
 > - How to spot these bugs in review, and what the exhaustive-deps lint rule can and cannot tell you.
@@ -1496,8 +1496,8 @@ minutes: 12
 >   return <Chart series={series} />;
 > }
 > ```
->
-> **Cover**
+
+> [!HINT]
 > - Why the chart re-renders (parent state change) and why the calculation re-runs.
 > - What `React.memo` fixes, what `useMemo` fixes, and when you need both.
 > - What silently breaks them, and a fix that needs neither.

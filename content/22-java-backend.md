@@ -64,8 +64,8 @@ minutes: 18
 
 > [!PROMPT]
 > A Java service shows growing heap usage and occasional multi-second pauses. Explain how JVM memory is organized, how garbage collection works, and how you would find a leak and tune the pauses.
->
-> **Cover**
+
+> [!HINT]
 > - Heap, stack, metaspace and direct memory.
 > - Generational collection and the main collectors.
 > - Tools and a diagnosis workflow.
@@ -213,8 +213,8 @@ minutes: 18
 
 > [!PROMPT]
 > A Spring service method annotated `@Transactional` calls another `@Transactional(propagation = REQUIRES_NEW)` method in the same class, and a list endpoint issues hundreds of SQL queries. Explain why the annotation seems to be ignored, why the endpoint is slow, and how you fix both.
->
-> **Cover**
+
+> [!HINT]
 > - Spring's proxy-based AOP and dependency injection.
 > - Propagation, rollback rules and common transaction mistakes.
 > - The N+1 query problem and fixes.

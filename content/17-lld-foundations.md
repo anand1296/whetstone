@@ -15,8 +15,8 @@ minutes: 15
 
 > [!PROMPT]
 > You get 45 to 60 minutes to design and code "a parking lot" (or a chess game, a notification service, any LLD problem). What is your step-by-step approach, and what is the interviewer scoring?
->
-> **Cover**
+
+> [!HINT]
 > - How you clarify scope and turn nouns and verbs into classes and methods.
 > - The five focus areas to hit on every problem.
 > - How to spend the time and what to cut.
@@ -65,8 +65,8 @@ minutes: 12
 
 > [!PROMPT]
 > Sketch the class diagram for a library system and explain, for each relationship, whether it is association, aggregation, composition, inheritance or dependency, and how that shows up in code.
->
-> **Cover**
+
+> [!HINT]
 > - What each relationship means about lifetime and ownership.
 > - How to choose between inheritance and composition.
 > - How to read multiplicity (1, 0..1, 1..*).
@@ -119,8 +119,8 @@ minutes: 15
 
 > [!PROMPT]
 > The interviewer asks, "Which design patterns would you use here, and why?" Give a practical map from common LLD problems to patterns, and explain when a pattern is the wrong choice.
->
-> **Cover**
+
+> [!HINT]
 > - Creational, structural and behavioral patterns you actually use.
 > - The signals in requirements that suggest each one.
 > - Over-engineering and how to avoid it.
@@ -177,8 +177,8 @@ minutes: 14
 
 > [!PROMPT]
 > You designed a notification service with email only. The interviewer says, "Now add SMS and push, then per-user preferences." Walk through how SOLID makes this a small change, and show where your first design would have broken.
->
-> **Cover**
+
+> [!HINT]
 > - Each SOLID principle applied to a concrete class.
 > - How you would show extensibility in the last ten minutes.
 > - Common ways SOLID is misapplied.
@@ -232,8 +232,8 @@ minutes: 16
 
 > [!PROMPT]
 > Two users try to book the last seat at the same moment, or two threads append to the same chat room. How do you find the concurrency risks in an LLD solution and make it safe, without locking everything?
->
-> **Cover**
+
+> [!HINT]
 > - How to spot shared mutable state and check-then-act races.
 > - Lock granularity, deadlock avoidance and optimistic versus pessimistic strategies.
 > - What changes in a single-threaded runtime like JavaScript.

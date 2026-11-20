@@ -423,8 +423,8 @@ minutes: 15
 
 > [!PROMPT]
 > Your company has three design systems and a lot of duplicated dropdown logic. You propose headless components. Explain the idea and design `useCombobox` so any team can render it their own way.
->
-> **Cover**
+
+> [!HINT]
 > - What behavior and accessibility the hook owns (state, keyboard, ARIA, focus) and what it leaves to the consumer.
 > - The API shape: prop getters (`getInputProps`, `getItemProps`) versus render props versus compound parts.
 > - Testing the behavior once, and the downsides (API surface, upgrade friction, leaky abstractions).
@@ -616,15 +616,15 @@ minutes: 15
 > [!PROMPT]
 > What are render props, and how do they differ from higher-order components? Share the mouse position logic between two components using each pattern, then say which you would write today and why.
 >
-> **Cover**
-> - The definition and shape of each pattern, with TypeScript.
-> - Trade-offs: naming collisions, nesting, typing, refs, memoization.
-> - What hooks replaced and where each pattern is still the right tool.
->
 > **Test cases**
 > - `<Mouse>{(position) => <Cat position={position} />}</Mouse>` and `withMouse(Cat)` render the same output.
 > - Applying `withMouse` twice with different prop names does not clash.
 > - Creating a HOC inside a component body remounts the wrapped component on every render (explain why).
+
+> [!HINT]
+> - The definition and shape of each pattern, with TypeScript.
+> - Trade-offs: naming collisions, nesting, typing, refs, memoization.
+> - What hooks replaced and where each pattern is still the right tool.
 
 > [!TLDR]
 > A **render prop** is a prop whose value is a function that returns UI, so a component can share its state or behavior while the *caller* decides what to render (`<Mouse>{(pos) => <Cat pos={pos} />}</Mouse>`). A **higher-order component** is a function that takes a component and returns a new, enhanced component (`withMouse(Cat)`). Render props compose at **render time** and make the data flow explicit; HOCs compose at **definition time** and inject props implicitly. **Hooks** (`useMouse()`) replaced both for sharing stateful logic. Reach for render props when the consumer needs control of the markup (headless components, virtual lists) and HOCs for wrapping concerns that apply to a whole component (`memo`, `forwardRef`, error boundaries, legacy `connect`).
@@ -1393,15 +1393,15 @@ minutes: 14
 > [!PROMPT]
 > What are error boundaries and how do they work? A component throws during render and the whole screen goes blank. Add a boundary, show a fallback, report the error, and then handle an error thrown inside a click handler and one inside a `fetch` callback.
 >
-> **Cover**
-> - The two class lifecycle methods and when each runs.
-> - What boundaries do not catch and how to route those errors anyway.
-> - Resetting, reporting and React 19's root error hooks.
->
 > **Test cases**
 > - A child that throws in render shows the fallback; the sibling widget stays usable.
 > - Clicking "Retry" re-renders the child after the cause is fixed.
 > - An error thrown in an `onClick` handler does not reach the boundary by itself, but a rejected fetch can be sent to it deliberately.
+
+> [!HINT]
+> - The two class lifecycle methods and when each runs.
+> - What boundaries do not catch and how to route those errors anyway.
+> - Resetting, reporting and React 19's root error hooks.
 
 > [!TLDR]
 > An **error boundary** is a class component that catches errors thrown **while rendering** its descendants (render, lifecycle methods, constructors) and shows a fallback instead of unmounting the whole tree. It implements `static getDerivedStateFromError(error)` (render phase: return state that switches to the fallback) and `componentDidCatch(error, info)` (commit phase: side effects such as reporting, with `info.componentStack`). It does **not** catch errors in event handlers, async code (promises, timers), server-side rendering, or in the boundary itself. There is no hook for it: write one small class or use `react-error-boundary`.
@@ -1562,8 +1562,8 @@ minutes: 12
 
 > [!PROMPT]
 > A large app crashes completely when one widget throws, and shows a wall of spinners on every navigation. You are asked to design where error boundaries and Suspense boundaries go.
->
-> **Cover**
+
+> [!HINT]
 > - Boundary placement: app shell, route, and independent widgets, with the reasoning for each.
 > - Recovery (retry with `resetKeys`, reporting to monitoring) and what boundaries do not catch (event handlers, async code).
 > - Avoiding waterfalls and spinner storms: reveal order, `useTransition` for navigation, skeleton fidelity.
@@ -1795,8 +1795,8 @@ minutes: 12
 
 > [!PROMPT]
 > You are reviewing a pull request that adds a seventh boolean prop to `<Modal>` (`isCentered`, `noPadding`, `hasFooter`, `wide`...). Review the API and propose a better one.
->
-> **Cover**
+
+> [!HINT]
 > - The smell: boolean explosion and impossible combinations; how you'd find the real variants.
 > - Alternatives: composition and slots, a `variant` union, headless parts, controlled/uncontrolled state.
 > - How you give the feedback kindly, plan a non-breaking migration and add API tests (types and behavior).
@@ -2031,8 +2031,8 @@ minutes: 14
 
 > [!PROMPT]
 > A team put the whole app state (user, theme, cart, filters) in one context and the app became slow: typing in a search box re-renders half the tree. Explain why and how you would fix it.
->
-> **Cover**
+
+> [!HINT]
 > - How context triggers re-renders.
 > - Splitting, memoizing value, and selectors.
 > - When to use an external store instead.
@@ -2074,8 +2074,8 @@ minutes: 18
 
 > [!PROMPT]
 > You are joining a large React app where everything lives in one global Redux store and every change re-renders half the page. How do you decide where each kind of state should live, and when do you reach for a library?
->
-> **Cover**
+
+> [!HINT]
 > - The kinds of state and a home for each.
 > - Server state versus client state.
 > - Context, Redux Toolkit, Zustand and similar libraries: trade-offs.
@@ -2141,8 +2141,8 @@ minutes: 15
 
 > [!PROMPT]
 > A long onboarding form (about 100 fields, several repeatable sections, live validation and a running summary) lags on every keystroke, and the lag gets worse as users fill it in. How do you find the cause and optimize it?
->
-> **Cover**
+
+> [!HINT]
 > - How you confirm what is re-rendering and what is expensive.
 > - Where form state should live, and what "uncontrolled" buys you.
 > - Validation cost and timing.
@@ -2262,7 +2262,8 @@ minutes: 10
 > - The first render returns the initial value immediately (no delay on mount).
 > - Each new input restarts the timer; only the last value after a pause is emitted.
 > - No state update after unmount, no leaked timers, and it works in React StrictMode.
->
+
+> [!HINT]
 > **Also be ready for**
 > - "Why a hook for the value rather than debouncing the callback?"
 > - "What goes wrong if I pass an object or array?"

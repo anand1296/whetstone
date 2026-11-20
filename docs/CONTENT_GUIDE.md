@@ -3,7 +3,7 @@
 Questions can be written in two places, with the same rules:
 
 - **The admin console** (deployments with the Go backend): Admin → Content. Live preview, drafts, history; changes are live immediately. See docs/ADMIN.md.
-- **`content/*.md` in the repository**, one file per topic. They are compiled into static builds, seeded into a new database, and imported into an existing one with *Sync from repository*. `npm run content:check` validates everything and prints a summary table.
+- **`content/*.md` in the repository**, one file per topic. They are compiled into static builds, seeded into a new database, and imported into an existing one automatically when a deploy starts (and on demand with *Sync from repository*). `npm run content:check` validates everything and prints a summary table.
 
 The console's *Export* produces exactly this file format, so content can move between the two in either direction.
 
@@ -53,7 +53,8 @@ Lines in these blocks are plain `key: value`; a line starting with `#` is a comm
 | Syntax | Label shown | Use for |
 | --- | --- | --- |
 | `> [!PROMPT]` | The full question | Optional, must be the very first block. The scenario, constraints and, for coding questions, test cases. Shown before the answer, even in practice mode |
-| `> [!TLDR]` | The 60-second answer | Required, comes right after the prompt (or first without one) |
+| `> [!HINT]` | Hint | Optional, directly after the prompt. What a strong answer covers, or follow-ups to be ready for. Hidden behind "Need a nudge?" until asked for, and shown with the answer. Keep anything an interviewer would not say out loud (names of the fixes, the structure of the answer) here, not in the prompt |
+| `> [!TLDR]` | The 60-second answer | Required, comes right after the prompt and hint (or first without them) |
 | `> [!NOTE]` | Note | Clarifications, context |
 | `> [!TIP]` | Tip | What strong candidates say |
 | `> [!WARNING]` | Common mistake | Pitfalls, misconceptions |
@@ -143,4 +144,4 @@ In the repository:
 1. Create `content/16-your-topic.md` with front matter.
 2. Add questions.
 3. `npm run content:check`, then `npm run dev` and review in the browser.
-4. The new topic appears in navigation, the overview ring, search and review automatically. On a deployment with the backend, open Admin → Content → *Sync from repository* → *Add what's missing* after the deploy.
+4. The new topic appears in navigation, the overview ring, search and review automatically. On a deployment with the backend, the deploy imports it by itself; nothing to press.

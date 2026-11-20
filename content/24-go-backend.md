@@ -76,8 +76,8 @@ minutes: 18
 
 > [!PROMPT]
 > Implement a worker pool that processes jobs from a channel with N workers and collects results. Then explain how goroutine leaks and deadlocks happen with channels and how you prevent them.
->
-> **Cover**
+
+> [!HINT]
 > - Buffered versus unbuffered channels, closing, and `range`.
 > - `select` with timeouts and cancellation.
 > - A leak example and its fix.
@@ -302,8 +302,8 @@ minutes: 18
 
 > [!PROMPT]
 > A Go service has an in-memory cache read by many goroutines and written occasionally. It passes tests but occasionally corrupts data or crashes with "concurrent map writes". How do you find and fix data races, and what are your options for synchronization?
->
-> **Cover**
+
+> [!HINT]
 > - Data race versus race condition.
 > - Mutex, RWMutex, atomics, `sync.Map`, `sync.Once` and `singleflight`.
 > - Using the race detector in CI.

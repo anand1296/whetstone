@@ -15,8 +15,8 @@ minutes: 15
 
 > [!PROMPT]
 > Your design lead says the team should stop producing high-fidelity Figma mockups for every idea and start generating working HTML prototypes with AI tools instead. Is that a good idea, and how would you roll it out?
->
-> **Cover**
+
+> [!HINT]
 > - What a code prototype gives you that a static mockup cannot, and what it costs.
 > - Where Figma (or another design tool) is still the better instrument.
 > - How you would pilot it, measure it, and keep the team aligned.
@@ -69,8 +69,8 @@ minutes: 14
 
 > [!PROMPT]
 > Teams are generating prototypes with AI and the results look different every time. How do you make generated UI follow your design system, and what does that change about how you maintain the system?
->
-> **Cover**
+
+> [!HINT]
 > - Giving the model the system: tokens, component APIs, usage rules and examples.
 > - Checking output automatically, not by eye.
 > - What the design system team does differently.
@@ -108,8 +108,8 @@ minutes: 12
 
 > [!PROMPT]
 > A designer hands you a working AI-generated HTML prototype and says "it's basically done, can you just ship it?" How do you handle the handoff?
->
-> **Cover**
+
+> [!HINT]
 > - What to keep, what to rebuild, and how to decide.
 > - What a prototype does not tell you.
 > - How to make the collaboration smoother next time.
@@ -149,8 +149,8 @@ minutes: 12
 
 > [!PROMPT]
 > You are asked to choose (or approve) an AI prototyping tool for the product organization. What criteria do you use, and what risks do you raise?
->
-> **Cover**
+
+> [!HINT]
 > - Output quality, controllability and fit with your stack.
 > - Data, IP and security concerns.
 > - Cost, lock-in and how you would run a fair evaluation.

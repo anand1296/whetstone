@@ -15,8 +15,8 @@ minutes: 20
 
 > [!PROMPT]
 > Three teams want to split a 400-page admin app into micro-frontends with Module Federation. You are asked whether it's worth it and how to do it without a mess.
->
-> **Cover**
+
+> [!HINT]
 > - Problems micro-frontends solve (team autonomy, independent deploys) and problems they create (duplication, UX drift, performance, version skew).
 > - Integration design: shared dependencies, routing, shared state/events, design-system consistency.
 > - Failure modes (a remote is down), testing, observability and the exit criteria if it doesn't work.
@@ -91,8 +91,8 @@ minutes: 15
 
 > [!PROMPT]
 > Your company has 12 frontend repos with duplicated tooling and painful cross-repo changes. Propose a monorepo setup and how you migrate to it.
->
-> **Cover**
+
+> [!HINT]
 > - Workspace and task tooling (pnpm, Nx, Turborepo): remote caching, affected-only builds, boundaries.
 > - Versioning and publishing, code ownership, CI time and dependency rules.
 > - Migration plan with minimal disruption, and the downsides to be honest about.
@@ -157,8 +157,8 @@ minutes: 20
 
 > [!PROMPT]
 > You lead an AngularJS to React migration of a product with 300 screens and a roadmap that can't pause. Describe how you'd run it.
->
-> **Cover**
+
+> [!HINT]
 > - The strangler approach: a bridge between old and new, routing, shared state and styling.
 > - Prioritization (what to migrate first), tooling to prevent new legacy code, and how you measure progress.
 > - Risks (parallel UX, performance, morale), communication with stakeholders and what "done" means.
@@ -297,8 +297,8 @@ minutes: 18
 
 > [!PROMPT]
 > A new product has a marketing site, an authenticated app and a docs section. The team debates SPA versus SSR versus static. Decide per surface.
->
-> **Cover**
+
+> [!HINT]
 > - The criteria: SEO, personalization, interactivity, data freshness, team skills and infrastructure.
 > - Trade-offs of SPA, SSR, SSG/ISR, streaming, islands and RSC.
 > - Your recommendation for each surface, and how you keep the option to change later.
@@ -344,8 +344,8 @@ minutes: 15
 
 > [!PROMPT]
 > A codebase keeps all state in one global store: server data, form drafts, UI toggles and URL filters. Bugs are everywhere. Propose a state architecture.
->
-> **Cover**
+
+> [!HINT]
 > - The kinds of state (server, client, URL, form, ephemeral) and the right owner for each.
 > - Tooling choices (a server-state cache, URL as state, local state first) and where a global store is justified.
 > - A migration path and rules that keep it from drifting back.
@@ -410,8 +410,8 @@ minutes: 15
 
 > [!PROMPT]
 > You are asked to run the design system as a product for 20 product teams. Adoption is low, teams fork components and a breaking change last quarter caused outages.
->
-> **Cover**
+
+> [!HINT]
 > - Scope, ownership and contribution model; how you decide what belongs in the system.
 > - Versioning, deprecation and migration tooling (codemods), plus documentation and support.
 > - Metrics (adoption, time to ship, accessibility) and how you convince teams to use it.
@@ -468,8 +468,8 @@ minutes: 15
 
 > [!PROMPT]
 > Your React app calls 6 REST endpoints per screen and over-fetches on mobile. Compare REST, GraphQL, tRPC and a Backend-for-Frontend, and pick one with reasons.
->
-> **Cover**
+
+> [!HINT]
 > - Performance, caching, type safety, tooling, team structure and operational cost of each.
 > - Generated clients and contract testing; versioning and deprecation.
 > - Migration without a rewrite, and the failure modes of your choice.
@@ -518,8 +518,8 @@ minutes: 15
 
 > [!PROMPT]
 > After a release, conversion drops 4% but there are no alerts and the error tracker is noisy. Design frontend observability so the team learns about problems before users complain.
->
-> **Cover**
+
+> [!HINT]
 > - Signals: errors (with source maps and release tags), Web Vitals RUM, logs, traces and business events.
 > - Alerting that people trust: thresholds, deduplication, ownership, and release health.
 > - Privacy and cost (sampling, PII), and how you use the data in incident response.
@@ -578,8 +578,8 @@ minutes: 12
 
 > [!PROMPT]
 > Your team ships big features behind flags, but nobody removes them and a half-enabled flag combination caused an incident. Design your feature flag and progressive delivery practice.
->
-> **Cover**
+
+> [!HINT]
 > - Flag types (release, experiment, ops, permission), targeting and percentage rollouts, kill switches.
 > - Lifecycle and flag debt: ownership, expiry, cleanup automation; testing combinations.
 > - Rollout and monitoring: canary, automatic rollback on metrics, and avoiding flicker on the client.
@@ -773,8 +773,8 @@ minutes: 25
 
 > [!PROMPT]
 > Design a production-grade frontend for an application used by more than a million people. Cover how you handle scalability, performance, routing, state management and maintainability. Start by saying what "1M users" means to you.
->
-> **Cover**
+
+> [!HINT]
 > - The clarifying questions that change the design.
 > - Delivery and caching, rendering strategy and routing.
 > - State ownership and data fetching.
