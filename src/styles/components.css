@@ -446,6 +446,35 @@
   gap: 8px;
 }
 
+.grade-btn {
+  flex-direction: column;
+  gap: 2px;
+  min-width: 76px;
+  padding: 8px 16px;
+  justify-content: center;
+}
+
+.grade-name {
+  font-weight: 600;
+}
+
+.grade-when {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+@media (max-width: 640px) {
+  .grade-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .grade-btn {
+    min-width: 0;
+    padding-inline: 6px;
+  }
+}
+
 @media (max-width: 640px) {
   .q-panel {
     padding: 2px 14px 16px;

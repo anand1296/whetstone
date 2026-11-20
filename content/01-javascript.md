@@ -14,12 +14,22 @@ minutes: 15
 -->
 
 > [!PROMPT]
-> A teammate shows you a page where a button click sets a loading spinner, runs a heavy loop, then removes the spinner, and the spinner never appears. Another snippet logs from a `setTimeout`, a `Promise.then`, a `requestAnimationFrame` callback and `queueMicrotask` in one handler, and nobody can predict the order.
+> A teammate's click handler does three things in a row: it shows a loading spinner, runs a heavy synchronous loop, then hides the spinner. When you click, the page freezes for a moment and the spinner is never visible.
+>
+> ```js
+> button.onclick = () => {
+>   spinner.hidden = false;
+>   heavyWork(); // about 300ms of synchronous work
+>   spinner.hidden = true;
+> };
+> ```
+>
+> A second snippet registers a `setTimeout`, a `Promise.then`, a `requestAnimationFrame` callback and a `queueMicrotask` callback in one handler, and nobody on the team can predict the order they log in.
 >
 > **Cover**
+> - Why the spinner never shows, even though the code sets it before the loop.
 > - The order of those four callbacks, and why.
-> - Exactly when the browser is allowed to render, and why the spinner never painted.
-> - How you would fix it (yielding, `scheduler.yield()`, `requestAnimationFrame` plus a timeout, moving work to a worker).
+> - Exactly when the browser is allowed to render, and how you would make the spinner show.
 
 > [!TLDR]
 > The browser runs one **task** at a time (a script, a click handler, a timer callback). After each task it drains the **microtask queue** completely (promise reactions, `queueMicrotask`, `MutationObserver`). Then, roughly every frame, it may **render**: run `requestAnimationFrame` callbacks, recalculate style, layout, paint. Rendering can only happen *between* tasks, so a long task or an endless microtask chain blocks paint and input.

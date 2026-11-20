@@ -12,7 +12,7 @@ import {
   setNotes,
   NOTES_LIMIT,
 } from '../src/state/progress.ts';
-import { DAY_MS, intervalDays, REVIEW_INTERVAL_DAYS } from '../src/lib/srs.ts';
+import { DAY_MS, intervalDays, previewDays, REVIEW_GRADES, REVIEW_INTERVAL_DAYS, stageAfter } from '../src/lib/srs.ts';
 
 const T0 = 1_700_000_000_000;
 
@@ -32,14 +32,42 @@ describe('progress model', () => {
     assert.equal(recordVisit(visited, 'sec', 'q1', T0 + 5), visited);
   });
 
-  it('advances the review ladder on "solid" and resets on "shaky"', () => {
-    let s = setDone(EMPTY_PROGRESS, 'q1', true, T0);
-    s = recordReview(s, 'q1', 'solid', T0 + 3 * DAY_MS);
-    assert.equal(s.questions.q1?.stage, 1);
-    assert.equal(s.questions.q1?.dueAt, T0 + 3 * DAY_MS + intervalDays(1) * DAY_MS);
-    s = recordReview(s, 'q1', 'shaky', T0 + 9 * DAY_MS);
-    assert.equal(s.questions.q1?.done, false);
-    assert.equal(s.questions.q1?.dueAt, null);
+  it('grades a review like Anki: again resets, hard repeats, good advances, easy skips a rung', () => {
+    const done = setDone(EMPTY_PROGRESS, 'q1', true, T0);
+    const at = T0 + 3 * DAY_MS;
+
+    const good = recordReview(done, 'q1', 'good', at);
+    assert.equal(good.questions.q1?.stage, 1);
+    assert.equal(good.questions.q1?.dueAt, at + intervalDays(1) * DAY_MS);
+
+    const hard = recordReview(good, 'q1', 'hard', at);
+    assert.equal(hard.questions.q1?.stage, 1);
+    assert.equal(hard.questions.q1?.dueAt, at + intervalDays(1) * DAY_MS);
+
+    const easy = recordReview(done, 'q1', 'easy', at);
+    assert.equal(easy.questions.q1?.stage, 2);
+    assert.equal(easy.questions.q1?.dueAt, at + intervalDays(2) * DAY_MS);
+
+    const again = recordReview(good, 'q1', 'again', T0 + 9 * DAY_MS);
+    assert.equal(again.questions.q1?.done, false);
+    assert.equal(again.questions.q1?.dueAt, null);
+    assert.equal(again.questions.q1?.stage, 0);
+  });
+
+  it('ignores a review of something that is not marked done', () => {
+    assert.equal(recordReview(EMPTY_PROGRESS, 'q1', 'good', T0), EMPTY_PROGRESS);
+  });
+
+  it('previews the next gap for each grade and never climbs past the ladder', () => {
+    assert.deepEqual(
+      REVIEW_GRADES.map((grade) => previewDays(0, grade)),
+      [null, intervalDays(0), intervalDays(1), intervalDays(2)],
+    );
+    const top = REVIEW_INTERVAL_DAYS.length - 1;
+    assert.equal(stageAfter(top, 'easy'), top);
+    assert.equal(stageAfter(top, 'good'), top);
+    assert.equal(previewDays(top, 'easy'), REVIEW_INTERVAL_DAYS[top]);
+    assert.equal(stageAfter(-3, 'good'), 1);
   });
 
   it('caps the ladder at the last interval', () => {

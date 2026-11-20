@@ -3,6 +3,7 @@
  * Components call `progressActions.*`; they never build state themselves.
  */
 import { createStore } from './createStore.ts';
+import type { ReviewGrade } from '../lib/srs.ts';
 import {
   EMPTY_PROGRESS,
   mergeProgress,
@@ -12,7 +13,6 @@ import {
   setDone,
   setNotes,
   type ProgressState,
-  type ReviewOutcome,
 } from './progress.ts';
 import { loadProgress, onOtherTabWrite, PROGRESS_KEY, readJson, removeKey, saveProgress, writeJson } from './persistence/local.ts';
 import { flushServerSync, startCloudSync, startServerSync } from './persistence/cloudSync.ts';
@@ -27,8 +27,8 @@ export const progressActions = {
   setDone(id: string, done: boolean): void {
     progressStore.setState((s) => setDone(s, id, done, now()));
   },
-  review(id: string, outcome: ReviewOutcome): void {
-    progressStore.setState((s) => recordReview(s, id, outcome, now()));
+  review(id: string, grade: ReviewGrade): void {
+    progressStore.setState((s) => recordReview(s, id, grade, now()));
   },
   saveNotes(id: string, notes: string): void {
     progressStore.setState((s) => setNotes(s, id, notes, now()));

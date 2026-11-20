@@ -122,51 +122,56 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
           ) : null}
         </ul>
 
-        <p className="nav-label" id={topicsLabelId}>
-          {activeFacets.length > 0 ? `Topics · ${describeSelection(activeFacets)}` : 'Topics'}
-        </p>
-        <ol className="nav-list nav-rounds" aria-labelledby={topicsLabelId}>
-          {listed.map((section) => {
-            const done = doneCount(section.questions, progress);
-            const total = section.questions.length;
-            const draft = section.published === false;
-            return (
-              <li key={section.id}>
-                <button
-                  type="button"
-                  className="nav-item nav-round"
-                  aria-current={activeSection === section.id ? 'page' : undefined}
-                  data-complete={done === total}
-                  onPointerEnter={() => preloadSection(section.id)}
-                  onClick={() => go({ name: 'section', sectionId: section.id })}
-                >
-                  <span className="nav-round-title">
-                    {section.title}
-                    {draft ? <span className="draft-chip">Draft</span> : null}
-                  </span>
-                  <span className="nav-round-count tabular" aria-label={`${done} of ${total} done`}>
-                    {done}/{total}
-                  </span>
-                  <span className="nav-round-bar" aria-hidden="true">
-                    <span style={{ width: `${total === 0 ? 0 : (done / total) * 100}%` }} />
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-        {hidden > 0 ? (
-          <button
-            type="button"
-            className="nav-more"
-            onClick={() => {
-              updatePrefs({ facets: [] });
-              go({ name: 'overview' });
-            }}
-          >
-            {hidden} more {hidden === 1 ? 'topic' : 'topics'} hidden · show all
-          </button>
-        ) : null}
+        {/* The Overview page already lists every topic with its progress, so repeating them beside it is noise. */}
+        {route.name === 'overview' ? null : (
+          <>
+            <p className="nav-label" id={topicsLabelId}>
+              {activeFacets.length > 0 ? `Topics · ${describeSelection(activeFacets)}` : 'Topics'}
+            </p>
+            <ol className="nav-list nav-rounds" aria-labelledby={topicsLabelId}>
+              {listed.map((section) => {
+                const done = doneCount(section.questions, progress);
+                const total = section.questions.length;
+                const draft = section.published === false;
+                return (
+                  <li key={section.id}>
+                    <button
+                      type="button"
+                      className="nav-item nav-round"
+                      aria-current={activeSection === section.id ? 'page' : undefined}
+                      data-complete={done === total}
+                      onPointerEnter={() => preloadSection(section.id)}
+                      onClick={() => go({ name: 'section', sectionId: section.id })}
+                    >
+                      <span className="nav-round-title">
+                        {section.title}
+                        {draft ? <span className="draft-chip">Draft</span> : null}
+                      </span>
+                      <span className="nav-round-count tabular" aria-label={`${done} of ${total} done`}>
+                        {done}/{total}
+                      </span>
+                      <span className="nav-round-bar" aria-hidden="true">
+                        <span style={{ width: `${total === 0 ? 0 : (done / total) * 100}%` }} />
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+            {hidden > 0 ? (
+              <button
+                type="button"
+                className="nav-more"
+                onClick={() => {
+                  updatePrefs({ facets: [] });
+                  go({ name: 'overview' });
+                }}
+              >
+                {hidden} more {hidden === 1 ? 'topic' : 'topics'} hidden · show all
+              </button>
+            ) : null}
+          </>
+        )}
 
         {features.howItsBuilt || features.contribute ? (
           <>

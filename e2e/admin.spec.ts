@@ -97,7 +97,7 @@ test('learners never see Admin and are told what the owner can see', async ({ pa
 test('view-only visitors keep progress in their browser', async ({ page }) => {
   await installMock(page, 'viewer', 'u_view', seed);
   await page.goto('/');
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Performance' }).click();
+  await page.locator('.round-list .round', { has: page.locator('.round-title', { hasText: /^Performance/ }) }).click();
   await page.locator('.q').first().getByRole('checkbox').check();
   await expect(page.locator('.sidebar .sync-line')).toHaveText('Saved in this browser only', { timeout: 5000 });
 });

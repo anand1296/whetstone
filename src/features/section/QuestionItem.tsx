@@ -5,6 +5,7 @@ import type { QuestionMeta } from '../../content/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { ErrorBoundary, InlineText, LevelChip } from '../../components/primitives.tsx';
 import { formatDayDistance, formatElapsed } from '../../lib/format.ts';
+import { previewDays, REVIEW_GRADES, type ReviewGrade } from '../../lib/srs.ts';
 import { NOTES_LIMIT } from '../../state/progress.ts';
 import { progressActions, progressStore } from '../../state/progressStore.ts';
 import { useStore } from '../../state/useStore.ts';
@@ -121,6 +122,37 @@ function Notes({ id }: { id: string }) {
   );
 }
 
+const GRADE_LABEL: Record<ReviewGrade, string> = { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
+const GRADE_HELP: Record<ReviewGrade, string> = {
+  again: 'Not there yet: back to your to-do list',
+  hard: 'Got there, but slowly: same gap again',
+  good: 'Said it well: the next gap',
+  easy: 'Effortless: skip ahead',
+};
+
+/** Anki-style grading. Each button shows when the answer will come back, so the choice has a visible consequence. */
+function GradeButtons({ stage, onGrade }: { stage: number; onGrade: (grade: ReviewGrade) => void }) {
+  return (
+    <div className="q-actions grade-row" role="group" aria-label="How did that go?">
+      {REVIEW_GRADES.map((grade) => {
+        const days = previewDays(stage, grade);
+        return (
+          <button
+            key={grade}
+            type="button"
+            className={grade === 'good' ? 'btn btn-primary grade-btn' : 'btn grade-btn'}
+            title={GRADE_HELP[grade]}
+            onClick={() => onGrade(grade)}
+          >
+            <span className="grade-name">{GRADE_LABEL[grade]}</span>
+            <span className="grade-when">{days === null ? 'to-do' : `${days}d`}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export const QuestionItem = memo(function QuestionItem({
   question,
   open,
@@ -217,14 +249,7 @@ export const QuestionItem = memo(function QuestionItem({
               </ErrorBoundary>
             <div className="q-footer">
               {variant === 'review' ? (
-                <div className="q-actions">
-                  <button type="button" className="btn btn-primary" onClick={() => progressActions.review(question.id, 'solid')}>
-                    <Icon name="check" size={16} /> Still solid
-                  </button>
-                  <button type="button" className="btn" onClick={() => progressActions.review(question.id, 'shaky')}>
-                    Needs another pass
-                  </button>
-                </div>
+                <GradeButtons stage={progress?.stage ?? 0} onGrade={(grade) => progressActions.review(question.id, grade)} />
               ) : (
                 <div className="q-actions">
                   <button

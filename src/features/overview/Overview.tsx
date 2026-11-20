@@ -59,8 +59,10 @@ export function Overview() {
           <h1>{site.tagline || 'Your interview loop, one topic at a time.'}</h1>
           <p className="lede">
             {plural(total, 'question')} across {plural(mine.length, 'topic')}
-            {filtering ? ` for ${describeSelection(activeFacets)}` : ''}, about {formatStudyTime(minutes)} of study. Read the
-            question, answer it out loud, then open it and compare. Tick it off when you could say it in the room.
+            {filtering ? ` for ${describeSelection(activeFacets)}` : ''}, about {formatStudyTime(minutes)} of study. Each one
+            comes with a written answer: the mental model, working code and the follow-ups an interviewer reaches for. Resist
+            opening it. Say your own answer out loud first, then compare, and tick the question off only when you could say it
+            in the room.
           </p>
         </div>
       </header>

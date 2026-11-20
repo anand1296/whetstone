@@ -12,8 +12,9 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
+/** Opens a topic from the overview list (the sidebar only lists topics once you are inside one). */
 async function openRound(page: Page, name: string) {
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name }).click();
+  await page.locator('.round-list .round', { has: page.locator('.round-title', { hasText: new RegExp(`^${name}`) }) }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
 }
 
@@ -34,6 +35,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   await items.nth(1).getByRole('button', { name: 'Mark done & next' }).click();
   await expect(items.nth(2).locator('.q-trigger')).toHaveAttribute('aria-expanded', 'true');
 
+  const thirdTitle = (await items.nth(2).locator('.q-title').innerText()).trim();
   await items.nth(2).getByRole('button', { name: 'Add your own notes' }).click();
   await items.nth(2).locator('textarea').fill('My own words about this.');
   await items.nth(2).locator('textarea').blur();
@@ -44,7 +46,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   await page.goto('/');
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
-  await expect(resume.locator('.action-title')).toContainText('When does a component re-render');
+  await expect(resume.locator('.action-title')).toContainText(thirdTitle);
   await expect(page.locator('.loop-ring')).toContainText('2/262');
 
   await resume.click();
@@ -142,7 +144,6 @@ test('a finished question opens straight to its answer', async ({ page }) => {
   const first = page.locator('.q').first();
   await first.locator('.done-box').click();
   await page.reload();
-  await openRound(page, 'Accessibility');
   await first.locator('.q-trigger').click();
   await expect(first.locator('.callout-tldr')).toBeVisible();
 });
@@ -164,7 +165,7 @@ test('import, spaced review and reset', async ({ page }) => {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: /Review/ }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('1 answer to refresh');
   await page.locator('.q').first().locator('.q-trigger').click();
-  await page.getByRole('button', { name: 'Still solid' }).click();
+  await page.getByRole('group', { name: 'How did that go?' }).getByRole('button', { name: /^Good/ }).click();
 
   const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), PROGRESS_KEY);
   expect(saved.questions['xss-react'].stage).toBe(1);
@@ -226,7 +227,7 @@ test('pick a role, then focus-area chips; "coming soon" is inert; the choice is 
   const focus = picker.getByRole('group', { name: 'Focus areas' });
   await expect(picker).toBeVisible();
   await expect(topics).toHaveCount(24);
-  await expect(sidebarTopics).toHaveCount(24);
+  await expect(sidebarTopics).toHaveCount(0); // the page already lists every topic, so the sidebar does not repeat them
   await expect(focus).toHaveCount(0); // chips appear once a role is chosen
 
   // Roles with no content yet are visible but disabled, with a tooltip.
@@ -237,12 +238,15 @@ test('pick a role, then focus-area chips; "coming soon" is inert; the choice is 
   await sre.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
   await expect(topics).toHaveCount(24);
 
-  // The Design role shows just the design topic, in the page and in the sidebar.
+  // The Design role shows just the design topic, on the page and (inside a topic) in the sidebar.
   await roles.getByRole('button', { name: /^Design/ }).click();
   await expect(topics).toHaveCount(1);
   await expect(topics.first()).toContainText('Design and AI Prototyping');
+  await topics.first().click();
   await expect(sidebarTopics).toHaveCount(1);
   await expect(page.getByRole('button', { name: /23 more topics hidden/ })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Overview' }).click();
+  await expect(sidebarTopics).toHaveCount(0);
   await expect(picker.getByRole('status')).toContainText('Showing 1 of 24 topics');
   await page.reload();
   await expect(topics).toHaveCount(1);
