@@ -146,7 +146,7 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 
 **Context.** Learners forget answers they ticked weeks ago. Full spaced-repetition algorithms (SM-2, FSRS) need per-review grades and tuning.
 
-**Decision.** Ticking schedules a review in 2 days. "Still solid" moves to the next interval; "Needs another pass" un-ticks the question.
+**Decision.** Ticking schedules a review in 2 days. "Still solid" moves to the next interval; "Needs another pass" un-ticks the question. *(The two buttons were replaced by four Anki-style grades in ADR-034; the ladder is unchanged.)*
 
 **Consequences.**
 - (+) Easy to explain and trust; fits a weeks-long interview prep horizon.
@@ -543,3 +543,30 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 **Decision.** Two steps. First a role (one or several; full-stack is Frontend + Backend). Then focus-area chips drawn from the role's topics: languages, frameworks and subjects (a new `area` group in `content/facets.json`). Chips widen (any selected chip keeps a topic); none selected means everything for the role. Chips a role has announced (`roles` on the facet) but without a topic yet render as "Coming soon". Tracks and the "general topics always stay" rule are removed.
 
 **Consequences.** Choosing React no longer drags in Accessibility or Performance implicitly: it is one more tap, and visible. Every topic needs at least one focus area (enforced by a test for roles that offer chips). New topics and facets need no UI change.
+
+## ADR-034: Anki-style review grades on the existing ladder
+
+**Status:** Accepted
+
+**Context.** A first outside user asked for the "established" Anki pattern (hard, good, easy) instead of "Still solid" and "Needs another pass". Two buttons could not say "I got there, but slowly", so every uncertain review either pushed a shaky answer further out or threw away the progress.
+
+**Decision.** Four grades on the same fixed ladder (2, 5, 12, 30, 75 days): Again un-ticks the answer (back on the to-do list, as "Needs another pass" did); Hard repeats the current gap; Good moves one rung; Easy moves two. Each button shows the gap it will give, computed by the same function that schedules it. No data migration: `stage` and `dueAt` keep their meaning, and Hard and Easy only change how far `stage` moves.
+
+**Alternatives considered.** Real SM-2 or FSRS (per-card ease or memory state, and tuning that is hard to explain on a weeks-long horizon); three buttons without Again (loses the way back to the to-do list).
+
+**Consequences.**
+- (+) Familiar to anyone who has used Anki; a visible consequence on every button.
+- (+) The synced progress shape is unchanged, so older clients keep working.
+- (−) Easy can reach the 75-day rung after two reviews; the interview horizon makes that acceptable.
+
+## ADR-035: Questions are shown easiest level first
+
+**Status:** Accepted
+
+**Context.** Topics were listed in authoring order, so junior questions added later sat after senior and lead ones (66 places where a question followed a harder one). Readers expect to start gently, and "Start here" and "Up next" follow list order.
+
+**Decision.** The learner-facing content is sorted by level (junior, senior, lead, principal) with a stable sort, so authoring order is kept within a level. It happens in one place (`src/content/ordering.ts`, applied when content is built) so static and server content behave the same. The admin console keeps working on stored positions; reordering there moves a question within its level.
+
+**Consequences.**
+- (+) No content files move and new junior questions land where learners look for them.
+- (−) A deliberate concept-then-application order across levels is no longer possible; put such pairs at the same level or link them.

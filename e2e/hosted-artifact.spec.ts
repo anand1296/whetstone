@@ -39,7 +39,7 @@ test.describe('hosted artifact build', () => {
       await expect(app.locator('.loop-ring')).toContainText('/262');
 
       // Core interaction works even when storage is blocked (no allow-same-origin).
-      await app.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Accessibility' }).click();
+      await app.locator('.round-list .round', { has: app.locator('.round-title', { hasText: /^Accessibility/ }) }).click();
       await app.locator('.q').first().locator('.q-trigger').click();
       await app.locator('.q').first().getByRole('button', { name: 'Reveal answer' }).click();
       await expect(app.locator('.q').first().locator('.callout-tldr')).toBeVisible();

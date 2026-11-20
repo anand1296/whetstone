@@ -12,6 +12,7 @@
 import { loaders, sections as bundledSections } from 'virtual:content';
 import { createStore } from '../state/createStore.ts';
 import { useStore } from '../state/useStore.ts';
+import { orderByLevel } from './ordering.ts';
 import type { QuestionMeta, SectionAnswers, SectionMeta } from './types.ts';
 
 export type ContentSource = 'bundled' | 'server';
@@ -27,7 +28,8 @@ export interface ContentState {
   totalMinutes: number;
 }
 
-function build(sections: SectionMeta[], source: ContentSource, version: number): ContentState {
+function build(unordered: SectionMeta[], source: ContentSource, version: number): ContentState {
+  const sections = orderByLevel(unordered);
   const allQuestions = sections.flatMap((section) => section.questions);
   return {
     source,

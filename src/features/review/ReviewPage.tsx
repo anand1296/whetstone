@@ -38,8 +38,8 @@ export function ReviewPage() {
         <h1>{due.length === 0 ? 'You are up to date' : `${plural(due.length, 'answer')} to refresh`}</h1>
         <p className="lede">
           Answers you mark done come back after {REVIEW_INTERVAL_DAYS.slice(0, -1).join(', ')} and{' '}
-          {REVIEW_INTERVAL_DAYS[REVIEW_INTERVAL_DAYS.length - 1]} days. Say each one out loud, then choose "Still solid" to push it
-          further out, or "Needs another pass" to put it back on your to-do list.
+          {REVIEW_INTERVAL_DAYS[REVIEW_INTERVAL_DAYS.length - 1]} days. Say each one out loud, then grade yourself. Again puts it
+          back on your to-do list, Hard repeats the gap, Good moves to the next one and Easy skips ahead.
         </p>
       </header>
 

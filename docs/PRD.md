@@ -67,7 +67,7 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 2. **Accordion list** per topic; panels lazy-render their content; expand/collapse all.
 3. **Progress**: per-question done state, done time, review stage and due date, notes; last visited question.
 4. **Resume**: Overview's primary action opens the last visited question if not done, otherwise the next not-done question in the learning path.
-5. **Spaced review**: done answers come back after 2, 5, 12, 30, 75 days; "Still solid" advances, "Needs another pass" un-marks.
+5. **Spaced review**: done answers come back after 2, 5, 12, 30, 75 days; you grade each review Again (un-marks), Hard (repeat the gap), Good (next gap) or Easy (skip a rung).
 6. **Search**: keyboard shortcut (`/`, Ctrl/⌘+K), weighted multi-token search across titles, tags, summaries and opening text, accessible combobox.
 7. **Practice mode**: answer gated behind "Reveal the answer" with a stopwatch.
 8. **Settings**: theme (system/light/dark), practice mode, export (copy/download JSON), import (merge/replace), reset with confirmation.
@@ -90,7 +90,7 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
 
 - **Activation:** % of visitors who mark at least one question done in their first session.
 - **Retention:** % of learners who return within 7 days; median sessions per learner.
-- **Learning:** % of done answers that are "Still solid" at first review.
+- **Learning:** % of done answers graded Good or Easy at first review.
 - **Coverage:** median % of the bank completed per active learner after 4 weeks.
 - **Quality:** zero content build errors on main; zero JS errors per 1,000 sessions (once instrumented).
 

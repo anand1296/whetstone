@@ -5,6 +5,10 @@ test('mobile: drawer navigation, no horizontal scroll', async ({ page }) => {
   const noOverflow = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
   expect(await noOverflow()).toBe(true);
 
+  // The overview lists the topics itself, so the drawer only repeats them once you are inside one.
+  await page.locator('.round-list .round', { has: page.locator('.round-title', { hasText: /^Accessibility/ }) }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Accessibility');
+
   await page.getByRole('button', { name: 'Open topics menu' }).click();
   const drawer = page.getByRole('dialog', { name: 'Navigation' });
   await expect(drawer).toBeVisible();

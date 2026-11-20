@@ -6,7 +6,7 @@
  * `now` is always passed in, which keeps these functions deterministic and
  * trivially testable.
  */
-import { nextDueAt } from '../lib/srs.ts';
+import { nextDueAt, stageAfter, type ReviewGrade } from '../lib/srs.ts';
 
 export interface QuestionProgress {
   done: boolean;
@@ -37,7 +37,6 @@ export const NOTES_LIMIT = 2000;
 
 export const EMPTY_PROGRESS: ProgressState = { version: 1, questions: {}, lastVisit: null };
 
-export type ReviewOutcome = 'solid' | 'shaky';
 
 function blank(): QuestionProgress {
   return { done: false, doneAt: null, stage: 0, dueAt: null, notes: '', updatedAt: 0 };
@@ -62,11 +61,11 @@ export function setDone(state: ProgressState, id: string, done: boolean, now: nu
     : patch(state, id, { done: false, doneAt: null, stage: 0, dueAt: null }, now);
 }
 
-export function recordReview(state: ProgressState, id: string, outcome: ReviewOutcome, now: number): ProgressState {
+export function recordReview(state: ProgressState, id: string, grade: ReviewGrade, now: number): ProgressState {
   const current = state.questions[id];
   if (!current?.done) return state;
-  if (outcome === 'shaky') return setDone(state, id, false, now);
-  const stage = current.stage + 1;
+  const stage = stageAfter(current.stage, grade);
+  if (stage === null) return setDone(state, id, false, now);
   return patch(state, id, { stage, dueAt: nextDueAt(stage, now) }, now);
 }
 

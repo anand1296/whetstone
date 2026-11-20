@@ -113,12 +113,12 @@ IDs are stable; tests and ADRs refer to them.
 
 | ID | Requirement |
 | --- | --- |
-| FR-1 | Topics listed in order in the sidebar and overview, with per-topic progress. |
+| FR-1 | Topics listed in order on the overview (and in the sidebar inside a topic), with per-topic progress. Questions inside a topic are shown easiest level first. |
 | FR-2 | Each question is an accordion: collapsed shows title, level (Junior, Senior, Lead/Staff, Principal), study minutes and the first three tags; expanded shows the answer. |
 | FR-3 | Answers render Markdown with callouts (TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL), highlighted code with a copy button, scrollable tables. |
 | FR-4 | Tick done from the row or "Mark done & next" inside the answer. |
 | FR-5 | Resume: the overview's main action opens the last visited question if not done, else the next not-done question in order. |
-| FR-6 | Spaced review at 2, 5, 12, 30, 75 days; "Still solid" advances, "Needs another pass" un-ticks. *(feature flag `review`)* |
+| FR-6 | Spaced review at 2, 5, 12, 30, 75 days; graded Again (un-ticks), Hard, Good or Easy, with the next gap shown on each button. *(feature flag `review`)* |
 | FR-7 | Practice mode hides answers behind "answer out loud first" with a stopwatch. |
 | FR-8 | Private notes per question, autosaved, 2,000 characters. *(flag `notes`)* |
 | FR-9 | Search with `/` or Ctrl/⌘+K across titles, tags, summaries and opening text; accessible combobox. *(flag `search`)* |
