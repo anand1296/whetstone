@@ -420,7 +420,7 @@ export function QuestionEditor({ content, questionId, defaultSectionId, onClose,
           <summary>Markdown help</summary>
           <p>
             Start with a <code>&gt; [!TLDR]</code> callout (required to publish). Use <code>###</code> for headings (<code>##</code> would start a
-            new question in the repository format). Callouts: TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL. Code fences: ts, tsx, js, jsx,
+            new question in the repository format). Callouts: PROMPT, HINT, TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL. Code fences: ts, tsx, js, jsx,
             html, vue, css, bash, json, yaml, graphql, diff, http, text. Framework variants: wrap React, Angular or Vue material in <code>:::react</code>, <code>:::angular</code> or <code>:::vue</code> … <code>:::</code> on their own lines. Raw HTML is shown as text; links must be https or #ids.
           </p>
         </details>

@@ -15,8 +15,8 @@ minutes: 15
 
 > [!PROMPT]
 > A landing page shows a blank screen for two seconds on slow 4G, then everything appears at once. You are asked to explain what the browser is doing and what you'd change.
->
-> **Cover**
+
+> [!HINT]
 > - The pipeline from bytes to pixels (DOM, CSSOM, render tree, layout, paint, composite) and what blocks what.
 > - Which CSS and JS patterns are render-blocking, and the effect of `async`, `defer`, and `type="module"`.
 > - Which style changes trigger layout versus paint versus only compositing, with examples.
@@ -91,8 +91,8 @@ minutes: 15
 
 > [!PROMPT]
 > After a deploy, some users keep seeing the old version of your SPA for days, while others download the 800 KB bundle on every visit. Design the caching headers for HTML, hashed assets, API responses and the CDN.
->
-> **Cover**
+
+> [!HINT]
 > - `Cache-Control` for `index.html` versus fingerprinted files (`immutable`), and why ETags alone aren't enough.
 > - `stale-while-revalidate`, `Vary`, and CDN cache keys; cache invalidation on deploy.
 > - How to debug what is cached (DevTools, `Age` header), and the failure mode of a cached `index.html` pointing to deleted chunks.
@@ -168,8 +168,8 @@ minutes: 12
 
 > [!PROMPT]
 > Your SPA at `app.example.com` calls an API at `api.example.com` and the browser blocks a `PUT` request with a JSON body, but a simple `GET` works. A backend dev "fixed it" with `Access-Control-Allow-Origin: *` and now cookies stopped working.
->
-> **Cover**
+
+> [!HINT]
 > - What makes a request simple or preflighted, and the exact preflight request and response headers.
 > - Why credentials need an explicit origin (not `*`) and `Allow-Credentials`, plus `Vary: Origin`.
 > - Common misconfigurations, and what CORS does not protect against.
@@ -229,8 +229,8 @@ minutes: 12
 
 > [!PROMPT]
 > Your product page has an LCP hero image, a web font, a third-party analytics script and a lazy-loaded carousel, and Lighthouse says the LCP image starts downloading late. Decide how to use `preload`, `preconnect`, `modulepreload` and `fetchpriority`.
->
-> **Cover**
+
+> [!HINT]
 > - How the browser assigns priorities and where it guesses wrong.
 > - For each resource, the hint you'd add (or remove) and why; the cost of over-hinting.
 > - How you verify the change (waterfall, `Priority` column, LCP breakdown) rather than trusting it.
@@ -297,8 +297,8 @@ minutes: 18
 
 > [!PROMPT]
 > You are adding offline support to a news PWA. After the first release some users are stuck on an old version, and one user sees a blank page after a deploy. Design the service worker strategy and update flow.
->
-> **Cover**
+
+> [!HINT]
 > - Strategy per resource: cache-first for hashed assets, network-first or stale-while-revalidate for content, precache versus runtime cache.
 > - The lifecycle (install, waiting, activate, `skipWaiting`, `clients.claim`) and a safe "update available" prompt.
 > - The bugs you must plan for: cached `index.html`, cache growth, opaque responses, and a kill-switch worker.
@@ -385,8 +385,8 @@ minutes: 12
 
 > [!PROMPT]
 > You are designing client persistence for a notes app that works offline: auth session, UI preferences, 50 MB of notes and attachments, and state shared between tabs. Choose where each piece lives.
->
-> **Cover**
+
+> [!HINT]
 > - Cookies, `localStorage`, `sessionStorage`, IndexedDB, Cache API and OPFS: capacity, sync or async, who can read it.
 > - Cross-tab sync (`storage` event, `BroadcastChannel`, locks), quota errors and eviction, and `navigator.storage.persist()`.
 > - What must never be stored client-side, and migration of stored data between versions.
@@ -450,8 +450,8 @@ minutes: 15
 
 > [!PROMPT]
 > A CSV import in your app freezes the UI for 4 seconds while parsing 200,000 rows and building a search index. Move it off the main thread.
->
-> **Cover**
+
+> [!HINT]
 > - What belongs in a worker (CPU-bound, no DOM) and what doesn't.
 > - Message passing, structured clone costs, `Transferable` objects and `SharedArrayBuffer` (with its isolation requirements).
 > - Progress reporting, cancellation, error handling, worker pools, and how to test and bundle workers.

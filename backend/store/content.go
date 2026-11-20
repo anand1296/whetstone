@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -754,6 +756,96 @@ func (s *Store) ApplySync(ctx context.Context, actorID int64, repo []catalog.Sec
 		})
 	})
 	return p, err
+}
+
+// repoHashKey is the settings key holding the hash of the repository content last applied by AutoSync.
+const repoHashKey = "repo_content_hash"
+
+// repoHash fingerprints everything ApplySync would import, so a deploy that did not touch the content is detected cheaply.
+func repoHash(repo []catalog.Section) string {
+	h := sha256.New()
+	field := func(parts ...string) {
+		for _, part := range parts {
+			h.Write([]byte(part))
+			h.Write([]byte{0})
+		}
+	}
+	for _, sec := range repo {
+		field("section", sec.ID, sec.Title, sec.Description, strings.Join(sec.Facets, ","), fmt.Sprint(sec.Published))
+		for _, q := range sec.Questions {
+			field("question", q.ID, q.SectionID, q.Title, q.Level, strings.Join(q.Tags, ","), fmt.Sprint(q.Minutes), fmt.Sprint(q.Published), q.Body)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// consoleTouched lists questions and topics an admin has edited or deleted in the console. AutoSync leaves them alone:
+// a deploy must not revert a deliberate console edit or bring back something an admin deleted.
+func (s *Store) consoleTouched(ctx context.Context) (questions, deletedSections map[string]bool, err error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT action, target FROM audit_log WHERE action IN ('question.updated', 'question.deleted', 'section.deleted')`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	questions, deletedSections = map[string]bool{}, map[string]bool{}
+	for rows.Next() {
+		var action, target string
+		if err := rows.Scan(&action, &target); err != nil {
+			return nil, nil, err
+		}
+		if action == "section.deleted" {
+			deletedSections[target] = true
+		} else {
+			questions[target] = true
+		}
+	}
+	return questions, deletedSections, rows.Err()
+}
+
+// AutoSync brings the database up to date with the repository content embedded in a deployment, so merging
+// content to main is enough: no one has to press "Sync from repository" afterwards.
+//
+// It does the same work as an overwrite sync, minus anything an admin changed on purpose in the console (see
+// consoleTouched); those stay in the admin Sync screen for a manual decision. It only runs when the content
+// differs from what was last applied, so ordinary cold starts cost one small read. It returns whether it ran.
+func (s *Store) AutoSync(ctx context.Context, repo []catalog.Section, compile CompileFunc) (SyncPlan, bool, error) {
+	hash := repoHash(repo)
+	var applied string
+	if _, err := s.GetSetting(ctx, repoHashKey, &applied); err != nil {
+		return SyncPlan{}, false, err
+	}
+	if applied == hash {
+		return SyncPlan{}, false, nil
+	}
+	touched, deletedSections, err := s.consoleTouched(ctx)
+	if err != nil {
+		return SyncPlan{}, false, err
+	}
+	filtered := make([]catalog.Section, 0, len(repo))
+	for _, sec := range repo {
+		if deletedSections[sec.ID] {
+			continue
+		}
+		kept := sec
+		kept.Questions = make([]catalog.Question, 0, len(sec.Questions))
+		for _, q := range sec.Questions {
+			if !touched[q.ID] {
+				kept.Questions = append(kept.Questions, q)
+			}
+		}
+		filtered = append(filtered, kept)
+	}
+	p, err := s.ApplySync(ctx, 0, filtered, compile, true)
+	if err != nil {
+		return p, false, err
+	}
+	raw, err := json.Marshal(hash)
+	if err != nil {
+		return p, true, err
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, now())
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`, repoHashKey, raw)
+	return p, true, err
 }
 
 // SeedIfEmpty imports the repository content when the database has no topics yet.

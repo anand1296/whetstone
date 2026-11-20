@@ -570,3 +570,23 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 **Consequences.**
 - (+) No content files move and new junior questions land where learners look for them.
 - (−) A deliberate concept-then-application order across levels is no longer possible; put such pairs at the same level or link them.
+
+## ADR-036: Content changes sync themselves on deploy
+
+**Status:** Accepted
+
+**Context.** Merging content to main deployed the files with the app, but the database only changed after the owner opened Admin, Content and pressed *Sync from repository*. Easy to forget, and the reader sees stale content until then.
+
+**Decision.** `Build` (the cold start of the serverless function) calls `Store.AutoSync` after seeding. It hashes the embedded repository content and compares it with the hash stored in settings (`repo_content_hash`); when they differ it runs the same overwrite sync the admin screen runs (history kept, content version bumped) and stores the new hash. Questions with a `question.updated` or `question.deleted` audit entry, and topics with `section.deleted`, are left out, so a deploy never reverts a console edit or revives a deletion; those stay in the admin Sync screen for a manual decision. A failure is logged and does not stop the API from starting.
+
+**Alternatives considered.**
+- A GitHub Action calling a secret-protected endpoint after the deploy: another secret to manage and a race with the deploy finishing. Rejected.
+- Overwrite everything on every deploy: would silently undo console edits.
+- A new baseline column per question (what the repository said last time): precise, but needs a migration and a backfill; the audit log already records who edited what.
+
+**Consequences.**
+- (+) Merge to main is the whole release for content.
+- (+) No new secrets, endpoints or migrations; normal cold starts cost one settings read.
+- (−) The first request after a content deploy pays for the sync (a transaction over about 260 questions).
+- (−) An edit made in the console stays pinned: later repository changes to that question need a manual sync.
+

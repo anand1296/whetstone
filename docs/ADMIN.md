@@ -49,7 +49,7 @@ Admin → **Content**.
   - **Save** (or Ctrl/⌘+S). If someone else saved since you opened it, you'll be told and can load their version.
   - **History**: every previous version; *Load into editor* then Save to restore it.
 - **Trash:** deleted questions; *Restore as draft*.
-- **Sync from repository:** compares the database with the `content/*.md` files deployed with this version. *Add what's missing* imports new topics/questions committed to git. *Overwrite changed…* replaces edited questions with the repository version (history kept). Questions created in the console are never touched.
+- **Sync from repository:** runs by itself on every deploy that changes `content/` (new topics and questions are added and changed ones overwritten, history kept), except for questions an admin edited or deleted in the console, which are left alone. The screen is for those, and for previewing. It compares the database with the `content/*.md` files deployed with this version. *Add what's missing* imports new topics/questions committed to git. *Overwrite changed…* replaces edited questions with the repository version (history kept). Questions created in the console are never touched.
 - **Export all (.zip):** every published topic as `content/NN-id.md`, ready to commit to the repository.
 
 Every change is live for everyone immediately and recorded in **Activity**.
@@ -59,7 +59,7 @@ Every change is live for everyone immediately and recorded in **Activity**.
 | | Console-first | Git-first |
 | --- | --- | --- |
 | Edit in | the admin console | `content/*.md` in the repo (PR review) |
-| Get changes into the other | *Export all* → commit | push → deploy → *Sync from repository* |
+| Get changes into the other | *Export all* → commit | push → deploy (syncs itself; console-edited questions need *Sync from repository*) |
 | Best for | quick edits, non-engineers, drafts | review workflow, bulk changes |
 
 ### Learners

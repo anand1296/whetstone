@@ -15,8 +15,8 @@ minutes: 15
 
 > [!PROMPT]
 > You join a product with 200 slow Cypress tests, almost no unit tests and frequent regressions. Design a testing strategy for a large frontend and a plan to get there.
->
-> **Cover**
+
+> [!HINT]
 > - The test pyramid (or trophy) for your stack: static checks, unit, component, integration, E2E, visual, accessibility.
 > - What each layer should and shouldn't test, test data and mocking policy, and CI speed budgets.
 > - How you handle flaky tests, ownership, and measuring whether the strategy works.
@@ -74,8 +74,8 @@ minutes: 15
 
 > [!PROMPT]
 > A test breaks every time someone changes a class name, and another passes while the button is actually unreachable by keyboard. Rewrite your approach using Testing Library principles.
->
-> **Cover**
+
+> [!HINT]
 > - Query priority (`getByRole` with name first) and why `getByTestId` is the last resort.
 > - `user-event` versus `fireEvent`, `findBy` and `waitFor`, and avoiding `act()` warnings properly.
 > - What not to test (implementation details, third-party internals) with an example of a good test.
@@ -215,8 +215,8 @@ minutes: 12
 
 > [!PROMPT]
 > Your tests mock `fetch` with `jest.fn()`, so they pass even when the URL, method or payload is wrong. Introduce MSW and design a mocking setup shared by unit tests, Storybook and local development.
->
-> **Cover**
+
+> [!HINT]
 > - How MSW intercepts requests in Node and in the browser, and handlers versus per-test overrides.
 > - Testing loading, error, and slow-network states; asserting what was sent.
 > - Keeping mocks honest (typed handlers, contract tests against the real API).
@@ -285,8 +285,8 @@ minutes: 18
 
 > [!PROMPT]
 > Your E2E suite takes 60 minutes and fails randomly about 15% of the time, so engineers re-run until green. You have a quarter to fix it. Tell the story as an interview answer.
->
-> **Cover**
+
+> [!HINT]
 > - How you measured first (flake rate per test, slowest tests, causes).
 > - The fixes by cause: timing, shared state, environment, selectors; sharding, caching and test pruning.
 > - The result in numbers, and how you stopped it from getting worse again.
@@ -352,8 +352,8 @@ minutes: 10
 
 > [!PROMPT]
 > Leadership wants visual regression tests and automated accessibility checks to "catch everything". Explain what each catches and misses, and set them up so they don't create noise.
->
-> **Cover**
+
+> [!HINT]
 > - Visual tests: component versus page snapshots, baselines, flakiness (fonts, animations, data), review workflow.
 > - Automated accessibility checks (axe, linting): roughly what share of issues they can find, and what needs manual testing.
 > - How these fit into CI and who approves changes.
@@ -413,8 +413,8 @@ minutes: 12
 
 > [!PROMPT]
 > You must test a `useDebouncedSearch` hook (debounce, race handling, polling) and a component that fetches data. Tests are flaky and show "not wrapped in act(...)" warnings.
->
-> **Cover**
+
+> [!HINT]
 > - `renderHook` versus testing through a component; fake timers with `act` and `advanceTimersByTime`.
 > - Asserting on async UI (`findBy`, `waitFor`), testing race conditions deterministically, and mocking the network.
 > - What the `act()` warning means and how to fix the cause instead of silencing it.

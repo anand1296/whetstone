@@ -1389,8 +1389,8 @@ minutes: 15
 
 > [!PROMPT]
 > A background `fetch` fails silently in production and a promise rejection shows up only in the console. How do you design error handling for async code so failures are surfaced, retried or reported, and never swallowed?
->
-> **Cover**
+
+> [!HINT]
 > - Unhandled rejections and fire-and-forget promises.
 > - Timeouts and cancellation.
 > - What to catch locally and what to let bubble.
@@ -1674,7 +1674,8 @@ minutes: 15
 > 1. Group by region: `{ EMEA: { totalRevenue, dates }, APAC: { ... } }`.
 > 2. Handle bad rows, duplicate days for the same region, and unsorted input.
 > 3. Produce chart data: one shared, sorted x-axis (`labels`) and one `data` array per region, aligned to it, with gaps for missing days.
->
+
+> [!HINT]
 > **Also be ready for**
 > - "Why is the total `5.300000000000001` instead of `5.3`?"
 > - "What if a region is called `__proto__`?"

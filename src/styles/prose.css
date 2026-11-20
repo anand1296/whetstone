@@ -184,6 +184,37 @@
   margin-top: 4px;
 }
 
+.hint {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.hint > div {
+  align-self: stretch;
+}
+
+.hint-toggle {
+  padding-inline: 10px;
+  color: var(--accent);
+}
+
+.callout-hint {
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+  gap: 6px;
+}
+
+.callout-hint > ul,
+.callout-hint > ol {
+  padding-left: 1.25rem;
+}
+
+.callout-hint li + li {
+  margin-top: 4px;
+}
+
 .callout-warning {
   background: var(--due-soft);
 }

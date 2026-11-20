@@ -25,8 +25,8 @@ minutes: 15
 > ```
 >
 > A second snippet registers a `setTimeout`, a `Promise.then`, a `requestAnimationFrame` callback and a `queueMicrotask` callback in one handler, and nobody on the team can predict the order they log in.
->
-> **Cover**
+
+> [!HINT]
 > - Why the spinner never shows, even though the code sets it before the loop.
 > - The order of those four callbacks, and why.
 > - Exactly when the browser is allowed to render, and how you would make the spinner show.
@@ -143,8 +143,8 @@ minutes: 15
 
 > [!PROMPT]
 > Your support dashboard is open all day. After a few hours the tab uses 1.5 GB and scrolling stutters. Heap snapshots show thousands of detached DOM nodes and closures. The app has global event listeners, polling timers and a module-level cache.
->
-> **Cover**
+
+> [!HINT]
 > - How a closure keeps data alive, with a concrete leaking example.
 > - The steps you take in DevTools (heap snapshots, allocation timeline, retainer paths) to find the culprit.
 > - The patterns that prevent the leak (cleanup functions, `AbortController`, `WeakMap`, bounded caches).
@@ -344,8 +344,8 @@ minutes: 12
 
 > [!PROMPT]
 > An interviewer asks you to explain what happens when you write `class B extends A`, call `new B()`, and read a property that exists only on `A.prototype`. Then they ask whether `#secret` is the same as a `_secret` convention, and why a Babel-compiled class can behave differently from the native one.
->
-> **Cover**
+
+> [!HINT]
 > - The prototype chain created by `extends` and where `super` lookups go.
 > - What `new` does step by step.
 > - How private fields differ from properties (brand checks, no reflection, not inherited).
@@ -442,8 +442,8 @@ minutes: 15
 
 > [!PROMPT]
 > Your team is migrating a Node service and a bundled web app from CommonJS to ES modules. After the first PR, a circular import returns `undefined`, a default import from a CJS dependency is wrapped in an object, and tree shaking removes less than before.
->
-> **Cover**
+
+> [!HINT]
 > - Live bindings versus copied `module.exports`, with a cycle example.
 > - Why static `import` enables tree shaking and `require` doesn't.
 > - Interop rules (default imports of CJS, `__esModule`, dual packages, `exports` maps) and a safe migration order.
@@ -537,8 +537,8 @@ minutes: 12
 
 > [!PROMPT]
 > You are asked to stream a paginated API into a table, process a huge CSV without loading it all, and cancel the work when the user navigates away. A teammate proposes recursion with promises; you think async iterators fit better.
->
-> **Cover**
+
+> [!HINT]
 > - The iterator and async iterator protocols, and what `for await...of` does with `return()` on early exit.
 > - A generator-based pagination helper with cancellation.
 > - Where generators and async iterators help in UI code, and where they are overkill (a plain array and `map` is fine).
@@ -640,8 +640,8 @@ minutes: 10
 
 > [!PROMPT]
 > A component library attaches metadata to DOM nodes and caches expensive results per object. In long sessions the metadata outlives the nodes. Someone suggests `WeakRef` and `FinalizationRegistry` to "clean everything up automatically".
->
-> **Cover**
+
+> [!HINT]
 > - When `WeakMap` or `WeakSet` is the right tool and why you cannot iterate them.
 > - What `WeakRef.deref()` guarantees, and why cleanup callbacks must not be load-bearing.
 > - A cache design that uses weak references safely, and the traps (timing differences, tests that cannot observe GC).
@@ -990,7 +990,8 @@ minutes: 15
 > 3. Return only the top `k` entries, with a deterministic order when counts tie.
 > 4. Group the items themselves, not just count them.
 > 5. Put numbers into buckets of width 10.
->
+
+> [!HINT]
 > **Also be ready for**
 > - "What happens if one of the values is the string `'constructor'`?"
 > - "When would you not use `reduce`?"
@@ -1105,8 +1106,8 @@ minutes: 12
 
 > [!PROMPT]
 > Explain how property lookup and assignment work on the prototype chain. Then: a teammate adds `Array.prototype.last = function () { return this[this.length - 1]; }` to your codebase. Is that acceptable? What are the safer options, and how would you write a correct polyfill such as `Array.prototype.myMap`?
->
-> **Cover**
+
+> [!HINT]
 > - The chain for `[]`, own versus inherited properties, and what assignment does.
 > - Concrete risks of changing a built-in prototype.
 > - A spec-shaped polyfill (holes, `thisArg`, argument checks, non-enumerable).

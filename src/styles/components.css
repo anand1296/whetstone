@@ -41,12 +41,14 @@
   font-weight: 700;
 }
 
+.btn-ghost,
 .btn-quiet {
   border-color: transparent;
   background: none;
   color: var(--ink-2);
 }
 
+.btn-ghost:hover,
 .btn-quiet:hover {
   background: var(--surface-2);
   border-color: transparent;

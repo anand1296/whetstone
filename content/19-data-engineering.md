@@ -15,8 +15,8 @@ minutes: 20
 
 > [!PROMPT]
 > A product team wants near-real-time dashboards and also accurate daily finance reports from the same event data. Design the pipeline. When would you choose batch, streaming or both?
->
-> **Cover**
+
+> [!HINT]
 > - Latency, cost, correctness and operational complexity.
 > - Event time versus processing time, late data and windows.
 > - Lambda versus Kappa style architectures.
@@ -63,8 +63,8 @@ minutes: 20
 
 > [!PROMPT]
 > Model sales data for analysts: orders, customers, products, stores. Customer attributes (like segment or region) change over time and reports must show history correctly. How do you design the warehouse tables?
->
-> **Cover**
+
+> [!HINT]
 > - Facts, dimensions and grain.
 > - Slowly changing dimension strategies.
 > - Trade-offs against normalized and wide denormalized tables.
@@ -114,8 +114,8 @@ minutes: 20
 
 > [!PROMPT]
 > A daily job fails halfway and is retried, then you discover a bug and need to reprocess 90 days. How do you build pipelines so retries, reruns and backfills are safe?
->
-> **Cover**
+
+> [!HINT]
 > - Idempotent writes and deterministic partitions.
 > - Orchestration, dependencies and backfill strategy.
 > - What "exactly-once" really means.
@@ -163,8 +163,8 @@ minutes: 20
 
 > [!PROMPT]
 > Your data lake on object storage has thousands of small Parquet files, slow queries and no way to update records safely. How do you fix it, and why would you adopt a table format such as Iceberg or Delta Lake?
->
-> **Cover**
+
+> [!HINT]
 > - Why columnar files and partitioning speed queries.
 > - The small-files problem and compaction.
 > - What table formats add: transactions, schema evolution, time travel.
@@ -210,8 +210,8 @@ minutes: 30
 
 > [!PROMPT]
 > Given an `events(user_id, event_time, event_type)` table and a `transactions(user_id, txn_time, amount)` table, write SQL to: (1) find users with more than one transaction with a per-user summary, (2) keep only the latest row per user from a table with duplicates, (3) compute 7-day rolling revenue per day, and (4) group events into sessions with a 30-minute inactivity gap.
->
-> **Cover**
+
+> [!HINT]
 > - Correctness first, then performance.
 > - When to use window functions versus self-joins.
 > - How you would validate the results.
@@ -293,8 +293,8 @@ minutes: 18
 
 > [!PROMPT]
 > An executive dashboard shows revenue dropping 30% overnight. It turns out an upstream team renamed a field. How do you detect, prevent and respond to this kind of problem?
->
-> **Cover**
+
+> [!HINT]
 > - Tests and monitors at each layer.
 > - Data contracts and ownership.
 > - Lineage and incident response.
@@ -384,8 +384,8 @@ minutes: 20
 
 > [!PROMPT]
 > A Spark job joining a 2 TB `events` table with a 50 MB `users` table runs for hours, with a few tasks taking far longer than the rest. Diagnose it and describe how you would fix it.
->
-> **Cover**
+
+> [!HINT]
 > - Shuffle cost and join strategies.
 > - Data skew and how to detect and mitigate it.
 > - Partition sizing and file layout.

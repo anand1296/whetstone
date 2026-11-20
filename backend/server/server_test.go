@@ -766,6 +766,57 @@ func TestRepositorySyncAndExport(t *testing.T) {
 	}
 }
 
+// A deploy applies repository changes by itself, but never reverts a console edit or revives a console deletion.
+func TestAutoSyncOnDeploy(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	compiler := catalog.NewCompiler()
+	owner := e.login("owner")
+
+	// The seeded database matches the repository, so the first run only records the hash and changes nothing.
+	repo := fixtureRepo()
+	p, ran, err := e.store.AutoSync(ctx, repo, compiler.Check)
+	if err != nil || !ran || !p.Empty() {
+		t.Fatalf("first run: ran=%v plan=%+v err=%v", ran, p, err)
+	}
+	if _, ran, err = e.store.AutoSync(ctx, repo, compiler.Check); err != nil || ran {
+		t.Fatalf("an unchanged repository must not run again: ran=%v err=%v", ran, err)
+	}
+
+	// Console: edit first-question, delete third-question.
+	var rec questionRecord
+	owner.do("GET", "/api/admin/questions/first-question", nil).json(t, &rec)
+	expect(t, owner.do("PUT", "/api/admin/questions/first-question", map[string]any{"sectionId": "basics", "title": "Edited in console",
+		"level": "senior", "tags": []string{"one"}, "minutes": 5, "body": goodBody, "published": true, "revision": rec.Revision}), 200)
+	expect(t, owner.do("DELETE", "/api/admin/questions/third-question", nil), 200)
+
+	// A new deploy changes every repository question's title and adds a question.
+	next := fixtureRepo()
+	for si := range next {
+		for qi := range next[si].Questions {
+			next[si].Questions[qi].Title += " (deployed)"
+		}
+	}
+	next[0].Questions = append(next[0].Questions, catalog.Question{ID: "fourth-question", SectionID: "basics", Title: "Fourth?",
+		Level: "junior", Tags: []string{"four"}, Minutes: 4, Body: goodBody, Published: true})
+	p, ran, err = e.store.AutoSync(ctx, next, compiler.Check)
+	if err != nil || !ran {
+		t.Fatalf("deploy: ran=%v err=%v", ran, err)
+	}
+	if len(p.NewQuestions) != 1 || len(p.ChangedQuestions) != 1 {
+		t.Fatalf("plan: %+v", p)
+	}
+	titles := map[string]string{}
+	for _, id := range []string{"first-question", "second-question", "fourth-question"} {
+		owner.do("GET", "/api/admin/questions/"+id, nil).json(t, &rec)
+		titles[id] = rec.Title
+	}
+	if titles["first-question"] != "Edited in console" || titles["second-question"] != "Second? (deployed)" || titles["fourth-question"] != "Fourth?" {
+		t.Fatalf("titles after deploy: %+v", titles)
+	}
+	expect(t, owner.do("GET", "/api/admin/questions/third-question", nil), 404)
+}
+
 func TestGitHubOAuthFlow(t *testing.T) {
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

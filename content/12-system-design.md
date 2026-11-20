@@ -15,8 +15,8 @@ minutes: 12
 
 > [!PROMPT]
 > You are given a vague prompt, "design Google Photos", and 45 minutes. Describe the framework you follow so that the interview doesn't turn into a random walk, and how you would split the time.
->
-> **Cover**
+
+> [!HINT]
 > - Stages (such as RADIO): requirements, architecture, data model, interface/API, optimizations, with time per stage.
 > - The clarifying questions and non-functional requirements you always ask.
 > - How you present trade-offs, and signals interviewers look for at senior versus staff level.
@@ -73,8 +73,8 @@ minutes: 30
 
 > [!PROMPT]
 > Design the frontend of a news feed like Twitter or LinkedIn: infinite scrolling, new-post indicators, likes, comments, images and video, for web and mobile.
->
-> **Cover**
+
+> [!HINT]
 > - Rendering (SSR for first page), pagination, a normalized client cache and optimistic updates.
 > - Real-time inserts without scroll jumps, virtualization, media loading and autoplay.
 > - Performance, accessibility, error handling and metrics; what you'd build first.
@@ -196,8 +196,8 @@ minutes: 25
 
 > [!PROMPT]
 > Design a product detail page for a high-traffic store: SEO-critical, personalized pricing and stock, heavy images, and a strict LCP target.
->
-> **Cover**
+
+> [!HINT]
 > - Splitting the page by cacheability: static content, per-user data and real-time stock.
 > - Rendering strategy (SSG/ISR/streaming), image pipeline, caching and CDN design.
 > - SEO (structured data), personalization without layout shift, A/B testing, and Core Web Vitals budgets.
@@ -267,8 +267,8 @@ minutes: 30
 
 > [!PROMPT]
 > Design a real-time analytics dashboard (like Datadog): dozens of widgets, each with a time range, auto-refresh and live updates, used on large screens for hours.
->
-> **Cover**
+
+> [!HINT]
 > - Data flow: a query layer with deduping, polling versus WebSocket/SSE, and backpressure when data arrives faster than you can render.
 > - Chart rendering (SVG versus canvas), downsampling, and memory over long sessions.
 > - Time range sync, error and stale-data states, and accessibility of charts.
@@ -361,8 +361,8 @@ minutes: 35
 
 > [!PROMPT]
 > Design a lightweight spreadsheet (Google Sheets lite) in the browser supporting 1 million rows, formulas with dependencies, copy/paste and shared editing.
->
-> **Cover**
+
+> [!HINT]
 > - Data model (sparse cells), a virtualized 2D grid, DOM versus canvas rendering.
 > - The formula engine: parsing, a dependency graph, recalculation order, cycle detection.
 > - Collaboration and conflict handling, undo/redo, and performance targets.
@@ -447,8 +447,8 @@ minutes: 30
 
 > [!PROMPT]
 > Design the frontend of a collaborative document editor (like Google Docs) with live cursors, offline editing and per-user undo.
->
-> **Cover**
+
+> [!HINT]
 > - The editor model (ProseMirror/Lexical/Tiptap versus `contenteditable`) and document schema.
 > - Concurrency: OT versus CRDT trade-offs, presence, and syncing over WebSocket with reconnection.
 > - Offline edits, history/undo semantics in a collaborative context, and what you'd measure.
@@ -521,8 +521,8 @@ minutes: 25
 
 > [!PROMPT]
 > Design an offline-first field-service app: technicians fill forms and attach photos with no connectivity, then sync when back online, possibly editing the same record as the office.
->
-> **Cover**
+
+> [!HINT]
 > - Local database as the source of truth, a write queue and background sync.
 > - Conflict detection and resolution policies, idempotent sync, and partial failures.
 > - Service worker and storage limits, data migration, and how you show sync state to users.
@@ -600,8 +600,8 @@ minutes: 20
 
 > [!PROMPT]
 > Design the frontend of search with autocomplete for a large e-commerce site: suggestions appear as you type, with recent searches, categories and products, on slow mobile networks.
->
-> **Cover**
+
+> [!HINT]
 > - Request strategy: debouncing, cancellation, caching by prefix, prefetching, and failure fallbacks.
 > - Ranking and display, highlighting, keyboard and screen reader behavior.
 > - Analytics, latency budgets and how you'd test relevance and performance.
@@ -759,8 +759,8 @@ minutes: 28
 
 > [!PROMPT]
 > Design the web frontend for a YouTube-style video platform: a home feed, a watch page with the player, recommendations and comments, and search. It must start playback quickly on slow networks and scale to millions of viewers.
->
-> **Cover**
+
+> [!HINT]
 > - Requirements and the key rendering decisions.
 > - How video is delivered and played.
 > - The feed, watch page and comments.
@@ -831,8 +831,8 @@ minutes: 22
 
 > [!PROMPT]
 > Design the frontend (and the contract with the backend) for real-time notifications in a web app: a bell icon with an unread count, a dropdown list, live updates while the tab is open, and push notifications when it is closed.
->
-> **Cover**
+
+> [!HINT]
 > - How updates get to the client: WebSocket, Server-Sent Events, polling.
 > - Data model, unread counts and read state.
 > - Multi-tab, offline and reconnect behavior.
@@ -906,8 +906,8 @@ minutes: 30
 
 > [!PROMPT]
 > Design the frontend of a web chat application: a conversation list, a message pane and a composer, with delivery and read state, typing indicators and image sharing, on networks that drop.
->
-> **Cover**
+
+> [!HINT]
 > - Transport, reconnection and not losing or duplicating messages.
 > - Optimistic sending, ordering and the client data model.
 > - Long histories: pagination, scroll behavior and virtualization.
@@ -1100,8 +1100,8 @@ minutes: 30
 
 > [!PROMPT]
 > Design the frontend of a calendar application with month, week and day views. Users create and edit events by dragging on the grid, see overlapping events side by side, have events in different time zones, and use recurring events.
->
-> **Cover**
+
+> [!HINT]
 > - The data model, including time zones, all-day events and recurrence.
 > - Rendering: grid math, overlapping event layout, multi-day events, performance.
 > - Fetching and caching by visible range, and real-time updates.
@@ -1260,8 +1260,8 @@ minutes: 30
 
 > [!PROMPT]
 > Design the frontend of an e-commerce application: category and search results, the product page, a cart and a checkout with online payment. Focus on what is hard about the cart and checkout, not only on rendering product grids.
->
-> **Cover**
+
+> [!HINT]
 > - Listing and search: URL state, filters, pagination, SEO and performance.
 > - Cart ownership, optimistic updates, price and stock changes, guests and login.
 > - Checkout as a flow: forms, validation, payment, double-submit protection, async payment outcomes.

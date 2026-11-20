@@ -1,4 +1,4 @@
-import { use, useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
+import { use, useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { loadAnswers } from '../../content/index.ts';
 import { prefsStore, updatePrefs } from '../../state/prefs.ts';
 import { useStore } from '../../state/useStore.ts';
@@ -100,6 +100,31 @@ function RevealedAnswer({ html, focus }: { html: string; focus: boolean }) {
   );
 }
 
+/** The hint stays closed until asked for: an interviewer would not list what a strong answer covers. It opens by itself once the answer is revealed. */
+function HintToggle({ html, revealed }: { html: string; revealed: boolean }) {
+  const [asked, setAsked] = useState(false);
+  const panelId = useId();
+  const open = asked || revealed;
+  return (
+    <div className="hint">
+      {revealed ? null : (
+        <button
+          type="button"
+          className="btn btn-ghost hint-toggle"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setAsked((value) => !value)}
+        >
+          {open ? 'Hide the hint' : 'Need a nudge?'}
+        </button>
+      )}
+      <div id={panelId} hidden={!open}>
+        <Html html={html} />
+      </div>
+    </div>
+  );
+}
+
 /**
  * Suspends until the section's answer chunk is loaded (React 19 `use`). The full question is always
  * shown; until `revealed`, `gate` (the "Reveal answer" panel) stands in for the answer.
@@ -119,10 +144,11 @@ export function Answer({
 }) {
   const answers = use(loadAnswers(sectionId));
   const html = answers[questionId] ?? '<p>Answer not found.</p>';
-  const { prompt, rest } = splitPrompt(html);
+  const { prompt, hint, rest } = splitPrompt(html);
   return (
     <>
       {prompt ? <Html html={prompt} /> : null}
+      {hint ? <HintToggle html={hint} revealed={revealed} /> : null}
       {revealed ? rest ? <RevealedAnswer html={rest} focus={focusOnReveal} /> : null : gate}
     </>
   );

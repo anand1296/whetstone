@@ -15,8 +15,8 @@ minutes: 12
 
 > [!PROMPT]
 > You are interviewing for a forward deployed engineer (FDE) role at an AI or data platform company. Explain what the job is, how it differs from a software engineer, solutions engineer or consultant, and what each interview round is testing.
->
-> **Cover**
+
+> [!HINT]
 > - The day-to-day shape of the role and why companies hire for it.
 > - The typical rounds and what a strong answer looks like in each.
 > - Why people with a strong frontend or full-stack background can be good at it.
@@ -60,8 +60,8 @@ minutes: 30
 
 > [!PROMPT]
 > The interviewer plays a customer and says: "Our logistics company is losing money on deliveries. Can you help?" You have 45 minutes and no data in front of you. How do you handle it?
->
-> **Cover**
+
+> [!HINT]
 > - The questions you ask first and why.
 > - How you structure the problem, choose metrics and decide what data you need.
 > - How you phase a solution and name the risks.
@@ -113,8 +113,8 @@ minutes: 20
 
 > [!PROMPT]
 > You have 45 minutes with a VP at a fintech who wants an "AI copilot" for an internal process. You know nothing about their workflow. Run the discovery call, and then handle this: "We want feature X," when X will not solve their stated problem.
->
-> **Cover**
+
+> [!HINT]
 > - The questions you ask and in what order.
 > - How you handle a customer demanding the wrong feature.
 > - How you end the call.
@@ -169,8 +169,8 @@ minutes: 40
 
 > [!PROMPT]
 > A customer wants employees to ask questions over 200,000 internal documents (wikis, PDFs, tickets) with permissions that must be respected. Design the retrieval layer and the answer pipeline. Cover quality, evaluation, cost, latency and security.
->
-> **Cover**
+
+> [!HINT]
 > - Ingestion, chunking and indexing choices.
 > - Retrieval, reranking, generation and citations.
 > - How you evaluate it before customers see failures, and what you do about a 10x traffic spike.
@@ -299,8 +299,8 @@ minutes: 30
 
 > [!PROMPT]
 > A customer has two employee-record systems (HR and payroll) with different IDs and partially conflicting data. They want one reliable view and a way to keep it in sync. Describe your approach and write the core matching logic.
->
-> **Cover**
+
+> [!HINT]
 > - How you decide what is the source of truth for each field.
 > - Matching records across systems and handling ambiguity.
 > - Keeping the systems in sync safely over time.
@@ -356,8 +356,8 @@ minutes: 20
 
 > [!PROMPT]
 > Your pipeline at a customer fails at 2 AM and their operations team is blocked. Walk through what you do, who you tell, and how you would tell the story in a behavioral interview.
->
-> **Cover**
+
+> [!HINT]
 > - Triage, mitigation, communication and root cause in that order.
 > - What "ownership" means when part of the problem is in the customer's systems.
 > - A story structure that shows judgment, not heroics.
@@ -400,8 +400,8 @@ minutes: 20
 
 > [!PROMPT]
 > Prepare answers to the behavioral prompts commonly reported in FDE loops: "Tell me about a time you pushed back on a customer," "Tell me about a time you were wrong," "How do you use AI in your own work?" and "How do you decide what to build for one customer versus the product?"
->
-> **Cover**
+
+> [!HINT]
 > - A structure for each answer and the signal it carries.
 > - A rule for custom work versus product work.
 > - Pitfalls that make answers sound generic.
@@ -454,8 +454,8 @@ minutes: 15
 
 > [!PROMPT]
 > You want to practice with questions that candidates have reported from real FDE loops. Which are commonly reported, how reliable are those reports, and how should you practice?
->
-> **Cover**
+
+> [!HINT]
 > - Representative questions by round.
 > - Why company attribution is shaky and what to do about it.
 > - A practice plan.
@@ -564,8 +564,8 @@ minutes: 25
 
 > [!PROMPT]
 > A customer wants to "try AI" on their support operation and has agreed to a six-week pilot. How do you scope it so it can succeed and lead to a production decision?
->
-> **Cover**
+
+> [!HINT]
 > - Choosing the use case and defining success.
 > - The plan, owners and data access.
 > - Risks, stop conditions and the path to production.
@@ -610,8 +610,8 @@ minutes: 30
 
 > [!PROMPT]
 > The interviewer says: "You have a city's traffic data. Build me a system to improve traffic." That is all you get. Walk through how you would handle the 45 minutes.
->
-> **Cover**
+
+> [!HINT]
 > - What you ask before you design anything.
 > - The order you design the layers in.
 > - How you keep it from becoming an ML project that never ships.
@@ -665,8 +665,8 @@ minutes: 35
 
 > [!PROMPT]
 > You are given a folder of messy CSV exports (inconsistent quoting, missing columns) and free-text notes. Build a small pipeline that parses them, asks an LLM API to extract structured fields from each note, and writes clean output. The model sometimes returns malformed or wrong JSON. How do you build it, and what would you say about reliability?
->
-> **Cover**
+
+> [!HINT]
 > - Parsing and normalizing the input.
 > - Calling the model and validating the output.
 > - Retries, idempotency and cost control.
@@ -744,8 +744,8 @@ minutes: 35
 
 > [!PROMPT]
 > Fetch all records from a paginated REST API that sometimes returns 429 or 5xx. Then implement a rate limiter that supports a per-user limit and a global limit. Explain your choices.
->
-> **Cover**
+
+> [!HINT]
 > - Pagination styles and how you know you are done.
 > - Which errors to retry and how to back off.
 > - Token bucket versus sliding window.
@@ -923,8 +923,8 @@ minutes: 35
 
 > [!PROMPT]
 > A hospital network wants an assistant that answers clinicians' questions over 50 million internal documents. Patient data must not leave their cloud account, and they must comply with HIPAA. Design it, and say how you would handle the security team that has not approved production access yet.
->
-> **Cover**
+
+> [!HINT]
 > - Where the model and the data live.
 > - Access control, logging and data minimization.
 > - Scale and quality for 50 million documents.
@@ -978,8 +978,8 @@ minutes: 30
 
 > [!PROMPT]
 > You deploy an AI agent that reroutes shipments using ERP data, weather APIs and input from 500 warehouse managers. The customer wants a 99% on-time delivery rate. (1) How do you evaluate it before it acts on real shipments? (2) A month after launch a key metric drops. How do you diagnose it and decide what to fix first?
->
-> **Cover**
+
+> [!HINT]
 > - What you measure at each level.
 > - How you test before and after launch.
 > - How you debug a regression.
@@ -1025,8 +1025,8 @@ minutes: 25
 
 > [!PROMPT]
 > A customer's LLM-powered search takes about 1.5 seconds per query and they want it under 100 ms. How do you find where the time goes, and what are your options? Is 100 ms always achievable with a language model in the loop?
->
-> **Cover**
+
+> [!HINT]
 > - How you measure before changing anything.
 > - Typical contributors to latency in an LLM pipeline.
 > - Options, with their quality and cost trade-offs.

@@ -15,8 +15,8 @@ minutes: 20
 
 > [!PROMPT]
 > Build the chat UI for an LLM feature: tokens stream in, the user can stop generation, and the page must stay smooth during long answers.
->
-> **Cover**
+
+> [!HINT]
 > - Reading a streamed response (`fetch` with `ReadableStream` or SSE), parsing events and handling partial chunks.
 > - Cancellation with `AbortController`, error and retry states, and keeping API keys on the server.
 > - Render batching, scroll anchoring, and accessibility (announcing completion without reading every token).
@@ -354,8 +354,8 @@ minutes: 15
 
 > [!PROMPT]
 > The model's Markdown arrives token by token: half a code fence, an unfinished link, a table in progress. Render it safely and without flicker.
->
-> **Cover**
+
+> [!HINT]
 > - Treating model output as untrusted: no raw HTML, link allowlists, sanitization.
 > - Handling incomplete syntax (closing open fences virtually, deferring ambiguous tokens) and re-parse cost.
 > - Code blocks (highlighting, copy), performance for long messages, and testing with adversarial input.
@@ -543,8 +543,8 @@ minutes: 20
 
 > [!PROMPT]
 > An AI assistant can call tools such as `create_invoice` or `search_orders` and return structured data that your UI should render as components and confirmations. Design it safely.
->
-> **Cover**
+
+> [!HINT]
 > - A registry of allowed tools and components with schema validation; never executing model-provided code.
 > - Human-in-the-loop: confirmation for risky actions, previews, undo, and audit logs.
 > - Error handling for invalid arguments, partial results and streaming tool calls.
@@ -758,8 +758,8 @@ minutes: 12
 
 > [!PROMPT]
 > Your company launches an AI assistant that answers from internal documents. Users stop trusting it after a few wrong answers. Design the UX so answers are checkable and failures are graceful.
->
-> **Cover**
+
+> [!HINT]
 > - Citations and source previews, confidence and "I don't know" states, and empty or conflicting results.
 > - Feedback loops (thumbs, corrections) and how they reach the retrieval and evaluation process.
 > - Permission-aware sources, and how you'd measure trust and answer quality.
@@ -797,8 +797,8 @@ minutes: 12
 
 > [!PROMPT]
 > Your AI feature takes 8 seconds and costs more than expected as usage grows. Reduce both latency and cost without making answers worse.
->
-> **Cover**
+
+> [!HINT]
 > - Perceived latency: streaming, progress, and optimistic UI; actual latency: model choice and routing, prompt size, caching.
 > - Cost levers: caching (exact and semantic), batching, shorter context, smaller models for easy tasks, rate limits.
 > - Measuring quality alongside cost so savings don't hurt users.
@@ -840,8 +840,8 @@ minutes: 15
 
 > [!PROMPT]
 > A prompt change silently made answers worse and nobody noticed for two weeks. Design the evaluation and monitoring system for an AI feature.
->
-> **Cover**
+
+> [!HINT]
 > - Offline evals: a dataset from real cases, automated and human-graded metrics, regression gates in CI.
 > - Online monitoring: tracing, user feedback signals, cost and latency, drift detection.
 > - Release practices (shadow, A/B, canary) and how you triage a regression.
