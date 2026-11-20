@@ -115,7 +115,7 @@ test('an invited learner joins, studies and syncs across devices', async ({ brow
   await expect(side.getByRole('button', { name: /Admin/ })).toHaveCount(0);
   await expect(laptop.page.locator('.announcement')).toContainText('Mock interviews');
 
-  await side.getByRole('button', { name: /Go Backend Fundamentals/ }).click();
+  await laptop.page.locator('.round-list .round', { has: laptop.page.locator('.round-title', { hasText: /^Go Backend Fundamentals/ }) }).click();
   const question = laptop.page.locator('.q').first();
   await question.locator('.q-trigger').click();
   await question.getByRole('button', { name: 'Reveal answer' }).click();
@@ -130,9 +130,9 @@ test('an invited learner joins, studies and syncs across devices', async ({ brow
   const phone = await newPage(browser);
   await phone.page.goto('/');
   await signIn(phone.page, 'priya');
-  await expect(phone.page.locator('aside.sidebar').getByRole('button', { name: /Go Backend Fundamentals/ })).toContainText('1/1', {
-    timeout: 10_000,
-  });
+  await expect(
+    phone.page.locator('.round-list .round', { has: phone.page.locator('.round-title', { hasText: /^Go Backend Fundamentals/ }) }),
+  ).toContainText('1/1', { timeout: 10_000 });
 
   expect([...laptop.errors, ...phone.errors]).toEqual([]);
 });
