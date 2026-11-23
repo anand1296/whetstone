@@ -209,8 +209,8 @@
 
 .page-header h1 {
   font-size: var(--step-4);
-  font-weight: 750;
-  letter-spacing: -0.025em;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .section-progress {
@@ -641,8 +641,8 @@ textarea:focus-visible {
 
 .overview-hero h1 {
   font-size: var(--step-4);
-  font-weight: 780;
-  letter-spacing: -0.03em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   max-width: 18ch;
   margin-block: 8px 12px;
 }
@@ -697,9 +697,9 @@ textarea:focus-visible {
 .loop-count {
   font-family: var(--font-display);
   font-size: 44px;
-  font-weight: 760;
+  font-weight: 700;
   fill: var(--ink);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
 }
 
 .loop-total {

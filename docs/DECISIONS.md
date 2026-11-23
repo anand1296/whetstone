@@ -612,3 +612,15 @@ People who already used the app keep what they had: when the document has no pla
 - (+) Works in every mode (local, Artifact, server) because it rides the existing sync, and old documents without plans still load.
 - (−) Plans are part of the progress document, so Reset keeps them on purpose and an import without plans cannot wipe them (they are merged).
 - (−) The selection rule (roles widen, focus areas narrow within a role) is the one place a plan can surprise people; the picker shows the resulting topic and question count as they choose.
+
+## ADR-038: A workshop palette and a slab serif for headings
+
+**Status:** Accepted
+
+**Context.** The interface used a cool blue-grey paper, a bright cobalt accent and a rounded geometric sans for headings: a combination that reads as a default and says nothing about the product.
+
+**Decision.** A light touch, tokens only. Paper is a faintly green "honed stone" grey, ink is tool-steel dark, the accent is a deeper petrol blue-green, done is olive green and due is brass, so the three status colours stay distinct from each other and from the accent. Dark mode uses the same hues. Headings use Bitter, a sturdy slab serif, with body text and code unchanged. Corner radii drop by a couple of pixels. No layout, component or copy changes, and no new colours were added; the palette lives in `src/styles/tokens.css` and the font in `index.html`.
+
+**Consequences.**
+- (+) A recognisable look with no structural change; one file to retune.
+- (−) Bitter loads from Google Fonts like the previous face; offline it falls back to Rockwell, Roboto Slab or Georgia.

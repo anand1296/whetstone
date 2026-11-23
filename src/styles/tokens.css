@@ -1,41 +1,43 @@
 /*
  * Design tokens. Layout concept: a quiet study desk. Left rail lists the rounds of
  * the loop, the main column is a single readable track of questions, and one
- * cobalt accent marks what to do next. Done is green, due-for-review is amber.
+ * petrol accent marks what to do next. Palette from the workshop: honed stone
+ * (a faintly green grey) for paper, tool-steel ink, petrol for the edge. Done is
+ * olive green, due-for-review is brass. Headings are a sturdy slab serif.
  */
 :root {
-  --paper: #f4f6f9;
-  --surface: #ffffff;
-  --surface-2: #eceff5;
-  --ink: #161b2e;
-  --ink-2: #464e66;
-  --ink-3: #6f7690;
-  --line: #dde1ea;
-  --line-strong: #c9cfdc;
-  --accent: #3346d3;
+  --paper: #ecefec;
+  --surface: #f8f9f7;
+  --surface-2: #e2e6e2;
+  --ink: #18201e;
+  --ink-2: #424d49;
+  --ink-3: #5d6964;
+  --line: #d3d9d4;
+  --line-strong: #bcc5be;
+  --accent: #17607a;
   --accent-ink: #ffffff;
-  --accent-soft: #e5e8fb;
-  --done: #1d7f55;
-  --done-soft: #ddf1e6;
-  --due: #a35f00;
-  --due-soft: #fbedd5;
-  --danger: #b4323a;
-  --code-bg: #f0f2f7;
-  --code-ink: #1f2537;
-  --shadow: 0 1px 2px rgb(22 27 46 / 0.06), 0 8px 24px -12px rgb(22 27 46 / 0.18);
-  --backdrop: rgb(14 18 32 / 0.45);
+  --accent-soft: #d7e7ec;
+  --done: #3d7a35;
+  --done-soft: #dcecd6;
+  --due: #946200;
+  --due-soft: #f3e6c8;
+  --danger: #b0392f;
+  --code-bg: #e4e8e4;
+  --code-ink: #1b2421;
+  --shadow: 0 1px 2px rgb(24 32 30 / 0.06), 0 8px 24px -12px rgb(24 32 30 / 0.18);
+  --backdrop: rgb(16 22 20 / 0.45);
 
   /* syntax */
   --hl-keyword: #7a2fb5;
   --hl-string: #1d7a4a;
   --hl-number: #b0420e;
-  --hl-comment: #727a92;
-  --hl-title: #2140c4;
+  --hl-comment: #68746f;
+  --hl-title: #17607a;
   --hl-type: #a0571a;
   --hl-attr: #9b2d64;
-  --hl-meta: #5b6478;
+  --hl-meta: #56625d;
 
-  --font-display: 'Bricolage Grotesque', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Bitter', 'Rockwell', 'Roboto Slab', Georgia, serif;
   --font-body: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
@@ -46,74 +48,74 @@
   --step-3: 1.75rem;
   --step-4: clamp(2rem, 1.4rem + 2.4vw, 2.75rem);
 
-  --radius: 10px;
-  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-sm: 5px;
   --rail: 288px;
   --measure: 46rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --paper: #0e1220;
-    --surface: #151a2a;
-    --surface-2: #1c2235;
-    --ink: #e6e9f2;
-    --ink-2: #b1b8cc;
-    --ink-3: #868ea6;
-    --line: #262d42;
-    --line-strong: #353d57;
-    --accent: #95a3ff;
-    --accent-ink: #0e1220;
-    --accent-soft: #232a50;
-    --done: #55c896;
-    --done-soft: #14362a;
-    --due: #f0b24f;
-    --due-soft: #3a2b12;
-    --danger: #f08a8f;
-    --code-bg: #0a0e19;
-    --code-ink: #dde2ee;
+    --paper: #121715;
+    --surface: #181f1c;
+    --surface-2: #1f2825;
+    --ink: #e4e9e5;
+    --ink-2: #b2bcb6;
+    --ink-3: #8a958f;
+    --line: #28332f;
+    --line-strong: #384540;
+    --accent: #6fc0d9;
+    --accent-ink: #0f1816;
+    --accent-soft: #1d3a44;
+    --done: #8fcf7e;
+    --done-soft: #1d3219;
+    --due: #e8b44f;
+    --due-soft: #3a2d12;
+    --danger: #f08a80;
+    --code-bg: #0d1210;
+    --code-ink: #dfe6e1;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.6);
-    --backdrop: rgb(4 6 12 / 0.65);
+    --backdrop: rgb(4 8 7 / 0.65);
     --hl-keyword: #c79bff;
     --hl-string: #8fd6a6;
     --hl-number: #ffad80;
-    --hl-comment: #7c849c;
-    --hl-title: #8fb0ff;
+    --hl-comment: #7d8a84;
+    --hl-title: #7fc6dd;
     --hl-type: #f2c27a;
     --hl-attr: #f09ac3;
-    --hl-meta: #9aa3b8;
+    --hl-meta: #9aa6a0;
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --paper: #0e1220;
-  --surface: #151a2a;
-  --surface-2: #1c2235;
-  --ink: #e6e9f2;
-  --ink-2: #b1b8cc;
-  --ink-3: #868ea6;
-  --line: #262d42;
-  --line-strong: #353d57;
-  --accent: #95a3ff;
-  --accent-ink: #0e1220;
-  --accent-soft: #232a50;
-  --done: #55c896;
-  --done-soft: #14362a;
-  --due: #f0b24f;
-  --due-soft: #3a2b12;
-  --danger: #f08a8f;
-  --code-bg: #0a0e19;
-  --code-ink: #dde2ee;
+  --paper: #121715;
+  --surface: #181f1c;
+  --surface-2: #1f2825;
+  --ink: #e4e9e5;
+  --ink-2: #b2bcb6;
+  --ink-3: #8a958f;
+  --line: #28332f;
+  --line-strong: #384540;
+  --accent: #6fc0d9;
+  --accent-ink: #0f1816;
+  --accent-soft: #1d3a44;
+  --done: #8fcf7e;
+  --done-soft: #1d3219;
+  --due: #e8b44f;
+  --due-soft: #3a2d12;
+  --danger: #f08a80;
+  --code-bg: #0d1210;
+  --code-ink: #dfe6e1;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.6);
-  --backdrop: rgb(4 6 12 / 0.65);
+  --backdrop: rgb(4 8 7 / 0.65);
   --hl-keyword: #c79bff;
   --hl-string: #8fd6a6;
   --hl-number: #ffad80;
-  --hl-comment: #7c849c;
-  --hl-title: #8fb0ff;
+  --hl-comment: #7d8a84;
+  --hl-title: #7fc6dd;
   --hl-type: #f2c27a;
   --hl-attr: #f09ac3;
-  --hl-meta: #9aa3b8;
+  --hl-meta: #9aa6a0;
   color-scheme: dark;
 }
