@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { EVERYTHING_URL, seedEverythingPlan } from './helpers.ts';
 
 test('mobile: drawer navigation, no horizontal scroll', async ({ page }) => {
-  await page.goto('/');
+  await seedEverythingPlan(page);
+  await page.goto(EVERYTHING_URL);
   const noOverflow = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
   expect(await noOverflow()).toBe(true);
 

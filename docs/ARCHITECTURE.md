@@ -66,7 +66,8 @@ src/
   features/contribute/        Contribute page: question submission form, my submissions, PR guide
   app/App.tsx                 shell: sidebar, mobile drawer, top bar, view switch, global shortcuts
   app/Sidebar.tsx             navigation with per-topic progress
-  features/overview/          resume card, review card, loop ring, topics list
+  features/overview/          dashboard of plans; a plan's page (resume card, review card, loop ring, topics list)
+  features/plans/             onboarding, plan picker and editor, usePlans hooks (active plan, first-plan migration)
   features/section/           SectionPage (filters, open set, scroll/focus), QuestionItem (accordion),
                               Answer (React 19 use() + Suspense), notes, practice gate
   features/review/            due list + upcoming
@@ -93,7 +94,7 @@ src/
 | --- | --- | --- |
 | Progress (done, review stage/due, notes, last visit) | `progressStore` | localStorage `whetstone:progress:v1`, other tabs, optional cloud doc |
 | Preferences (theme, practice mode, filters) | `prefsStore` | localStorage `whetstone:prefs:v1` (device-only) |
-| Route (overview / review / admin / section + focused question) | `routeStore` | URL hash (bare token) |
+| Route (overview / plan / review / admin / section + focused question) | `routeStore` | URL hash (bare token) |
 | Content (source, version, sections, lookups) | `contentStore` | bundled at build time, or from `/api/bootstrap` |
 | Server mode (user, role, site, feature flags, auth methods, lock) | `serverStore` | `/api/bootstrap`; refreshed after admin saves |
 | Platform role (owner / learner / local) | `platformStore` | resolved from `window.claude` at boot (Artifact build) |
@@ -111,6 +112,7 @@ src/
   questions: {
     "event-loop-rendering-order": { done: true, doneAt: 1760580000000, stage: 1, dueAt: 1761012000000, notes: "…", updatedAt: 1760590000000 }
   },
+  plans: { "plan-3f9a1c2e": { name: "Go + Kubernetes", facets: ["backend", "go", "kubernetes"], createdAt: 1760580000000, updatedAt: 1760580000000, deleted: false } },
   lastVisit: { sectionId: "react-internals", questionId: "effects-synchronization", at: 1760590000000 }
 }
 ```

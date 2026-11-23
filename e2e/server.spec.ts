@@ -115,6 +115,13 @@ test('an invited learner joins, studies and syncs across devices', async ({ brow
   await expect(side.getByRole('button', { name: /Admin/ })).toHaveCount(0);
   await expect(laptop.page.locator('.announcement')).toContainText('Mock interviews');
 
+  // A new learner is asked what they are preparing for; the plan they make is saved to their account.
+  await expect(laptop.page.getByRole('heading', { level: 1 })).toHaveText('What are you preparing for?');
+  const planSaved = laptop.page.waitForResponse((res) => res.url().endsWith('/api/me/progress') && res.request().method() === 'PUT');
+  await laptop.page.getByRole('button', { name: /Start with everything/ }).click();
+  expect((await planSaved).ok()).toBe(true);
+  await expect(laptop.page.getByRole('heading', { level: 1 })).toHaveText('Everything');
+
   await laptop.page.locator('.round-list .round', { has: laptop.page.locator('.round-title', { hasText: /^Go Backend Fundamentals/ }) }).click();
   const question = laptop.page.locator('.q').first();
   await question.locator('.q-trigger').click();
@@ -130,9 +137,14 @@ test('an invited learner joins, studies and syncs across devices', async ({ brow
   const phone = await newPage(browser);
   await phone.page.goto('/');
   await signIn(phone.page, 'priya');
+  // The plan and the progress come from the account: no onboarding on a second device.
+  const everything = phone.page.locator('.plan-card', { hasText: 'Everything' });
+  await expect(everything).toContainText(/1\/\d+ done/, { timeout: 10_000 });
+  await expect(phone.page.getByRole('heading', { level: 1 })).toHaveText('Your plans');
+  await everything.getByRole('button', { name: /^Everything/ }).click();
   await expect(
     phone.page.locator('.round-list .round', { has: phone.page.locator('.round-title', { hasText: /^Go Backend Fundamentals/ }) }),
-  ).toContainText('1/1', { timeout: 10_000 });
+  ).toContainText('1/1');
 
   expect([...laptop.errors, ...phone.errors]).toEqual([]);
 });

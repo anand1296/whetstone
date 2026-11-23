@@ -3,6 +3,9 @@ import { useContent } from '../content/index.ts';
 import { Icon, LoopMark } from '../components/Icon.tsx';
 import { Dialog } from '../components/primitives.tsx';
 import { Overview } from '../features/overview/Overview.tsx';
+import { PlanPage } from '../features/overview/PlanPage.tsx';
+import { PlanEditorDialog } from '../features/plans/PlanEditor.tsx';
+import { usePlanMigration } from '../features/plans/usePlans.ts';
 import { ReviewPage } from '../features/review/ReviewPage.tsx';
 import { AdminPage } from '../features/admin/AdminPage.tsx';
 import { AuthErrorDialog, InviteDialog, SignInDialog } from '../features/account/Account.tsx';
@@ -27,6 +30,7 @@ function View({ route }: { route: Route }) {
   const { sectionsById } = useContent();
   const { mode, features } = useServer();
   if (mode === 'server' && route.name === 'admin') return <ConsolePage />;
+  if (route.name === 'plan') return <PlanPage key={route.planId} planId={route.planId} />;
   if (route.name === 'review' && features.review) return <ReviewPage />;
   if (route.name === 'admin') return <AdminPage />;
   if (route.name === 'howItsBuilt' && features.howItsBuilt) return <HowItsBuiltPage walkthroughId={route.walkthroughId} />;
@@ -61,6 +65,7 @@ function AppShell() {
   const [signInOpen, setSignInOpen] = useState(false);
   const { site, features } = useServer();
   const searchEnabled = features.search;
+  usePlanMigration();
 
   // Global keyboard shortcuts: "/" or Cmd/Ctrl+K opens search.
   useEffect(() => {
@@ -146,6 +151,7 @@ function AppShell() {
           setSignInOpen(true);
         }}
       />
+      <PlanEditorDialog />
       <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
       <InviteDialog />
       <AuthErrorDialog onSignIn={() => setSignInOpen(true)} />

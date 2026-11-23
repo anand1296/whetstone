@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -17,6 +18,12 @@ const (
 	NotesLimit   = 2000
 	MaxQuestions = 5000
 	MaxIDLength  = 120
+
+	// Plans: a named set of topics (see Plan). Tombstones count towards MaxPlans.
+	MaxPlans         = 40
+	PlanNameLimit    = 60
+	MaxPlanFacets    = 20
+	MaxFacetIDLength = 40
 )
 
 // Question is one question's progress. Field names match the TypeScript model.
@@ -36,15 +43,29 @@ type LastVisit struct {
 	At         float64 `json:"at"`
 }
 
+// Plan is a named set of topics, stored as a facet selection so new topics that
+// match it join by themselves. The map key is the plan's id. A deleted plan stays
+// as a tombstone (Deleted, no name or facets) so the delete wins on merge.
+type Plan struct {
+	Name      string   `json:"name"`
+	Facets    []string `json:"facets"`
+	CreatedAt float64  `json:"createdAt"`
+	UpdatedAt float64  `json:"updatedAt"`
+	Deleted   bool     `json:"deleted"`
+}
+
 // Doc is a whole progress document.
 type Doc struct {
 	Version   int                 `json:"version"`
 	Questions map[string]Question `json:"questions"`
+	Plans     map[string]Plan     `json:"plans"`
 	LastVisit *LastVisit          `json:"lastVisit"`
 }
 
 // Empty returns a document with no progress.
-func Empty() Doc { return Doc{Version: 1, Questions: map[string]Question{}} }
+func Empty() Doc {
+	return Doc{Version: 1, Questions: map[string]Question{}, Plans: map[string]Plan{}}
+}
 
 // ErrInvalid means the input is not a progress document at all.
 var ErrInvalid = errors.New("progress: not a version 1 progress document")
@@ -117,6 +138,17 @@ func FromMap(envelope map[string]any) (Doc, error) {
 			UpdatedAt: updatedAt,
 		}
 	}
+	// Plans are optional: documents from before plans existed simply have none.
+	if plans, ok := envelope["plans"].(map[string]any); ok {
+		for id, value := range plans {
+			if len(doc.Plans) >= MaxPlans {
+				break
+			}
+			if plan, ok := parsePlan(id, value); ok {
+				doc.Plans[id] = plan
+			}
+		}
+	}
 	if visit, ok := envelope["lastVisit"].(map[string]any); ok {
 		section, okSection := visit["sectionId"].(string)
 		at, okAt := visit["at"].(float64)
@@ -131,6 +163,51 @@ func FromMap(envelope map[string]any) (Doc, error) {
 	return doc, nil
 }
 
+func clipRunes(s string, limit int) string {
+	if utf8.RuneCountInString(s) <= limit {
+		return s
+	}
+	return string([]rune(s)[:limit])
+}
+
+// parsePlan validates one plan the way parsePlan does in the browser: a live plan
+// needs a name, facets are de-duplicated and bounded, a tombstone drops both.
+func parsePlan(id string, value any) (Plan, bool) {
+	entry, ok := value.(map[string]any)
+	if !ok || id == "" || len(id) > MaxIDLength {
+		return Plan{}, false
+	}
+	updatedAt, ok := entry["updatedAt"].(float64)
+	if !ok || !finite(updatedAt) {
+		return Plan{}, false
+	}
+	createdAt := updatedAt
+	if c, ok := entry["createdAt"].(float64); ok && finite(c) {
+		createdAt = c
+	}
+	if deleted, _ := entry["deleted"].(bool); deleted {
+		return Plan{Facets: []string{}, CreatedAt: createdAt, UpdatedAt: updatedAt, Deleted: true}, true
+	}
+	name, _ := entry["name"].(string)
+	name = clipRunes(strings.Join(strings.Fields(name), " "), PlanNameLimit)
+	if name == "" {
+		return Plan{}, false
+	}
+	facets := []string{}
+	seen := map[string]bool{}
+	if list, ok := entry["facets"].([]any); ok {
+		for _, item := range list {
+			facet, ok := item.(string)
+			if !ok || facet == "" || len(facet) > MaxFacetIDLength || seen[facet] || len(facets) >= MaxPlanFacets {
+				continue
+			}
+			seen[facet] = true
+			facets = append(facets, facet)
+		}
+	}
+	return Plan{Name: name, Facets: facets, CreatedAt: createdAt, UpdatedAt: updatedAt}, true
+}
+
 // Merge combines two replicas: per question the newest updatedAt wins, ties keep a.
 func Merge(a, b Doc) Doc {
 	out := Empty()
@@ -143,6 +220,17 @@ func Merge(a, b Doc) Doc {
 				continue
 			}
 			out.Questions[id] = incoming
+		}
+	}
+	for id, p := range a.Plans {
+		out.Plans[id] = p
+	}
+	for id, incoming := range b.Plans {
+		if existing, ok := out.Plans[id]; !ok || incoming.UpdatedAt > existing.UpdatedAt {
+			if !ok && len(out.Plans) >= MaxPlans {
+				continue
+			}
+			out.Plans[id] = incoming
 		}
 	}
 	out.LastVisit = a.LastVisit

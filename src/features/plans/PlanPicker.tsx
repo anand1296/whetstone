@@ -1,45 +1,37 @@
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Icon } from '../../components/Icon.tsx';
-import {
-  describeSelection,
-  facetCounts,
-  focusChips,
-  isRoleId,
-  normalizeSelection,
-  ROLE_FACETS,
-} from '../../content/facets.ts';
+import { facetCounts, focusChips, isRoleId, normalizeSelection, ROLE_FACETS } from '../../content/facets.ts';
 import type { SectionMeta } from '../../content/types.ts';
 import { plural } from '../../lib/format.ts';
+import { formatStudyTime } from '../../lib/format.ts';
+import { planSections } from '../../state/plans.ts';
 
 /**
- * "What are you preparing for?": the way into the question bank, in two steps.
+ * Choosing what a plan covers, in two steps.
  *
- * 1. Role: Frontend, Backend, Data engineering... one or several (a full-stack
- *    engineer picks Frontend and Backend).
- * 2. Focus areas: chips for what that role is made of: languages, frameworks and
- *    subjects (JavaScript, React, Machine coding, System design, Performance...).
- *    Pick any to narrow; pick none to see everything for the role.
+ * 1. Role: Frontend, Backend, Design... one or several (a full-stack engineer picks Frontend and Backend).
+ * 2. Focus areas: chips for what that role is made of: languages, frameworks, platforms and subjects
+ *    (Go, React, Kubernetes, Performance...). Pick any to narrow; pick none to take everything for the role.
  *
- * Roles and chips with no published topic yet stay visible but disabled with a
- * "Coming soon" tooltip, so people can see where the bank is going.
+ * Roles and chips with no published topic yet stay visible but disabled with a "Coming soon" tooltip,
+ * so people can see where the bank is going. A live line says how many topics and questions the
+ * selection adds up to, so the plan's size is never a surprise.
  */
-export function FacetFilter({
+export function PlanPicker({
   sections,
   selected,
-  shown,
   onChange,
-  onSuggest,
 }: {
   sections: readonly SectionMeta[];
   selected: readonly string[];
-  shown: number;
   onChange: (next: string[]) => void;
-  onSuggest: () => void;
 }) {
   const baseId = useId();
   const roleCounts = useMemo(() => facetCounts(sections), [sections]);
   const chips = useMemo(() => focusChips(sections, selected), [sections, selected]);
   const selectedRoles = selected.filter(isRoleId);
+  const included = useMemo(() => planSections(sections, { facets: [...selected] }), [sections, selected]);
+  const questions = useMemo(() => included.flatMap((section) => section.questions), [included]);
+  const minutes = useMemo(() => questions.reduce((sum, q) => sum + q.minutes, 0), [questions]);
   // Touch screens have no hover: tapping a disabled pill pins its tooltip for a moment.
   const [pinned, setPinned] = useState<string | null>(null);
   useEffect(() => {
@@ -68,14 +60,7 @@ export function FacetFilter({
   };
 
   return (
-    <section className="track-picker" aria-labelledby={`${baseId}-title`}>
-      <div className="track-head">
-        <h2 id={`${baseId}-title`} className="section-heading">
-          What are you preparing for?
-        </h2>
-        <p className="track-sub">Pick your role, then the areas you want to focus on. Topics, progress and &ldquo;up next&rdquo; follow your choice.</p>
-      </div>
-
+    <div className="plan-picker">
       <div className="track-pills" role="group" aria-label="Role">
         <button type="button" className="track" aria-pressed={selectedRoles.length === 0} onClick={() => onChange([])}>
           Everything
@@ -117,21 +102,11 @@ export function FacetFilter({
         </div>
       ) : null}
 
-      <div className="track-foot">
-        <span className="facet-status" role="status">
-          {selected.length === 0
-            ? `Showing all ${plural(sections.length, 'topic')}`
-            : `Showing ${shown} of ${plural(sections.length, 'topic')} for ${describeSelection(selected)}`}
-        </span>
-        {selected.length > 0 ? (
-          <button type="button" className="btn btn-quiet btn-small" onClick={() => onChange([])}>
-            Clear
-          </button>
-        ) : null}
-        <button type="button" className="btn btn-small facet-suggest" onClick={onSuggest}>
-          <Icon name="megaphone" size={16} /> Suggest a topic
-        </button>
-      </div>
-    </section>
+      <p className="facet-status plan-size" role="status">
+        {included.length === 0
+          ? 'No topics match this yet. Try fewer filters.'
+          : `${plural(included.length, 'topic')} · ${plural(questions.length, 'question')} · about ${formatStudyTime(minutes)} of study`}
+      </p>
+    </div>
   );
 }

@@ -20,13 +20,15 @@ export interface Prefs {
   framework: FrameworkId;
   status: StatusFilter;
   level: LevelFilter;
-  /** Selected topic chips on the overview (ids from content/facets.json). */
+  /** Legacy: the topic chips from before plans existed. Read once to create a first plan, then cleared. */
   facets: string[];
+  /** The plan this device is working in (drives the sidebar, review and "up next"). Plans themselves sync; this does not. */
+  activePlanId: string | null;
 }
 
 const PREFS_KEY = 'whetstone:prefs:v1';
 
-export const DEFAULT_PREFS: Prefs = { theme: 'system', practiceMode: false, framework: 'react', status: 'all', level: 'all', facets: [] };
+export const DEFAULT_PREFS: Prefs = { theme: 'system', practiceMode: false, framework: 'react', status: 'all', level: 'all', facets: [], activePlanId: null };
 
 function parsePrefs(input: unknown): Prefs {
   if (typeof input !== 'object' || input === null) return DEFAULT_PREFS;
@@ -36,6 +38,7 @@ function parsePrefs(input: unknown): Prefs {
   const status = 'status' in input ? input.status : undefined;
   const level = 'level' in input ? input.level : undefined;
   const facets = 'facets' in input ? input.facets : undefined;
+  const activePlanId = 'activePlanId' in input ? input.activePlanId : undefined;
   return {
     theme: theme === 'light' || theme === 'dark' || theme === 'system' ? theme : DEFAULT_PREFS.theme,
     practiceMode: typeof practiceMode === 'boolean' ? practiceMode : DEFAULT_PREFS.practiceMode,
@@ -43,6 +46,7 @@ function parsePrefs(input: unknown): Prefs {
     status: status === 'todo' || status === 'done' || status === 'all' ? status : DEFAULT_PREFS.status,
     level: typeof level === 'string' && (level === 'all' || isLevel(level)) ? level : DEFAULT_PREFS.level,
     facets: Array.isArray(facets) ? facets.filter((t): t is string => typeof t === 'string' && isFacetId(t)) : DEFAULT_PREFS.facets,
+    activePlanId: typeof activePlanId === 'string' && activePlanId !== '' && activePlanId.length <= 120 ? activePlanId : null,
   };
 }
 

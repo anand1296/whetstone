@@ -113,11 +113,11 @@ IDs are stable; tests and ADRs refer to them.
 
 | ID | Requirement |
 | --- | --- |
-| FR-1 | Topics listed in order on the overview (and in the sidebar inside a topic), with per-topic progress. Questions inside a topic are shown easiest level first. |
+| FR-1 | Topics listed in order on a plan's page (and in the sidebar inside a topic, limited to the active plan), with per-topic progress. Questions inside a topic are shown easiest level first. |
 | FR-2 | Each question is an accordion: collapsed shows title, level (Junior, Senior, Lead/Staff, Principal), study minutes and the first three tags; expanded shows the answer. |
 | FR-3 | Answers render Markdown with callouts (PROMPT, HINT, TLDR, NOTE, TIP, WARNING, IMPORTANT, PRINCIPAL), highlighted code with a copy button, scrollable tables. |
 | FR-4 | Tick done from the row or "Mark done & next" inside the answer. |
-| FR-5 | Resume: the overview's main action opens the last visited question if not done, else the next not-done question in order. |
+| FR-5 | Resume: a plan's main action opens the last visited question if it is in the plan and not done, else the next not-done question of the plan in order. |
 | FR-6 | Spaced review at 2, 5, 12, 30, 75 days; graded Again (un-ticks), Hard, Good or Easy, with the next gap shown on each button. *(feature flag `review`)* |
 | FR-7 | Practice mode hides answers behind "answer out loud first" with a stopwatch. |
 | FR-8 | Private notes per question, autosaved, 2,000 characters. *(flag `notes`)* |
@@ -126,7 +126,8 @@ IDs are stable; tests and ADRs refer to them.
 | FR-11 | Deep links `#<topic-id>` and `#<question-id>`. |
 | FR-12 | Export/import progress as JSON; reset with confirmation. *(flag `progressTransfer`)* |
 | FR-13 | Light/dark/system theme; responsive to small phones. |
-| FR-14 | Level breakdown on the overview. *(flag `levelOverview`)* |
+| FR-14 | Level breakdown on a plan's page. *(flag `levelOverview`)* |
+| FR-14a | Plans: a first visit asks what the person is preparing for (roles, then focus areas) and says that progress is tracked against that plan. The home page is a dashboard of plan cards (topics, questions, done, time left, due, Continue). Create, rename, re-scope and delete plans (up to 12); a finished question counts in every plan that includes it; review and the sidebar follow the active plan. Plans sync with progress (server, Artifact, local). People from before plans get a first plan from their old filter. |
 
 ### Accounts and access (server mode)
 
@@ -324,7 +325,7 @@ All client state lives in small external stores (`createStore`, read with `useSy
 | `contentStore` | source (`bundled` or `server`), version, sections, derived maps, total minutes |
 | `serverStore` | mode, signed-in user, site settings, feature flags, auth methods, members-only lock |
 | `progressStore` | the progress document (see §8.3) |
-| `prefsStore` | theme, practice mode, filters |
+| `prefsStore` | theme, practice mode, filters, which plan this device is working in |
 | `routeStore` | current route |
 | `syncStatusStore` | local · connecting · saving · synced · readonly · error |
 | `announcementStore`, `launchStore` | banner; one-shot launch params |
@@ -450,11 +451,14 @@ erDiagram
   "questions": {
     "event-loop-rendering-order": { "done": true, "doneAt": 1760000000000, "stage": 1, "dueAt": 1760432000000, "notes": "…", "updatedAt": 1760000000000 }
   },
+  "plans": {
+    "plan-3f9a1c2e": { "name": "Go + Kubernetes", "facets": ["backend", "go", "kubernetes"], "createdAt": 1760000000000, "updatedAt": 1760000000000, "deleted": false }
+  },
   "lastVisit": { "sectionId": "javascript-internals", "questionId": "event-loop-rendering-order", "at": 1760000000000 }
 }
 ```
 
-Merge: per question the entry with the larger `updatedAt` wins (ties keep the stored copy); `lastVisit` with the larger `at` wins. Limits: 5,000 entries, ids ≤ 120 characters, notes ≤ 2,000 characters; invalid entries are dropped, never trusted.
+Merge: per question the entry with the larger `updatedAt` wins (ties keep the stored copy); the same rule applies per plan, and a deleted plan stays as a tombstone (`deleted: true`, no name or facets) so a delete beats an older edit; `lastVisit` with the larger `at` wins. A plan stores a facet selection, not topic ids (ADR-037). `plans` is optional on input, so older documents still load. Limits: 5,000 question entries, 40 plan entries (12 live in the UI, oldest tombstones pruned), ids ≤ 120 characters, notes ≤ 2,000 characters, plan names ≤ 60 characters, 20 facets per plan; invalid entries are dropped, never trusted.
 
 ### 8.4 Content version and caching
 
@@ -740,6 +744,7 @@ Full records with context and consequences: [DECISIONS.md](DECISIONS.md).
 | 024 | "How it's built": walkthroughs quote code by symbol at build time and link to the built commit; broken references fail CI |
 | 025 | Community contributions: a separate submissions table and transactional approval; GitHub branch protection + CODEOWNERS for code |
 | 032 | Facets and tracks are derived from content (selectable iff a published topic carries them; general topics stay visible); suggestions create drafts and their progress is derived, not stored |
+| 037 | Plans: a named facet selection stored in the progress document; progress is shared per question and scoped per plan |
 
 ---
 

@@ -66,7 +66,7 @@ Senior, lead and principal frontend interviews cover a wide surface: JavaScript 
    - Code is syntax-highlighted with a copy button; tables scroll horizontally on small screens.
 2. **Accordion list** per topic; panels lazy-render their content; expand/collapse all.
 3. **Progress**: per-question done state, done time, review stage and due date, notes; last visited question.
-4. **Resume**: Overview's primary action opens the last visited question if not done, otherwise the next not-done question in the learning path.
+4. **Plans and resume**: a first visit asks what you are preparing for and turns the answer into a plan; the home page is a dashboard of plans (Frontend + Design, Go + Kubernetes...), each with its own progress, due reviews and a Continue button that opens the last visited question if not done, otherwise the next not-done question of that plan.
 5. **Spaced review**: done answers come back after 2, 5, 12, 30, 75 days; you grade each review Again (un-marks), Hard (repeat the gap), Good (next gap) or Easy (skip a rung).
 6. **Search**: keyboard shortcut (`/`, Ctrl/⌘+K), weighted multi-token search across titles, tags, summaries and opening text, accessible combobox.
 7. **Practice mode**: answer gated behind "Reveal the answer" with a stopwatch.

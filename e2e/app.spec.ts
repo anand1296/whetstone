@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { EVERYTHING_URL, PROGRESS_KEY, seedEverythingPlan } from './helpers.ts';
 
-const PROGRESS_KEY = 'whetstone:progress:v1';
+test.beforeEach(async ({ page }) => {
+  await seedEverythingPlan(page);
+});
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -20,7 +23,7 @@ async function openRound(page: Page, name: string) {
 
 test('ticking questions persists across reloads and drives "continue"', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/');
+  await page.goto(EVERYTHING_URL);
   await openRound(page, 'React Rendering & Internals');
 
   const items = page.locator('.q');
@@ -43,7 +46,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   await page.reload();
   await expect(page.locator('.q[data-done="true"]')).toHaveCount(2);
 
-  await page.goto('/');
+  await page.goto(EVERYTHING_URL);
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
   await expect(resume.locator('.action-title')).toContainText(thirdTitle);
@@ -73,7 +76,7 @@ test('search with the keyboard and deep links open the right question', async ({
 });
 
 test('the answer waits behind a Reveal answer button, and the full question stays visible', async ({ page }) => {
-  await page.goto('/');
+  await page.goto(EVERYTHING_URL);
   await openRound(page, 'Accessibility');
   const first = page.locator('.q').first();
   await first.locator('.q-trigger').click();
@@ -140,7 +143,7 @@ test('framework switch shows React, Angular or Vue code and remembers the choice
 });
 
 test('practice mode adds the stopwatch to the reveal step', async ({ page }) => {
-  await page.goto('/');
+  await page.goto(EVERYTHING_URL);
   await page.getByRole('button', { name: 'Settings' }).first().click();
   await page.getByRole('switch').check();
   await page.getByRole('button', { name: 'Close settings' }).click();
@@ -155,7 +158,7 @@ test('practice mode adds the stopwatch to the reveal step', async ({ page }) => 
 });
 
 test('a finished question opens straight to its answer', async ({ page }) => {
-  await page.goto('/');
+  await page.goto(EVERYTHING_URL);
   await openRound(page, 'Accessibility');
   const first = page.locator('.q').first();
   await first.locator('.done-box').click();
@@ -191,12 +194,12 @@ test('import, spaced review and reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Reset progress…' }).click();
   await page.getByRole('button', { name: 'Yes, clear it' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
-  await page.goto('/');
+  await page.goto(EVERYTHING_URL);
   await expect(page.locator('.loop-ring')).toContainText('0/269');
 });
 
 test('filters, theme and keyboard basics', async ({ page }) => {
-  await page.goto('/');
+  await page.goto(EVERYTHING_URL);
   await page.keyboard.press('Tab');
   await expect(page.locator('.skip-link')).toBeFocused();
 
@@ -230,76 +233,6 @@ test('"How it\'s built" walkthroughs and Contribute (no backend)', async ({ page
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Contribute' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Contribute');
   await expect(page.getByRole('link', { name: 'Propose it on GitHub' })).toHaveAttribute('href', /issues\/new\?template=question\.yml/);
-  expect(errors).toEqual([]);
-});
-
-test('pick a role, then focus-area chips; "coming soon" is inert; the choice is remembered', async ({ page }) => {
-  const errors = collectErrors(page);
-  await page.goto('/');
-  const picker = page.locator('.track-picker');
-  const topics = page.locator('.round-list .round');
-  const sidebarTopics = page.locator('.nav-rounds .nav-round');
-  const roles = picker.getByRole('group', { name: 'Role' });
-  const focus = picker.getByRole('group', { name: 'Focus areas' });
-  await expect(picker).toBeVisible();
-  await expect(topics).toHaveCount(25);
-  await expect(sidebarTopics).toHaveCount(0); // the page already lists every topic, so the sidebar does not repeat them
-  await expect(focus).toHaveCount(0); // chips appear once a role is chosen
-
-  // Roles with no content yet are visible but disabled, with a tooltip.
-  const qe = roles.getByRole('button', { name: /^QE/ });
-  await expect(qe).toHaveAttribute('aria-disabled', 'true');
-  await qe.hover();
-  await expect(picker.locator('.chip-wrap', { hasText: 'QE' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
-  await qe.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
-  await expect(topics).toHaveCount(25);
-
-  // The Design role shows just the design topic, on the page and (inside a topic) in the sidebar.
-  await roles.getByRole('button', { name: /^Design/ }).click();
-  await expect(topics).toHaveCount(1);
-  await expect(topics.first()).toContainText('Design and AI Prototyping');
-  await topics.first().click();
-  await expect(sidebarTopics).toHaveCount(1);
-  await expect(page.getByRole('button', { name: /24 more topics hidden/ })).toBeVisible();
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Overview' }).click();
-  await expect(sidebarTopics).toHaveCount(0);
-  await expect(picker.getByRole('status')).toContainText('Showing 1 of 25 topics');
-  await page.reload();
-  await expect(topics).toHaveCount(1);
-  await roles.getByRole('button', { name: /^Design/ }).click();
-
-  // Backend: low-level design, Java, Node.js, Go and Kubernetes, with Python announced.
-  await roles.getByRole('button', { name: /^Backend/ }).click();
-  await expect(topics).toHaveCount(6);
-  await expect(focus.getByRole('button', { name: /^Go/ })).toBeVisible();
-  await expect(focus.getByRole('button', { name: 'Python' })).toHaveAttribute('aria-disabled', 'true');
-  await focus.getByRole('button', { name: /^Go/ }).click();
-  await expect(topics).toHaveCount(1);
-  await expect(topics.first()).toContainText('Go Backend');
-  await focus.getByRole('button', { name: /^Java\b/ }).click(); // chips widen
-  await expect(topics).toHaveCount(2);
-
-  // Frontend: chips under the role; Angular and Vue are on the roadmap.
-  await roles.getByRole('button', { name: /^Backend/ }).click(); // deselect backend: its chips go away
-  await roles.getByRole('button', { name: /^Frontend/ }).click();
-  await expect(topics).toHaveCount(18);
-  await expect(focus.getByRole('button', { name: 'Angular' })).toHaveAttribute('aria-disabled', 'true');
-  await expect(focus.getByRole('button', { name: 'Vue' })).toHaveAttribute('aria-disabled', 'true');
-  await focus.getByRole('button', { name: /^React/ }).click();
-  const reactTopics = await topics.count();
-  expect(reactTopics).toBeGreaterThan(1);
-  expect(reactTopics).toBeLessThan(18);
-  await focus.getByRole('button', { name: /^Performance/ }).click();
-  await expect(topics).toHaveCount(reactTopics + 1);
-  await picker.getByRole('button', { name: 'Clear' }).click();
-  await expect(topics).toHaveCount(25);
-
-  // Without a backend, suggestions go through a GitHub issue form.
-  await picker.getByRole('button', { name: 'Suggest a topic' }).click();
-  await expect(page.getByRole('dialog', { name: 'Suggest a topic' }).getByRole('link', { name: /Suggest it on GitHub/ })).toHaveAttribute(
-    'href',
-    /issues\/new\?template=topic\.yml/,
-  );
   expect(errors).toEqual([]);
 });
 

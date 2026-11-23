@@ -8,6 +8,7 @@ import { dueQuestions, upcomingQuestions } from '../../state/selectors.ts';
 import { navigate } from '../../state/route.ts';
 import { useStore } from '../../state/useStore.ts';
 import { InlineText } from '../../components/primitives.tsx';
+import { useActivePlan } from '../plans/usePlans.ts';
 import { QuestionItem } from '../section/QuestionItem.tsx';
 
 export function ReviewPage() {
@@ -19,8 +20,17 @@ export function ReviewPage() {
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
 
   const { allQuestions, sectionsById } = useContent();
-  const due = useMemo(() => dueQuestions(allQuestions, progress, now), [allQuestions, progress, now]);
-  const upcoming = useMemo(() => upcomingQuestions(allQuestions, progress, now, 14), [allQuestions, progress, now]);
+  // Review follows the plan you are working in. Answers you finished in topics outside it stay one click away.
+  const { plan, sections: planTopics } = useActivePlan();
+  const [everything, setEverything] = useState(false);
+  const scoped = plan !== null && !everything;
+  const pool = useMemo(() => (scoped ? planTopics.flatMap((section) => section.questions) : allQuestions), [scoped, planTopics, allQuestions]);
+  const due = useMemo(() => dueQuestions(pool, progress, now), [pool, progress, now]);
+  const upcoming = useMemo(() => upcomingQuestions(pool, progress, now, 14), [pool, progress, now]);
+  const outside = useMemo(
+    () => (scoped ? dueQuestions(allQuestions, progress, now).length - due.length : 0),
+    [scoped, allQuestions, progress, now, due.length],
+  );
 
   const toggle = useCallback((id: string) => {
     setOpen((prev) => {
@@ -34,7 +44,7 @@ export function ReviewPage() {
   return (
     <article className="page review-page">
       <header className="page-header">
-        <p className="eyebrow">Spaced review</p>
+        <p className="eyebrow">{scoped && plan ? `Spaced review · ${plan.name}` : 'Spaced review'}</p>
         <h1>{due.length === 0 ? 'You are up to date' : `${plural(due.length, 'answer')} to refresh`}</h1>
         <p className="lede">
           Answers you mark done come back after {REVIEW_INTERVAL_DAYS.slice(0, -1).join(', ')} and{' '}
@@ -42,6 +52,23 @@ export function ReviewPage() {
           back on your to-do list, Hard repeats the gap, Good moves to the next one and Easy skips ahead.
         </p>
       </header>
+
+      {outside > 0 ? (
+        <p className="review-scope">
+          {plural(outside, 'more answer')} due in topics outside this plan.{' '}
+          <button type="button" className="link-btn" onClick={() => setEverything(true)}>
+            Review them too
+          </button>
+        </p>
+      ) : null}
+      {everything && plan ? (
+        <p className="review-scope">
+          Showing every plan&rsquo;s answers.{' '}
+          <button type="button" className="link-btn" onClick={() => setEverything(false)}>
+            Back to {plan.name}
+          </button>
+        </p>
+      ) : null}
 
       {due.length > 0 ? (
         <ol className="q-list">
