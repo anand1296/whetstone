@@ -1,208 +1,161 @@
 import { useMemo, useState } from 'react';
 import { preloadSection, useContent } from '../../content/index.ts';
-import { describeSelection, facetLabel, filterSections, groupOf, normalizeSelection } from '../../content/facets.ts';
-import { LEVELS, LEVEL_LABEL } from '../../content/types.ts';
-import { isGrowing } from '../../content/coverage.ts';
+import { describeSelection } from '../../content/facets.ts';
 import { Icon } from '../../components/Icon.tsx';
-import { LoopRing } from '../../components/LoopRing.tsx';
 import { InlineText, ProgressBar } from '../../components/primitives.tsx';
 import { formatStudyTime, plural } from '../../lib/format.ts';
-import { prefsStore, updatePrefs } from '../../state/prefs.ts';
+import { effectiveFacets, planStats } from '../../state/plans.ts';
+import { updatePrefs } from '../../state/prefs.ts';
+import { MAX_LIVE_PLANS, type Plan } from '../../state/progress.ts';
 import { progressStore } from '../../state/progressStore.ts';
-import { continueTarget, doneCount, dueQuestions } from '../../state/selectors.ts';
+import { continueTarget } from '../../state/selectors.ts';
 import { navigate } from '../../state/route.ts';
 import { useStore } from '../../state/useStore.ts';
 import { useServer } from '../../platform/backend.ts';
 import { SuggestTopicDialog } from '../contribute/SuggestTopic.tsx';
-import { FacetFilter } from './FacetFilter.tsx';
+import { Onboarding } from '../plans/Onboarding.tsx';
+import { openPlanEditor } from '../plans/PlanEditor.tsx';
+import { useLegacyPlanSeed, usePlans, useSyncSettled } from '../plans/usePlans.ts';
 
+/**
+ * The home page is a dashboard of plans. A plan is a named set of topics (Frontend + Design,
+ * Go + Kubernetes); each card shows progress against that plan only, so someone preparing for
+ * one role is never measured against questions they will not be asked.
+ *
+ * With no plans yet it is the first-run question: what are you preparing for?
+ */
 export function Overview() {
-  const { allQuestions, questionsById, sections, sectionsById } = useContent();
-  const state = useStore(progressStore, (s) => s);
-  const { features, site } = useServer();
-  const [now] = useState(() => Date.now());
-  const selectedFacets = useStore(prefsStore, (s) => s.facets);
+  const plans = usePlans();
+  const settled = useSyncSettled();
+  const seed = useLegacyPlanSeed();
+  const hasEntries = useStore(progressStore, (s) => Object.keys(s.plans).length > 0);
+
+  if (plans.length > 0) return <Dashboard plans={plans} />;
+  // Plans may still be on their way from the server, or an earlier filter is about to become the first plan.
+  if (!settled || seed !== null) {
+    return (
+      <article className="page overview" aria-busy="true">
+        <p className="admin-note" role="status">
+          Loading your plans…
+        </p>
+      </article>
+    );
+  }
+  return <Onboarding hasHistory={hasEntries} />;
+}
+
+function Dashboard({ plans }: { plans: Plan[] }) {
+  const { sections } = useContent();
+  const { site } = useServer();
   const [suggesting, setSuggesting] = useState(false);
 
-  // A remembered facet can lose its content (a topic was hidden): only filter by facets that still match something.
-  const activeFacets = useMemo(
-    () => normalizeSelection(sections, selectedFacets.filter((id) => sections.some((section) => section.facets.includes(id)))),
-    [selectedFacets, sections],
-  );
-  // Everything below (progress, "up next", levels) follows the chosen track, not the whole bank.
-  const mine = useMemo(() => filterSections(sections, activeFacets), [sections, activeFacets]);
-  const segments = useMemo(
-    () => mine.map((section) => ({ section, done: doneCount(section.questions, state.questions) })),
-    [mine, state.questions],
-  );
-  const numbers = useMemo(() => new Map(sections.map((section, index) => [section.id, index + 1])), [sections]);
-  const questions = useMemo(() => mine.flatMap((section) => section.questions), [mine]);
-  const minutes = useMemo(() => questions.reduce((sum, q) => sum + q.minutes, 0), [questions]);
-  const done = segments.reduce((sum, s) => sum + s.done, 0);
-  const total = questions.length;
-  const due = useMemo(() => dueQuestions(allQuestions, state.questions, now), [allQuestions, state.questions, now]);
-  const target = useMemo(() => continueTarget(mine, state), [mine, state]);
-  const targetQuestion = target ? questionsById.get(target.questionId) : undefined;
-  const targetSection = target ? sectionsById.get(target.sectionId) : undefined;
-  const filtering = activeFacets.length > 0;
-
-  const byLevel = LEVELS.map((level) => {
-    const ofLevel = questions.filter((q) => q.level === level);
-    return { level, total: ofLevel.length, done: doneCount(ofLevel, state.questions) };
-  });
-
   return (
-    <article className="page overview">
+    <article className="page overview dashboard">
       <header className="overview-hero">
         <div className="overview-intro">
-          <p className="eyebrow">Junior to principal engineering interviews</p>
-          <h1>{site.tagline || 'Your interview loop, one topic at a time.'}</h1>
+          <p className="eyebrow">{site.tagline || 'Junior to principal engineering interviews'}</p>
+          <h1>Your plans</h1>
           <p className="lede">
-            {plural(total, 'question')} across {plural(mine.length, 'topic')}
-            {filtering ? ` for ${describeSelection(activeFacets)}` : ''}, about {formatStudyTime(minutes)} of study. Each one
-            comes with a written answer: the mental model, working code and the follow-ups an interviewer reaches for. Resist
-            opening it. Say your own answer out loud first, then compare, and tick the question off only when you could say it
-            in the room.
+            Each plan tracks your progress against the topics you picked for it, and nothing else. Make one per goal, like Frontend + Design
+            for one interview loop and Go + Kubernetes for another. A question you finish counts in every plan that includes it.
           </p>
         </div>
       </header>
 
-      <FacetFilter
-        sections={sections}
-        selected={activeFacets}
-        shown={mine.length}
-        onChange={(facets) => updatePrefs({ facets })}
-        onSuggest={() => setSuggesting(true)}
-      />
-
-      <section className="overview-grid" aria-label={filtering ? `Your progress: ${describeSelection(activeFacets)}` : 'Your progress'}>
-        <LoopRing
-          segments={segments}
-          done={done}
-          total={total}
-          onSelect={(sectionId) => navigate({ name: 'section', sectionId })}
-        />
-
-        <div className="overview-actions">
-          {target && targetQuestion && targetSection ? (
-            <button
-              type="button"
-              className="action-card is-primary"
-              onPointerEnter={() => preloadSection(target.sectionId)}
-              onClick={() => navigate({ name: 'section', sectionId: target.sectionId, questionId: target.questionId })}
-            >
-              <span className="action-label">{target.resumed ? 'Pick up where you left off' : done === 0 ? 'Start here' : 'Up next'}</span>
-              <span className="action-title">
-                <InlineText text={targetQuestion.title} />
-              </span>
-              <span className="action-meta">
-                {targetSection.title} · {targetQuestion.minutes} min
-                <Icon name="arrowRight" size={18} />
-              </span>
+      <ul className="plan-grid" aria-label="Plans">
+        {plans.map((plan) => (
+          <li key={plan.id}>
+            <PlanCard plan={plan} sections={sections} />
+          </li>
+        ))}
+        {plans.length < MAX_LIVE_PLANS ? (
+          <li>
+            <button type="button" className="plan-card plan-card-new" onClick={() => openPlanEditor(null)}>
+              <Icon name="sparkle" size={20} />
+              <span className="plan-card-name">New plan</span>
+              <span className="plan-card-sub">Pick the roles and focus areas for another goal.</span>
             </button>
-          ) : (
-            <div className="action-card is-primary">
-              <span className="action-label">Loop complete</span>
-              <span className="action-title">Every question is marked done.</span>
-              <span className="action-meta">Keep them fresh in Review.</span>
-            </div>
-          )}
-
-          {features.review ? (
-          <button type="button" className="action-card" onClick={() => navigate({ name: 'review' })}>
-            <span className="action-label">Review</span>
-            <span className="action-title">
-              {due.length === 0 ? 'Nothing due right now' : `${plural(due.length, 'answer')} due for a refresher`}
-            </span>
-            <span className="action-meta">
-              Done answers come back after 2, 5, 12, 30 and 75 days
-              <Icon name="arrowRight" size={18} />
-            </span>
-          </button>
-          ) : null}
-
-          {features.levelOverview ? (
-          <dl className="level-split">
-            {byLevel.map(({ level, total: levelTotal, done: levelDone }) => (
-              <div key={level}>
-                <dt>{LEVEL_LABEL[level]}</dt>
-                <dd className="tabular">
-                  {levelDone}/{levelTotal}
-                </dd>
-                <ProgressBar value={levelDone} max={levelTotal} label={`${LEVEL_LABEL[level]} questions done`} />
-              </div>
-            ))}
-          </dl>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="rounds" aria-labelledby="rounds-heading">
-        <h2 id="rounds-heading" className="section-heading">
-          {filtering ? `Topics for ${describeSelection(activeFacets)}` : 'All topics'}
-        </h2>
-        {mine.length === 0 ? (
-          <div className="rounds-empty">
-            <p>
-              No topics match {describeSelection(activeFacets)} yet. Try fewer filters, or tell us what you&rsquo;d want covered first.
-            </p>
-            <div className="button-row">
-              <button type="button" className="btn" onClick={() => updatePrefs({ facets: [] })}>
-                Show everything
-              </button>
-              <button type="button" className="btn btn-primary" onClick={() => setSuggesting(true)}>
-                Suggest a topic
-              </button>
-            </div>
-          </div>
+          </li>
         ) : null}
-        <ol className="round-list">
-          {segments.map(({ section, done: sectionDone }) => (
-            <li key={section.id}>
-              <button
-                type="button"
-                className="round"
-                data-complete={sectionDone === section.questions.length}
-                onPointerEnter={() => preloadSection(section.id)}
-                onFocus={() => preloadSection(section.id)}
-                onClick={() => navigate({ name: 'section', sectionId: section.id })}
-              >
-                <span className="round-index tabular">{String(numbers.get(section.id) ?? 0).padStart(2, '0')}</span>
-                <span className="round-body">
-                  <span className="round-title">
-                    {section.title}
-                    {isGrowing(section.questions.length) ? <span className="growing-chip">More coming</span> : null}
-                  </span>
-                  <span className="round-desc">{section.description}</span>
-                  <FacetTags facets={section.facets} />
-                </span>
-                <span className="round-progress">
-                  <span className="tabular">
-                    {sectionDone}/{section.questions.length}
-                  </span>
-                  <ProgressBar value={sectionDone} max={section.questions.length} label={`${section.title} progress`} />
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </section>
+      </ul>
+
+      <p className="dashboard-foot">
+        Missing something you would be asked about?{' '}
+        <button type="button" className="link-btn" onClick={() => setSuggesting(true)}>
+          Suggest a topic
+        </button>
+      </p>
       <SuggestTopicDialog open={suggesting} onClose={() => setSuggesting(false)} />
     </article>
   );
 }
 
-/** Small labels on a topic card for what it is specific to (language, framework, platform, or a role other than the default). */
-function FacetTags({ facets }: { facets: readonly string[] }) {
-  const specific = facets.filter((id) => groupOf(id)?.id !== 'role');
-  if (specific.length === 0) return null;
+function PlanCard({ plan, sections }: { plan: Plan; sections: ReturnType<typeof useContent>['sections'] }) {
+  const { questionsById, sectionsById } = useContent();
+  const state = useStore(progressStore, (s) => s);
+  const [now] = useState(() => Date.now());
+  const facets = useMemo(() => effectiveFacets(sections, plan.facets), [sections, plan.facets]);
+  const stats = useMemo(() => planStats(sections, { facets }, state.questions, now), [sections, facets, state.questions, now]);
+  const target = useMemo(() => continueTarget(stats.sections, state), [stats.sections, state]);
+  const targetQuestion = target ? questionsById.get(target.questionId) : undefined;
+  const targetSection = target ? sectionsById.get(target.sectionId) : undefined;
+  const total = stats.questions.length;
+  const complete = total > 0 && stats.done === total;
+
   return (
-    <span className="facet-tags">
-      {specific.map((id) => (
-        <span key={id} className="facet-tag">
-          {facetLabel(id)}
+    <section className="plan-card" aria-labelledby={`${plan.id}-name`} data-complete={complete}>
+      <button type="button" className="plan-card-open" onClick={() => navigate({ name: 'plan', planId: plan.id })}>
+        <span id={`${plan.id}-name`} className="plan-card-name">
+          {plan.name}
         </span>
-      ))}
-    </span>
+        <span className="plan-card-sub">
+          {plural(stats.sections.length, 'topic')} · {plural(total, 'question')}
+          {facets.length > 0 && describeSelection(facets) !== plan.name ? ` · ${describeSelection(facets)}` : ''}
+        </span>
+        <span className="plan-card-progress">
+          <span className="tabular">
+            {stats.done}/{total} done
+          </span>
+          <span>{complete ? 'Complete' : `about ${formatStudyTime(stats.minutesLeft)} left`}</span>
+        </span>
+        <ProgressBar value={stats.done} max={total} label={`${plan.name} progress`} />
+      </button>
+
+      {stats.due > 0 ? (
+        <p className="plan-card-due">
+          <span className="badge" aria-label={`${stats.due} due`}>
+            {stats.due}
+          </span>{' '}
+          due for a refresher
+        </p>
+      ) : null}
+
+      <div className="plan-card-foot">
+        {target && targetQuestion && targetSection ? (
+          <button
+            type="button"
+            className="btn btn-primary btn-small"
+            onPointerEnter={() => preloadSection(target.sectionId)}
+            onClick={() => {
+              updatePrefs({ activePlanId: plan.id }); // the sidebar and review follow the plan you start from
+              navigate({ name: 'section', sectionId: target.sectionId, questionId: target.questionId });
+            }}
+            aria-label={`${target.resumed || stats.done > 0 ? 'Continue' : 'Start'} ${plan.name}: ${targetQuestion.title}`}
+          >
+            {target.resumed || stats.done > 0 ? 'Continue' : 'Start'} <Icon name="arrowRight" size={16} />
+          </button>
+        ) : (
+          <span className="plan-card-done">{total === 0 ? 'No topics yet' : 'Every question done'}</span>
+        )}
+        {targetQuestion ? (
+          <span className="plan-card-next">
+            Next: <InlineText text={targetQuestion.title} />
+          </span>
+        ) : null}
+        <button type="button" className="btn btn-quiet btn-small plan-card-edit" onClick={() => openPlanEditor(plan.id)}>
+          Edit
+        </button>
+      </div>
+    </section>
   );
 }

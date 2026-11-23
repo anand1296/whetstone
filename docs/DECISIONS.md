@@ -590,3 +590,25 @@ Short records of the decisions that shaped Whetstone: context, decision, consequ
 - (−) The first request after a content deploy pays for the sync (a transaction over about 260 questions).
 - (−) An edit made in the console stays pinned: later repository changes to that question need a manual sync.
 
+
+## ADR-037: Plans: progress is tracked against the topics you chose
+
+**Status:** Accepted
+
+**Context.** Progress, "up next" and review covered the whole question bank, so someone preparing for one role (or one interview) saw a ring they could never fill. The role and focus-area filter on the overview narrowed the view but was a single, per-device setting, and a person with two goals (Frontend + Design for one loop, Go + Kubernetes for another) had to keep re-filtering.
+
+**Decision.** A **plan** is a named set of topics. It stores the *selection* (facet ids, the same role and focus-area vocabulary and rules as before), not topic ids, so a topic published later that matches the selection joins by itself and a hidden one drops out. Plans live in the progress document (`plans: { id: { name, facets, createdAt, updatedAt, deleted } }`) and sync like everything else in it: last writer wins per plan, and a delete leaves a tombstone so it wins over an older edit from another device. Question progress stays one record per question, shared: finishing a question counts in every plan that contains it. The home page is a dashboard with one card per plan (progress, due, a Continue button); a plan has its own page (`#plan/<id>`) with the ring, "up next", review count and topic list. A first-time visitor is asked what they are preparing for and told that progress is tracked against that choice. Which plan a device is working in (`activePlanId`) is a per-device preference; it drives the sidebar topic list, the review badge and the Review page, which can still include answers from outside the plan on request.
+
+People who already used the app keep what they had: when the document has no plans at all, the old topic filter (or "everything", for people with progress) becomes their first plan, with a fixed id so two devices that both migrate agree on one plan. Onboarding waits for the first sync to answer (or a short timeout), so a returning person on a new device never sees it flash. Limits: 12 live plans, 40 entries including tombstones (oldest tombstones are pruned), names of 60 characters, 20 facets per plan. The Go package validates and merges plans the way the TypeScript one does, and the admin summary still carries counts only, never plan names.
+
+**Alternatives considered.**
+- Plans as lists of topic ids: simpler to reason about, but a new Kubernetes topic would never reach an existing "Go + Kubernetes" plan.
+- A separate plans table on the server: new migration and endpoints, and the Artifact and local-only builds would need their own copy. The progress document already syncs everywhere.
+- Counting progress per plan (a plan owns its done flags): would make the same question a separate chore in each plan.
+- Keeping one global filter: cannot express two goals at once.
+
+**Consequences.**
+- (+) The ring, "up next" and review mean something to each person, and two goals can sit side by side.
+- (+) Works in every mode (local, Artifact, server) because it rides the existing sync, and old documents without plans still load.
+- (−) Plans are part of the progress document, so Reset keeps them on purpose and an import without plans cannot wipe them (they are merged).
+- (−) The selection rule (roles widen, focus areas narrow within a role) is the one place a plan can surprise people; the picker shows the resulting topic and question count as they choose.

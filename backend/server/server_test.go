@@ -693,6 +693,64 @@ func TestProgressSyncAndSummaries(t *testing.T) {
 	expect(t, owner.do("DELETE", "/api/me", nil), 403)
 }
 
+func TestPlansSyncAcrossDevices(t *testing.T) {
+	e := newEnv(t)
+	owner := e.login("owner")
+	var inv struct {
+		URL string `json:"url"`
+	}
+	owner.do("POST", "/api/admin/invites", map[string]any{"maxUses": 1}).json(t, &inv)
+	laptop := e.login("dev", inv.URL[strings.Index(inv.URL, "=")+1:])
+	phone := e.login("dev")
+
+	doc := func(plans map[string]any) map[string]any {
+		return map[string]any{"version": 1, "questions": map[string]any{}, "lastVisit": nil, "plans": plans}
+	}
+	type planDoc struct {
+		Plans map[string]struct {
+			Name    string   `json:"name"`
+			Facets  []string `json:"facets"`
+			Deleted bool     `json:"deleted"`
+		} `json:"plans"`
+	}
+
+	// The laptop makes two plans.
+	expect(t, laptop.do("PUT", "/api/me/progress", doc(map[string]any{
+		"plan-fe": map[string]any{"name": "Frontend + Design", "facets": []string{"frontend", "design"}, "createdAt": 1, "updatedAt": 10},
+		"plan-go": map[string]any{"name": "Go + Kubernetes", "facets": []string{"backend", "go", "kubernetes"}, "createdAt": 2, "updatedAt": 10},
+	})), 200)
+
+	// The phone renames one and deletes the other; a plan with no name is refused rather than stored.
+	r := phone.do("PUT", "/api/me/progress", doc(map[string]any{
+		"plan-fe":  map[string]any{"name": "Frontend", "facets": []string{"frontend"}, "createdAt": 1, "updatedAt": 20},
+		"plan-go":  map[string]any{"facets": []string{}, "createdAt": 2, "updatedAt": 30, "deleted": true},
+		"plan-bad": map[string]any{"name": "  ", "facets": []string{"go"}, "updatedAt": 40},
+	}))
+	expect(t, r, 200)
+	var got planDoc
+	r.json(t, &got)
+	if len(got.Plans) != 2 || got.Plans["plan-fe"].Name != "Frontend" || !got.Plans["plan-go"].Deleted {
+		t.Fatalf("merge wrong: %+v", got.Plans)
+	}
+
+	// A stale write from the laptop cannot bring the deleted plan back or undo the rename.
+	r = laptop.do("PUT", "/api/me/progress", doc(map[string]any{
+		"plan-fe": map[string]any{"name": "Frontend + Design", "facets": []string{"frontend", "design"}, "createdAt": 1, "updatedAt": 10},
+		"plan-go": map[string]any{"name": "Go + Kubernetes", "facets": []string{"go"}, "createdAt": 2, "updatedAt": 10},
+	}))
+	expect(t, r, 200)
+	got = planDoc{}
+	r.json(t, &got)
+	if got.Plans["plan-fe"].Name != "Frontend" || !got.Plans["plan-go"].Deleted {
+		t.Fatalf("stale write won: %+v", got.Plans)
+	}
+
+	// Plan names are private: the admin's view of this learner carries counts only.
+	if b := owner.do("GET", "/api/admin/users", nil).body; strings.Contains(string(b), "Frontend") || strings.Contains(string(b), "plan-fe") {
+		t.Fatal("plans leaked to admin")
+	}
+}
+
 func TestCSRFGuards(t *testing.T) {
 	e := newEnv(t)
 	owner := e.login("owner")

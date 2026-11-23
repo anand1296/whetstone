@@ -27,15 +27,40 @@ export interface LastVisit {
   at: number;
 }
 
+/**
+ * A plan: a named set of topics someone is working through ("Frontend + Design",
+ * "Go + Kubernetes"). It stores the *selection* (facet ids), not topic ids, so a
+ * topic published later that matches the selection joins the plan by itself.
+ * Progress stays per question and is shared: a question done in one plan counts
+ * in every plan that contains it. Deleting a plan keeps a tombstone so the
+ * delete wins when merged with another device.
+ */
+export interface Plan {
+  id: string;
+  name: string;
+  facets: string[];
+  createdAt: number;
+  /** Last-write-wins clock, like the per-question one. */
+  updatedAt: number;
+  deleted: boolean;
+}
+
 export interface ProgressState {
   version: 1;
   questions: Record<string, QuestionProgress>;
+  plans: Record<string, Plan>;
   lastVisit: LastVisit | null;
 }
 
 export const NOTES_LIMIT = 2000;
+export const PLAN_NAME_LIMIT = 60;
+/** Facet ids per plan; generous (there are about 40 facets in total). */
+export const PLAN_FACETS_LIMIT = 20;
+/** Live plans a person can have, and entries (including tombstones) kept in the document. */
+export const MAX_LIVE_PLANS = 12;
+export const MAX_PLAN_ENTRIES = 40;
 
-export const EMPTY_PROGRESS: ProgressState = { version: 1, questions: {}, lastVisit: null };
+export const EMPTY_PROGRESS: ProgressState = { version: 1, questions: {}, plans: {}, lastVisit: null };
 
 
 function blank(): QuestionProgress {
@@ -81,6 +106,60 @@ export function recordVisit(state: ProgressState, sectionId: string, questionId:
   return { ...state, lastVisit: { sectionId, questionId, at: now } };
 }
 
+/* ---------- Plans ---------- */
+
+export function cleanPlanName(name: string): string {
+  return name.replace(/\s+/g, ' ').trim().slice(0, PLAN_NAME_LIMIT);
+}
+
+function cleanFacets(facets: readonly string[]): string[] {
+  return [...new Set(facets.filter((f) => typeof f === 'string' && f.length > 0 && f.length <= 40))].slice(0, PLAN_FACETS_LIMIT);
+}
+
+/** Tombstones older than the newest ones are dropped once the document would exceed MAX_PLAN_ENTRIES. */
+function pruneTombstones(plans: Record<string, Plan>): Record<string, Plan> {
+  const entries = Object.values(plans);
+  if (entries.length < MAX_PLAN_ENTRIES) return plans;
+  const dead = entries.filter((p) => p.deleted).sort((a, b) => a.updatedAt - b.updatedAt);
+  const drop = new Set(dead.slice(0, entries.length - MAX_PLAN_ENTRIES + 1).map((p) => p.id));
+  return Object.fromEntries(Object.entries(plans).filter(([id]) => !drop.has(id)));
+}
+
+export function livePlans(state: Pick<ProgressState, 'plans'>): Plan[] {
+  return Object.values(state.plans)
+    .filter((plan) => !plan.deleted)
+    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+}
+
+/** Adds a plan (or replaces the one with this id). Returns the same state when the plan is invalid or the limit is reached. */
+export function savePlan(state: ProgressState, plan: { id: string; name: string; facets: readonly string[] }, now: number): ProgressState {
+  const name = cleanPlanName(plan.name);
+  if (!plan.id || plan.id.length > 120 || name === '') return state;
+  const existing = state.plans[plan.id];
+  if (!existing || existing.deleted) {
+    if (livePlans(state).length >= MAX_LIVE_PLANS) return state;
+  }
+  const facets = cleanFacets(plan.facets);
+  if (existing && !existing.deleted && existing.name === name && existing.facets.join() === facets.join()) return state;
+  const next: Plan = { id: plan.id, name, facets, createdAt: existing?.createdAt ?? now, updatedAt: now, deleted: false };
+  return { ...state, plans: { ...pruneTombstones(state.plans), [plan.id]: next } };
+}
+
+export function deletePlan(state: ProgressState, id: string, now: number): ProgressState {
+  const existing = state.plans[id];
+  if (!existing || existing.deleted) return state;
+  return { ...state, plans: { ...state.plans, [id]: { ...existing, name: '', facets: [], updatedAt: now, deleted: true } } };
+}
+
+export function mergePlans(a: Record<string, Plan>, b: Record<string, Plan>): Record<string, Plan> {
+  const plans: Record<string, Plan> = { ...a };
+  for (const [id, incoming] of Object.entries(b)) {
+    const existing = plans[id];
+    if (!existing || incoming.updatedAt > existing.updatedAt) plans[id] = incoming;
+  }
+  return plans;
+}
+
 export function isDue(progress: QuestionProgress | undefined, now: number): boolean {
   return Boolean(progress?.done && progress.dueAt !== null && progress.dueAt <= now);
 }
@@ -99,7 +178,7 @@ export function mergeProgress(a: ProgressState, b: ProgressState): ProgressState
   }
   let lastVisit = a.lastVisit;
   if (b.lastVisit && (!lastVisit || b.lastVisit.at > lastVisit.at)) lastVisit = b.lastVisit;
-  return { version: 1, questions, lastVisit };
+  return { version: 1, questions, plans: mergePlans(a.plans, b.plans), lastVisit };
 }
 
 function sameQuestion(a: QuestionProgress, b: QuestionProgress): boolean {
@@ -113,8 +192,26 @@ function sameQuestion(a: QuestionProgress, b: QuestionProgress): boolean {
   );
 }
 
+function samePlan(a: Plan, b: Plan): boolean {
+  return (
+    a.name === b.name &&
+    a.deleted === b.deleted &&
+    a.createdAt === b.createdAt &&
+    a.updatedAt === b.updatedAt &&
+    a.facets.length === b.facets.length &&
+    a.facets.every((facet, index) => facet === b.facets[index])
+  );
+}
+
 export function progressEquals(a: ProgressState, b: ProgressState): boolean {
   if (a === b) return true;
+  const planKeys = Object.keys(a.plans);
+  if (planKeys.length !== Object.keys(b.plans).length) return false;
+  for (const key of planKeys) {
+    const left = a.plans[key];
+    const right = b.plans[key];
+    if (!left || !right || !samePlan(left, right)) return false;
+  }
   const aKeys = Object.keys(a.questions);
   if (aKeys.length !== Object.keys(b.questions).length) return false;
   for (const key of aKeys) {
@@ -152,6 +249,23 @@ function parseQuestion(value: unknown): QuestionProgress | null {
   };
 }
 
+function parsePlan(id: string, value: unknown): Plan | null {
+  if (!isRecord(value) || id === '' || id.length > 120) return null;
+  const { name, facets, createdAt, updatedAt, deleted } = value;
+  if (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) return null;
+  const isDeleted = deleted === true;
+  const cleanName = typeof name === 'string' ? cleanPlanName(name) : '';
+  if (!isDeleted && cleanName === '') return null;
+  return {
+    id,
+    name: isDeleted ? '' : cleanName,
+    facets: isDeleted || !Array.isArray(facets) ? [] : cleanFacets(facets.filter((f): f is string => typeof f === 'string')),
+    createdAt: typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : updatedAt,
+    updatedAt,
+    deleted: isDeleted,
+  };
+}
+
 function parseLastVisit(value: unknown): LastVisit | null {
   if (!isRecord(value)) return null;
   const { sectionId, questionId, at } = value;
@@ -167,10 +281,17 @@ export function parseProgress(input: unknown): ProgressState | null {
     const parsed = parseQuestion(value);
     if (parsed) questions[id] = parsed;
   }
-  return { version: 1, questions, lastVisit: parseLastVisit(input.lastVisit) };
+  const plans: Record<string, Plan> = {};
+  if (isRecord(input.plans)) {
+    for (const [id, value] of Object.entries(input.plans)) {
+      const parsed = parsePlan(id, value);
+      if (parsed && Object.keys(plans).length < MAX_PLAN_ENTRIES) plans[id] = parsed;
+    }
+  }
+  return { version: 1, questions, plans, lastVisit: parseLastVisit(input.lastVisit) };
 }
 
 /** A plain object view for storage APIs that expect `Record<string, unknown>`. */
 export function toDocument(state: ProgressState): Record<string, unknown> {
-  return { version: state.version, questions: state.questions, lastVisit: state.lastVisit };
+  return { version: state.version, questions: state.questions, plans: state.plans, lastVisit: state.lastVisit };
 }

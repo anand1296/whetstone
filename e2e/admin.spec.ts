@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { EVERYTHING_URL, seedEverythingPlan } from './helpers.ts';
 
 /**
  * Admin features only exist when hosted as a claude.ai Artifact. These tests
@@ -96,7 +97,8 @@ test('learners never see Admin and are told what the owner can see', async ({ pa
 
 test('view-only visitors keep progress in their browser', async ({ page }) => {
   await installMock(page, 'viewer', 'u_view', seed);
-  await page.goto('/');
+  await seedEverythingPlan(page);
+  await page.goto(EVERYTHING_URL);
   await page.locator('.round-list .round', { has: page.locator('.round-title', { hasText: /^Performance/ }) }).click();
   await page.locator('.q').first().getByRole('checkbox').check();
   await expect(page.locator('.sidebar .sync-line')).toHaveText('Saved in this browser only', { timeout: 5000 });

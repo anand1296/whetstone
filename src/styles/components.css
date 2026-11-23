@@ -1841,3 +1841,203 @@ button.action-card:hover {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+/* ---------- Plans: dashboard, onboarding, editor ---------- */
+button.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.plan-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+}
+
+.plan-grid > li {
+  display: flex;
+}
+
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.plan-card[data-complete='true'] {
+  border-color: color-mix(in srgb, var(--done) 45%, var(--line));
+}
+
+.plan-card-open {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-card-name {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.plan-card-open:hover .plan-card-name {
+  color: var(--accent);
+}
+
+.plan-card-sub {
+  color: var(--ink-3);
+  font-size: var(--step--1);
+}
+
+.plan-card-progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: var(--step--1);
+}
+
+.plan-card-open .progress-bar {
+  width: 100%;
+}
+
+.plan-card-due {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--step--1);
+}
+
+.plan-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.plan-card-next {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: var(--step--1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-card-done {
+  flex: 1;
+  color: var(--ink-2);
+  font-size: var(--step--1);
+}
+
+.plan-card-new {
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 11rem;
+  border-style: dashed;
+  background: transparent;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-card-new:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dashboard-foot {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--step--1);
+}
+
+.onboarding {
+  max-width: 46rem;
+}
+
+.plan-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-size {
+  margin: 0;
+}
+
+.plan-actions {
+  align-items: center;
+}
+
+.plan-delete {
+  margin-left: auto;
+}
+
+.plan-delete-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dialog-plan {
+  width: min(680px, calc(100vw - 24px));
+}
+
+.review-scope {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--step--1);
+}
+
+@media (max-width: 560px) {
+  .plan-delete {
+    margin-left: 0;
+  }
+}
+
+.overview-intro .button-row {
+  margin-top: 16px;
+}

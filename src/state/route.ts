@@ -12,7 +12,10 @@ import { contentStore, getContent } from '../content/index.ts';
 import { createStore } from './createStore.ts';
 
 export type Route =
+  /** The dashboard: every plan, or the first-run onboarding when there are none. */
   | { name: 'overview' }
+  /** One plan: its progress, what is next and its topics. Hash: "#plan/<id>". */
+  | { name: 'plan'; planId: string }
   | { name: 'review' }
   | { name: 'admin' }
   | { name: 'contribute' }
@@ -24,6 +27,7 @@ export type Route =
 export function parseHash(hash: string): Route {
   const token = decodeURIComponent(hash.replace(/^#/, ''));
   if (token === 'review') return { name: 'review' };
+  if (token.startsWith('plan/') && token.length > 5) return { name: 'plan', planId: token.slice(5) };
   if (token === 'admin') return { name: 'admin' };
   if (token === 'contribute') return { name: 'contribute' };
   if (token === 'how-its-built') return { name: 'howItsBuilt', walkthroughId: null };
@@ -39,6 +43,8 @@ export function routeToHash(route: Route): string {
   switch (route.name) {
     case 'overview':
       return '';
+    case 'plan':
+      return `plan/${route.planId}`;
     case 'review':
       return 'review';
     case 'admin':
@@ -64,6 +70,7 @@ export const routeStore = createStore<Route>({ name: 'overview' });
 
 export type RouteTarget =
   | { name: 'overview' }
+  | { name: 'plan'; planId: string }
   | { name: 'review' }
   | { name: 'admin' }
   | { name: 'contribute' }

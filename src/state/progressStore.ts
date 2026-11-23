@@ -5,11 +5,14 @@
 import { createStore } from './createStore.ts';
 import type { ReviewGrade } from '../lib/srs.ts';
 import {
+  deletePlan,
   EMPTY_PROGRESS,
+  mergePlans,
   mergeProgress,
   progressEquals,
   recordReview,
   recordVisit,
+  savePlan,
   setDone,
   setNotes,
   type ProgressState,
@@ -37,11 +40,21 @@ export const progressActions = {
     progressStore.setState((s) => recordVisit(s, sectionId, questionId, now()));
   },
   importProgress(incoming: ProgressState, mode: 'merge' | 'replace'): void {
-    progressStore.setState((s) => (mode === 'merge' ? mergeProgress(s, incoming) : incoming));
+    // Replacing swaps the question progress; plans are merged so an old export without plans cannot wipe them.
+    progressStore.setState((s) => (mode === 'merge' ? mergeProgress(s, incoming) : { ...incoming, plans: mergePlans(s.plans, incoming.plans) }));
+  },
+  /** Creates or updates a plan. Returns false when it was rejected (empty name, too many plans). */
+  savePlan(plan: { id: string; name: string; facets: readonly string[] }): boolean {
+    progressStore.setState((s) => savePlan(s, plan, now()));
+    return progressStore.getState().plans[plan.id]?.deleted === false;
+  },
+  deletePlan(id: string): void {
+    progressStore.setState((s) => deletePlan(s, id, now()));
   },
   /**
    * Reset keeps question entries as "not done" tombstones with a fresh clock
    * instead of deleting them, so the reset wins when merged with other devices.
+   * Plans are choices, not progress, so they survive a reset.
    */
   reset(): void {
     progressStore.setState((s) => {
@@ -50,7 +63,7 @@ export const progressActions = {
       for (const id of Object.keys(s.questions)) {
         questions[id] = { done: false, doneAt: null, stage: 0, dueAt: null, notes: '', updatedAt: t };
       }
-      return { version: 1, questions, lastVisit: null };
+      return { version: 1, questions, plans: s.plans, lastVisit: null };
     });
   },
 };

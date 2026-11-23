@@ -1,15 +1,15 @@
 import { useId, useMemo, useState } from 'react';
 import { preloadSection, useContent } from '../content/index.ts';
-import { describeSelection, filterSections, normalizeSelection } from '../content/facets.ts';
 import { Icon, LoopMark } from '../components/Icon.tsx';
 import { SYNC_COPY } from '../features/settings/SettingsDialog.tsx';
 import { syncStatusStore } from '../state/persistence/cloudSync.ts';
 import { platformStore } from '../platform/runtime.ts';
 import { isAdminRole, useServer } from '../platform/backend.ts';
 import { Avatar, ROLE_LABEL } from '../features/account/Account.tsx';
-import { prefsStore, updatePrefs } from '../state/prefs.ts';
 import { progressStore } from '../state/progressStore.ts';
 import { doneCount, dueQuestions } from '../state/selectors.ts';
+import { openPlanEditor } from '../features/plans/PlanEditor.tsx';
+import { useActivePlan } from '../features/plans/usePlans.ts';
 import { navigate, routeStore } from '../state/route.ts';
 import { useStore } from '../state/useStore.ts';
 
@@ -34,18 +34,17 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
   const isAdmin = server.mode === 'server' ? isAdminRole(server.user?.role) : role === 'owner';
   const adminChip = server.mode === 'server' ? (server.user ? ROLE_LABEL[server.user.role] : '') : 'Super admin';
   const [now] = useState(() => Date.now());
-  const dueCount = useMemo(() => dueQuestions(allQuestions, progress, now).length, [allQuestions, progress, now]);
   const activeSection = route.name === 'section' ? route.sectionId : null;
-  const selectedFacets = useStore(prefsStore, (p) => p.facets);
-  // The list follows the chosen track; the topic you're reading always stays visible.
-  const activeFacets = useMemo(
-    () => normalizeSelection(sections, selectedFacets.filter((id) => sections.some((section) => section.facets.includes(id)))),
-    [selectedFacets, sections],
-  );
+  // The list and the review badge follow the plan you are working in; the topic you're reading always stays visible.
+  const { plan, sections: planTopics } = useActivePlan();
+  const dueCount = useMemo(() => {
+    const scope = planTopics.flatMap((section) => section.questions);
+    return dueQuestions(plan ? scope : allQuestions, progress, now).length;
+  }, [plan, planTopics, allQuestions, progress, now]);
   const listed = useMemo(() => {
-    const keep = new Set(filterSections(sections, activeFacets).map((section) => section.id));
+    const keep = new Set(planTopics.map((section) => section.id));
     return sections.filter((section) => keep.has(section.id) || section.id === activeSection);
-  }, [sections, activeFacets, activeSection]);
+  }, [sections, planTopics, activeSection]);
   const hidden = sections.length - listed.length;
   const topicsLabelId = useId();
   const behindLabelId = useId();
@@ -80,7 +79,7 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
               onClick={() => go({ name: 'overview' })}
             >
               <Icon name="home" size={18} />
-              <span>Overview</span>
+              <span>My plans</span>
             </button>
           </li>
           {features.review ? (
@@ -122,11 +121,11 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
           ) : null}
         </ul>
 
-        {/* The Overview page already lists every topic with its progress, so repeating them beside it is noise. */}
-        {route.name === 'overview' ? null : (
+        {/* The dashboard and a plan's own page already list the topics with their progress, so repeating them beside it is noise. */}
+        {route.name === 'overview' || route.name === 'plan' ? null : (
           <>
             <p className="nav-label" id={topicsLabelId}>
-              {activeFacets.length > 0 ? `Topics · ${describeSelection(activeFacets)}` : 'Topics'}
+              {plan ? `Topics · ${plan.name}` : 'Topics'}
             </p>
             <ol className="nav-list nav-rounds" aria-labelledby={topicsLabelId}>
               {listed.map((section) => {
@@ -163,11 +162,11 @@ export function Sidebar({ onSearch, onSettings, onSignIn, onNavigate }: SidebarP
                 type="button"
                 className="nav-more"
                 onClick={() => {
-                  updatePrefs({ facets: [] });
-                  go({ name: 'overview' });
+                  if (plan) openPlanEditor(plan.id);
+                  onNavigate?.();
                 }}
               >
-                {hidden} more {hidden === 1 ? 'topic' : 'topics'} hidden · show all
+                {hidden} {hidden === 1 ? 'topic is' : 'topics are'} outside this plan · edit plan
               </button>
             ) : null}
           </>
