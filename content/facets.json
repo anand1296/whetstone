@@ -250,6 +250,7 @@
           "id": "kubernetes",
           "label": "Kubernetes",
           "roles": [
+            "backend",
             "cloud",
             "sre"
           ]

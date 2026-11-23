@@ -47,7 +47,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
   await expect(resume.locator('.action-title')).toContainText(thirdTitle);
-  await expect(page.locator('.loop-ring')).toContainText('2/262');
+  await expect(page.locator('.loop-ring')).toContainText('2/269');
 
   await resume.click();
   const third = page.locator('.q').nth(2);
@@ -192,7 +192,7 @@ test('import, spaced review and reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Yes, clear it' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.goto('/');
-  await expect(page.locator('.loop-ring')).toContainText('0/262');
+  await expect(page.locator('.loop-ring')).toContainText('0/269');
 });
 
 test('filters, theme and keyboard basics', async ({ page }) => {
@@ -242,17 +242,17 @@ test('pick a role, then focus-area chips; "coming soon" is inert; the choice is 
   const roles = picker.getByRole('group', { name: 'Role' });
   const focus = picker.getByRole('group', { name: 'Focus areas' });
   await expect(picker).toBeVisible();
-  await expect(topics).toHaveCount(24);
+  await expect(topics).toHaveCount(25);
   await expect(sidebarTopics).toHaveCount(0); // the page already lists every topic, so the sidebar does not repeat them
   await expect(focus).toHaveCount(0); // chips appear once a role is chosen
 
   // Roles with no content yet are visible but disabled, with a tooltip.
-  const sre = roles.getByRole('button', { name: 'SRE' });
-  await expect(sre).toHaveAttribute('aria-disabled', 'true');
-  await sre.hover();
-  await expect(picker.locator('.chip-wrap', { hasText: 'SRE' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
-  await sre.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
-  await expect(topics).toHaveCount(24);
+  const qe = roles.getByRole('button', { name: /^QE/ });
+  await expect(qe).toHaveAttribute('aria-disabled', 'true');
+  await qe.hover();
+  await expect(picker.locator('.chip-wrap', { hasText: 'QE' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
+  await qe.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
+  await expect(topics).toHaveCount(25);
 
   // The Design role shows just the design topic, on the page and (inside a topic) in the sidebar.
   await roles.getByRole('button', { name: /^Design/ }).click();
@@ -260,17 +260,17 @@ test('pick a role, then focus-area chips; "coming soon" is inert; the choice is 
   await expect(topics.first()).toContainText('Design and AI Prototyping');
   await topics.first().click();
   await expect(sidebarTopics).toHaveCount(1);
-  await expect(page.getByRole('button', { name: /23 more topics hidden/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /24 more topics hidden/ })).toBeVisible();
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Overview' }).click();
   await expect(sidebarTopics).toHaveCount(0);
-  await expect(picker.getByRole('status')).toContainText('Showing 1 of 24 topics');
+  await expect(picker.getByRole('status')).toContainText('Showing 1 of 25 topics');
   await page.reload();
   await expect(topics).toHaveCount(1);
   await roles.getByRole('button', { name: /^Design/ }).click();
 
-  // Backend: low-level design, Java, Node.js and Go, with Python announced.
+  // Backend: low-level design, Java, Node.js, Go and Kubernetes, with Python announced.
   await roles.getByRole('button', { name: /^Backend/ }).click();
-  await expect(topics).toHaveCount(5);
+  await expect(topics).toHaveCount(6);
   await expect(focus.getByRole('button', { name: /^Go/ })).toBeVisible();
   await expect(focus.getByRole('button', { name: 'Python' })).toHaveAttribute('aria-disabled', 'true');
   await focus.getByRole('button', { name: /^Go/ }).click();
@@ -292,7 +292,7 @@ test('pick a role, then focus-area chips; "coming soon" is inert; the choice is 
   await focus.getByRole('button', { name: /^Performance/ }).click();
   await expect(topics).toHaveCount(reactTopics + 1);
   await picker.getByRole('button', { name: 'Clear' }).click();
-  await expect(topics).toHaveCount(24);
+  await expect(topics).toHaveCount(25);
 
   // Without a backend, suggestions go through a GitHub issue form.
   await picker.getByRole('button', { name: 'Suggest a topic' }).click();
