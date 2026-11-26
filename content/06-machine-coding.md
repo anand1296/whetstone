@@ -3439,3 +3439,114 @@ Treating `fetch` resolving as success, showing "No results" while loading, stori
 - [TanStack Query: Important defaults](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)
 
 Reported as a frontend coding round ("build a web application that fetches and displays remote data; any framework") in a candidate's interview-loop outline shared online (second-hand; source unverified). The stages, solution and tests are my own.
+
+## Add search, filtering and a toggle to an existing list-based UI
+<!--
+id: search-filter-toggle-list
+level: junior
+tags: machine coding, react, search, filter, toggle, derived state, accessibility
+minutes: 30
+-->
+
+> [!PROMPT]
+> You are given a working list-based UI (a list of tasks with a checkbox each). Add: a search box that filters by title, a category filter, and a "Hide completed" toggle. All three combine. Show how many items are visible.
+
+> [!HINT]
+> - Which state is the source of truth, and which values can you derive?
+> - How do you combine three filters without three separate lists?
+> - What should the empty result look like, and what happens when you toggle an item while a filter is active?
+
+> [!TLDR]
+> Keep the full list and the three filter values as state, and derive the visible list during render with one pure function that applies all conditions together (case-insensitive trimmed search, category match, completed toggle). Do not store the filtered list in state, because it can go out of sync; wrap the derivation in `useMemo` only if the list is large. Use controlled inputs with labels, show a count in a live region, handle the empty result with a message, update items immutably so toggling still works while filtered, and test the pure function and the interactions.
+
+### The pure function
+
+```tsx
+type Task = { id: number; title: string; category: 'work' | 'home' | 'study'; done: boolean };
+
+function visibleTasks(tasks: Task[], query: string, category: 'all' | Task['category'], hideDone: boolean): Task[] {
+  const q = query.trim().toLowerCase();
+  return tasks.filter(
+    (t) =>
+      (category === 'all' || t.category === category) &&
+      (!hideDone || !t.done) &&
+      (q === '' || t.title.toLowerCase().includes(q)),
+  );
+}
+```
+
+### The component
+
+```tsx
+function TaskList({ initial }: { initial: Task[] }) {
+  const [tasks, setTasks] = useState(initial);
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<'all' | Task['category']>('all');
+  const [hideDone, setHideDone] = useState(false);
+
+  const shown = useMemo(() => visibleTasks(tasks, query, category, hideDone), [tasks, query, category, hideDone]);
+  const toggle = (id: number) => setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  const id = useId();
+
+  return (
+    <section>
+      <label htmlFor={`${id}-q`}>Search</label>
+      <input id={`${id}-q`} type="search" value={query} onChange={(e) => setQuery(e.target.value)} />
+
+      <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value as typeof category)}>
+        <option value="all">All</option>
+        <option value="work">Work</option>
+        <option value="home">Home</option>
+        <option value="study">Study</option>
+      </select>
+
+      <label>
+        <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} /> Hide completed
+      </label>
+
+      <p role="status">{shown.length} of {tasks.length} shown</p>
+      {shown.length === 0 ? (
+        <p>No tasks match.</p>
+      ) : (
+        <ul>
+          {shown.map((t) => (
+            <li key={t.id}>
+              <label><input type="checkbox" checked={t.done} onChange={() => toggle(t.id)} /> {t.title}</label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+### What I ran
+
+With four sample tasks: the pure function returned ids 1 and 4 for `"  REPORT "` (trimmed, case-insensitive), id 1 for `report` plus Work plus hide completed, and all four with no filters. In a React 19 test with a DOM: the status line read `4 of 4 shown`; typing `report` gave `2 of 4`; choosing Home gave `0 of 4` and the empty message; choosing Work and turning on Hide completed gave `1 of 4`; and ticking the remaining task while the filter was on removed it from view (`0 of 4`), because the list is derived from the updated data.
+
+### Decisions to say out loud
+
+- **Derive, do not duplicate:** a second `filteredTasks` state needs effects to stay in sync and is the classic bug.
+- **One place that knows the rules,** which is easy to unit test.
+- **Combining filters** is a conjunction; if the toggle is "show only completed" instead, say which semantic you chose.
+- **Immutable updates** so React sees changes; never `task.done = true` in place.
+- **Accessibility:** labels for every control, native checkboxes, a polite live region for the count, and focus staying on the control that was used.
+- **Debounce the search** only if filtering is expensive or it triggers requests; for a small in-memory list, filter on every keystroke.
+- **Empty state** with a way out ("Clear filters").
+
+### Extensions interviewers ask for
+
+- **Persist the filters in the URL** or local storage (see the filterable list design question).
+- **Highlight the matching text** in each title (escape it, never inject HTML).
+- **Fuzzy or multi-term search:** split the query on spaces and require each term.
+- **Large list:** virtualize, or move filtering to a worker or the server.
+- **Keyboard shortcut** to focus the search (`/`).
+- **Tests:** `visibleTasks` table tests plus a component test using roles and labels (`getByRole('checkbox', { name: 'Hide completed' })`).
+
+### References
+
+- [React: Choosing the State Structure](https://react.dev/learn/choosing-the-state-structure)
+- [React: Sharing State Between Components](https://react.dev/learn/sharing-state-between-components)
+
+Appears in an interview write-up shared online (second-hand; source unverified). The explanation is my own; the function and component were run in a React 19 test.

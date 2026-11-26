@@ -1106,3 +1106,120 @@ minutes: 14
 ### Pitfalls
 
 `moduleResolution: node` with ESM-only packages; path aliases that work in `tsc` but not in the bundler (or vice versa); `skipLibCheck` hiding conflicting duplicate type packages.
+
+## Typing exercises: write a type for a JSON shape, derive related types, and validate `unknown` at the boundary
+<!--
+id: ts-json-shape-typing-exercises
+level: junior
+tags: typescript, json, utility types, type guards, unknown, as const
+minutes: 15
+-->
+
+> [!PROMPT]
+> You are given an API response. Write the TypeScript types for it, derive a preview type and a patch type without repeating fields, and write `parseUser(text)` that returns a typed user or throws. Then show how to get a union of the allowed roles from a constant array.
+>
+> ```json
+> { "id": 1, "name": "Ada", "email": null, "roles": ["admin"], "address": { "city": "London", "zip": "N1" }, "createdAt": "2026-01-01T00:00:00Z" }
+> ```
+
+> [!HINT]
+> - `email` can be `null`, and `address` may be missing: those are different things.
+> - JSON has no `Date`, so what is `createdAt`?
+> - `JSON.parse` returns `any`. What should you give it instead, and what proves the shape?
+
+> [!TLDR]
+> Model what JSON can actually carry: `email: string | null` (present but empty) is different from `address?:` (key may be absent), dates arrive as strings, and unions of literals describe roles. Derive other types with `Pick`, `Omit`, `Partial`, `Required` and indexed access instead of copying fields. `JSON.parse` returns `any`, so assign it to `unknown` and narrow with a type guard that checks every field; types are erased at run time, so the guard (or a schema library such as Zod) is the only thing that actually verifies the data. For a union of values, declare the array `as const` and use `(typeof ROLES)[number]`.
+
+### The types
+
+```ts
+type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+
+interface ApiUser {
+  id: number;
+  name: string;
+  email: string | null;                       // key present, value may be null
+  roles: ('admin' | 'editor' | 'viewer')[];
+  address?: { city: string; zip: string };    // key may be absent
+  createdAt: string;                          // ISO text; convert to Date in your own model
+}
+
+type ApiResponse<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: { code: string; message: string } };
+```
+
+### Derive, do not repeat
+
+```ts
+type UserPreview = Pick<ApiUser, 'id' | 'name'>;
+type UserPatch = Partial<Omit<ApiUser, 'id' | 'createdAt'>>;      // everything optional, no id
+type RequiredAddress = Required<NonNullable<ApiUser['address']>>;
+type Role = ApiUser['roles'][number];                              // 'admin' | 'editor' | 'viewer'
+
+type Fn = (a: number, b: string) => boolean;
+type Args = Parameters<Fn>;     // [a: number, b: string]
+type Ret = ReturnType<Fn>;      // boolean
+```
+
+### Validate at the boundary
+
+```ts
+function isRole(x: unknown): x is Role {
+  return x === 'admin' || x === 'editor' || x === 'viewer';
+}
+
+function isApiUser(x: unknown): x is ApiUser {
+  if (typeof x !== 'object' || x === null) return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.id === 'number' &&
+    typeof o.name === 'string' &&
+    (o.email === null || typeof o.email === 'string') &&
+    Array.isArray(o.roles) && o.roles.every(isRole) &&
+    typeof o.createdAt === 'string'
+  );
+}
+
+function parseUser(text: string): ApiUser {
+  const value: unknown = JSON.parse(text);   // unknown, not any
+  if (!isApiUser(value)) throw new Error('Invalid user');
+  return value;
+}
+```
+
+The guard above leaves `address` unchecked; in real code check it too, or generate the guard from a schema (`z.object({...})`, then `z.infer<typeof schema>` gives the type) so the type and the check cannot drift apart.
+
+### Constants, unions and generics
+
+```ts
+const ROLES = ['admin', 'editor', 'viewer'] as const;
+type Role = (typeof ROLES)[number];          // union from the array
+
+const labels = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' } satisfies Record<Role, string>;
+// adding a role to ROLES without a label is now a compile error
+
+function unwrap<T>(r: ApiResponse<T>): T {
+  if (r.ok) return r.data;                    // narrowed by the discriminant
+  throw new Error(`${r.error.code}: ${r.error.message}`);
+}
+
+function pluck<T, K extends keyof T>(items: T[], key: K): T[K][] {
+  return items.map((item) => item[key]);
+}
+pluck(users, 'name');   // string[]; pluck(users, 'nope') is an error
+```
+
+### What interviewers listen for
+
+- **`unknown` over `any`,** and a guard that really checks (a cast `as ApiUser` checks nothing).
+- **`null` versus optional versus `undefined`,** and why dates are strings.
+- **`interface` versus `type`:** both work for objects; unions, mapped and conditional types need `type`.
+- **`satisfies` versus annotation:** `satisfies` checks against a type but keeps the narrow inferred type.
+
+### References
+
+- [TypeScript Handbook: Utility Types](https://www.typescriptlang.org/docs/handbook/utility-types.html)
+- [TypeScript Handbook: Narrowing](https://www.typescriptlang.org/docs/handbook/2/narrowing.html)
+
+Appears in a shared list of React and TypeScript interview prompts (second-hand; source unverified). The explanation and code are my own and were type-checked with `tsc --strict` and run.

@@ -1581,3 +1581,453 @@ A closure that only uses a small copy (`const small = big.length; return () => s
 - [React docs: Removing Effect dependencies](https://react.dev/learn/removing-effect-dependencies)
 
 Appears in a shared list of JavaScript scenario prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
+
+## Arrow functions vs normal functions: `this`, `arguments`, `new`, hoisting and when each is the right tool
+<!--
+id: js-arrow-vs-normal-functions
+level: junior
+tags: javascript, functions, arrow functions, this, arguments, constructors
+minutes: 10
+-->
+
+> [!PROMPT]
+> What are the differences between an arrow function and a normal function? Show a case where swapping one for the other changes behaviour.
+
+> [!HINT]
+> - Think about what each one does with `this`, `arguments`, `new` and `prototype`.
+> - Where does a callback inside a method find its `this`?
+> - When is an arrow function the wrong choice?
+
+> [!TLDR]
+> An arrow function has no `this`, `arguments`, `super` or `new.target` of its own: it reads them from the scope where it was written, and it cannot be used with `new`, has no `prototype` and cannot be rebound with `call`, `apply` or `bind`. A normal function gets `this` from how it is called, has `arguments`, can be a constructor, and is hoisted when declared. Use arrows for callbacks and anything that should keep the surrounding `this`; use normal functions or method syntax for object methods, constructors and anything that needs its own `this`.
+
+### The differences that matter
+
+| | Normal function | Arrow function |
+|---|---|---|
+| `this` | Set by the call (`obj.m()`, `call`, `new`, or `undefined` in strict mode) | Taken from the enclosing scope, fixed forever |
+| `arguments` | Yes | No (use rest parameters, `(...args) =>`) |
+| `new` | Yes, and it has a `prototype` | `TypeError: not a constructor` |
+| `call`, `apply`, `bind` | Rebind `this` | Ignored for `this` |
+| Hoisting | A declaration is hoisted with its body | Only the variable is hoisted; calling it earlier is a `ReferenceError` |
+| Returning an object | `return { ... }` | `() => ({ ... })` (the parentheses keep it from being a block) |
+
+### One snippet that shows most of it
+
+```js
+const obj = {
+  name: 'obj',
+  regular() { return this.name; },
+  arrow: () => typeof this,            // `this` here is the module/global scope, not obj
+  nested() { return [1].map(() => this.name)[0]; }, // arrow inherits nested()'s this
+};
+
+obj.regular();            // 'obj'
+obj.arrow();              // 'undefined' in a module (not obj)
+obj.nested();             // 'obj'
+
+const detached = obj.regular;
+detached();               // TypeError: cannot read 'name' of undefined (strict mode)
+
+new (() => {});           // TypeError: not a constructor
+typeof (() => {}).prototype;      // 'undefined'
+typeof function () {}.prototype;  // 'object'
+
+(() => typeof this).bind({ a: 1 })(); // bind cannot change an arrow's this
+```
+
+### Choosing
+
+- **Arrow:** callbacks (`map`, `filter`, promise chains, event handlers inside a class or method), small pure helpers, anything that should keep the outer `this`.
+- **Normal function or method shorthand:** object methods that use `this`, constructors, prototype methods, generators (arrows cannot be generators), and functions that need `arguments`.
+- **Class fields:** `onClick = () => this.label` gives each instance a handler that stays bound when passed around (the classic React class-component fix), at the price of one function per instance.
+
+```js
+class Btn {
+  label = 'ok';
+  onClick = () => this.label;   // safe to detach
+  method() { return this?.label; } // loses this when detached
+}
+const { onClick, method } = new Btn();
+onClick(); // 'ok'
+method();  // undefined
+```
+
+### Follow-ups
+
+- **"Does an arrow function make code faster?"** No; choose by semantics.
+- **"Why not an arrow for `obj.method`?"** It would capture the outer `this`, not `obj`.
+- **"What does the stack trace show?"** Arrows get the name of the variable they are assigned to; a bare inline arrow is anonymous, which makes traces harder to read.
+
+### References
+
+- [MDN: Arrow function expressions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions)
+- [MDN: this](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/this)
+
+Appears in a shared list of JavaScript interview prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
+
+## Destructuring, rest and spread: defaults, renaming, nesting, and the places they surprise you
+<!--
+id: js-destructuring-rest-spread
+level: junior
+tags: javascript, destructuring, rest, spread, es6, defaults
+minutes: 10
+-->
+
+> [!PROMPT]
+> Explain object and array destructuring and the rest operator. What do these produce, and why?
+>
+> ```js
+> const user = { id: 7, name: 'Ada', address: { city: 'London' }, role: undefined, password: 'x' };
+> const { name, address: { city }, role = 'guest', ...safe } = user;
+> const { n = 5 } = { n: null };
+> ```
+
+> [!HINT]
+> - What does `...safe` contain, and is `address` in it?
+> - When does a default value apply: `undefined`, `null`, or both?
+> - What is the difference between rest and spread?
+
+> [!TLDR]
+> Destructuring unpacks values from objects (by key) or arrays (by position) into variables, with optional renaming (`a: b`), nesting and defaults. Defaults apply only when the value is `undefined`, so `null` is kept. Rest (`...safe`) collects the remaining own enumerable properties or items into a new object or array, and must come last; spread (`...x`) does the opposite and expands one into another. In the snippet, `city` is `London`, `role` is `guest`, `safe` is `{ id, password }` (everything not already extracted), and `n` is `null`.
+
+### What each part does
+
+```js
+const user = { id: 7, name: 'Ada', address: { city: 'London' }, role: undefined, password: 'x' };
+
+const { name, address: { city }, role = 'guest', ...safe } = user;
+// name = 'Ada', city = 'London' (address itself is NOT a variable), role = 'guest'
+// safe = { id: 7, password: 'x' }   (name, address and role were taken out)
+
+const { n = 5 } = { n: null };   // n === null: the default is only for undefined
+const { password, ...publicUser } = user;  // the idiomatic "omit one key" (password is now unused)
+
+const [first, , third = 'z', ...others] = ['a', 'b', undefined, 'd', 'e'];
+// first = 'a', third = 'z', others = ['d', 'e']  (the empty slot skips an item)
+
+const { x } = null;              // TypeError: cannot destructure null or undefined
+```
+
+### Where it earns its keep
+
+- **Function parameters with defaults:** the empty object makes the argument optional.
+
+```js
+function request(url, { retries = 3, delay = 100 } = {}) { /* ... */ }
+request('/api');                     // retries 3, delay 100
+request('/api', { retries: 1 });     // retries 1, delay 100
+```
+
+- **Swapping and returning several values:** `[a, b] = [b, a]`, `const [state, setState] = useState()`.
+- **Immutable updates:** `{ ...state, user: { ...state.user, name } }`, and `[...items, next]`.
+- **Rest parameters:** `(...args)` replaces `arguments` and is a real array.
+
+### Surprises
+
+- **Spread and rest are shallow:** nested objects are shared (see the shallow copy question).
+- **Order wins:** in `{ ...a, ...b }` keys from `b` overwrite `a`; `{ ...a, x: 1 }` versus `{ x: 1, ...a }` differ.
+- **Only own enumerable properties are copied**, and getters are read once (their value is copied, not the getter).
+- **Array spread into a call has a limit:** `Math.max(...hugeArray)` or `push(...hugeArray)` can throw `RangeError` for very large arrays (hundreds of thousands of items); use a loop or `reduce`.
+- **Destructuring a parameter** makes the function throw on `undefined` unless there is a `= {}` default.
+- **Renaming reads backwards:** `{ a: b }` means "take `a`, call it `b`".
+
+### Follow-ups
+
+- **"What is the difference between rest and spread?"** Rest gathers in a binding position (parameters or the left of `=`); spread expands in an expression position.
+- **"Can you destructure with a computed key?"** Yes: `const { [key]: value } = obj`.
+
+### References
+
+- [MDN: Destructuring assignment](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring_assignment)
+- [MDN: Spread syntax](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Spread_syntax)
+
+Appears in a shared list of JavaScript interview prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
+
+## Higher-order functions: `map`, `filter`, `reduce`, function factories, `compose` and `curry`
+<!--
+id: js-higher-order-functions
+level: junior
+tags: javascript, higher-order functions, functional programming, map, reduce, currying
+minutes: 12
+-->
+
+> [!PROMPT]
+> What is a higher-order function? Give built-in and custom examples, and write `pipe`, `once` and `curry`.
+
+> [!HINT]
+> - A higher-order function takes a function, returns a function, or both.
+> - What is the classic surprise with `['1', '2', '3'].map(parseInt)`?
+> - How does `curry` know when it has enough arguments?
+
+> [!TLDR]
+> A higher-order function takes functions as arguments, returns a function, or both. Functions are first-class values in JavaScript, so `map`, `filter`, `reduce`, `sort`, event listeners, debounce, `once` and middleware are all higher-order. They let you pass behaviour instead of copying loops, and closures let the returned function remember configuration. Be ready to write `pipe`, `once` and `curry` and to explain why `['1', '2', '3'].map(parseInt)` gives `[1, NaN, NaN]` (`map` passes the index as the second argument, which `parseInt` reads as the radix).
+
+### Built-in and custom
+
+```js
+const orders = [{ id: 1, total: 40, paid: true }, { id: 2, total: 15, paid: false }];
+const revenue = orders.filter((o) => o.paid).map((o) => o.total).reduce((a, b) => a + b, 0); // 40
+```
+
+```js
+// returns a function (factory)
+const add = (n) => (x) => x + n;
+
+// takes functions, returns one (composition): left to right
+const pipe = (...fns) => (x) => fns.reduce((value, fn) => fn(value), x);
+pipe(add(1), (x) => x * 2)(3); // 8
+
+// wraps a function and keeps state in a closure
+function once(fn) {
+  let done = false, value;
+  return (...args) => (done ? value : ((done = true), (value = fn(...args))));
+}
+
+// adds behaviour without changing the original
+function withLogging(fn, log) {
+  return function (...args) {
+    const result = fn.apply(this, args);
+    log(fn.name, args, result);
+    return result;
+  };
+}
+
+// collects arguments until the original's arity is reached
+const curry = (fn) =>
+  function curried(...args) {
+    return args.length >= fn.length ? fn(...args) : (...more) => curried(...args, ...more);
+  };
+const sum3 = curry((a, b, c) => a + b + c);
+sum3(1)(2)(3);   // 6
+sum3(1, 2)(3);   // 6
+```
+
+Writing `map` yourself shows the contract (callback gets value, index and array, and holes are skipped):
+
+```js
+Array.prototype.myMap = function (cb, thisArg) {
+  const out = new Array(this.length);
+  for (let i = 0; i < this.length; i++) if (i in this) out[i] = cb.call(thisArg, this[i], i, this);
+  return out;
+};
+```
+
+### The `parseInt` trap
+
+```js
+['1', '2', '3'].map(parseInt);  // [1, NaN, NaN]: parseInt('2', 1) and parseInt('3', 2)
+['1', '2', '3'].map(Number);    // [1, 2, 3]
+['1', '2', '3'].map((s) => parseInt(s, 10));
+```
+
+### Notes interviewers like
+
+- **`curry` relies on `fn.length`,** which ignores default and rest parameters, so it does not work for variadic functions.
+- **`reduce` needs an initial value** unless you are sure the array is not empty.
+- **Chaining allocates** an array per step; for a very hot path use one loop or a lazy iterator.
+- **Higher-order does not mean functional purity:** callbacks with side effects are fine, but `map` used only for side effects should be `forEach`.
+
+### References
+
+- [MDN: Array.prototype.map](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/map)
+- [MDN: Functions as first-class values](https://developer.mozilla.org/en-US/docs/Glossary/First-class_Function)
+
+Appears in a shared list of JavaScript interview prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
+
+## Flatten a deeply nested array: recursion, an explicit stack, depth limits and `flat(Infinity)`
+<!--
+id: js-flatten-nested-array
+level: junior
+tags: javascript, recursion, arrays, flatten, stack overflow, generators
+minutes: 12
+-->
+
+> [!PROMPT]
+> Flatten a deeply nested array using a recursive function: `[1, [2, [3, [4, [5]]]], [], [[6]], 7]` becomes `[1, 2, 3, 4, 5, 6, 7]`. Then add a `depth` argument. What breaks on very deep input?
+
+> [!HINT]
+> - Base case: the item is not an array. Recursive case: flatten the item and add the result.
+> - How do you stop at a given depth?
+> - How many nested calls can the engine take before it throws?
+
+> [!TLDR]
+> Loop over the items; if an item is an array, recurse into it, otherwise append it to the result. Pass the result array down as an accumulator so you do not copy at every level, and pass a `depth` counter that decreases to support partial flattening (this is what `Array.prototype.flat(depth)` does; `flat(Infinity)` flattens fully, and it also removes empty slots). Recursion is limited by stack size, so extremely deep nesting throws `RangeError`; an explicit stack handles any depth. Avoid `out.push(...bigArray)` on large arrays, which can also overflow.
+
+### Recursive, with a depth limit
+
+```js
+function flatten(arr, depth = Infinity, out = []) {
+  for (const item of arr) {
+    if (Array.isArray(item) && depth > 0) flatten(item, depth - 1, out);
+    else out.push(item);
+  }
+  return out;
+}
+
+const nested = [1, [2, [3, [4, [5]]]], [], [[6]], 7];
+flatten(nested);       // [1, 2, 3, 4, 5, 6, 7]
+flatten(nested, 1);    // [1, 2, [3, [4, [5]]], [6], 7]   (same as nested.flat(1))
+```
+
+### Reduce version (shorter, but copies more)
+
+```js
+const flat = (arr, depth = Infinity) =>
+  arr.reduce(
+    (acc, x) => (Array.isArray(x) && depth > 0 ? acc.concat(flat(x, depth - 1)) : acc.concat([x])),
+    [],
+  );
+```
+
+`concat` creates a new array on every step, so this is quadratic in the worst case. The accumulator version above is linear.
+
+### Iterative, with an explicit stack (no recursion limit)
+
+```js
+function flattenIter(arr) {
+  const stack = [...arr].reverse();
+  const out = [];
+  while (stack.length) {
+    const item = stack.pop();
+    if (Array.isArray(item)) for (let i = item.length - 1; i >= 0; i--) stack.push(item[i]);
+    else out.push(item);
+  }
+  return out;
+}
+
+let deep = [];
+for (let i = 0; i < 20000; i++) deep = [deep, 1];
+flatten(deep);            // RangeError: Maximum call stack size exceeded
+flattenIter(deep).length; // 20000
+```
+
+### Lazily, with a generator
+
+```js
+function* walk(arr) {
+  for (const item of arr) {
+    if (Array.isArray(item)) yield* walk(item);
+    else yield item;
+  }
+}
+[...walk(nested)];   // [1, 2, 3, 4, 5, 6, 7]
+```
+
+### Edge cases to mention
+
+- **Holes:** `[1, , 3].flat()` returns `[1, 3]`; the loop above visits `undefined` for a hole because `for...of` does, so decide what you want.
+- **Cycles:** an array that contains itself recurses forever; track visited arrays in a `Set` if input is untrusted.
+- **Array-likes and objects:** `Array.isArray` is false for `arguments` and `NodeList`; say so.
+- **Do not mutate the input,** and do not rely on `toString().split(',')` (it turns everything into strings).
+
+### References
+
+- [MDN: Array.prototype.flat](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/flat)
+
+Appears in a shared list of JavaScript interview prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
+
+## JavaScript module types: IIFE, CommonJS, AMD, UMD and ES modules, and how they interoperate
+<!--
+id: js-module-types
+level: senior
+tags: javascript, modules, commonjs, esm, umd, amd, iife, bundlers
+minutes: 15
+-->
+
+> [!PROMPT]
+> What types of JavaScript modules exist, and why do so many exist? When would you meet each one today?
+
+> [!HINT]
+> - Which ones were invented before the language had modules?
+> - Which are static and which are dynamic, and what does that change for tree shaking?
+> - What does a UMD wrapper actually check?
+
+> [!TLDR]
+> Before the language had modules, people used IIFEs (a function that creates a private scope and returns an API) and namespaces on `window`. CommonJS (`require`, `module.exports`) is synchronous and became the Node standard; AMD (`define`, RequireJS) loaded asynchronously in browsers; UMD is a wrapper that detects which system is present so one file works under AMD, CommonJS or as a global. ES modules (`import`, `export`) are the language standard: static, asynchronous to load, with live bindings and top-level `await`. Today you write ESM, publish ESM (often plus CommonJS), and meet the others in older libraries, Node packages and script tags.
+
+### The five, in the order they appeared
+
+**1. IIFE and the module pattern:** a closure as a private scope.
+
+```js
+const Counter = (function () {
+  let n = 0;                       // private
+  return { inc: () => ++n };       // public API
+})();
+Counter.inc(); Counter.inc();      // 2
+```
+
+**2. CommonJS (Node, `require`):** synchronous, resolved at run time, values copied.
+
+```js
+// lib.cjs
+let count = 0;
+function inc() { count++; }
+module.exports = { count, inc };   // count is copied here
+
+// use
+const lib = require('./lib.cjs');
+lib.inc();
+lib.count;   // 0: a snapshot, not a live view
+```
+
+**3. AMD (RequireJS):** `define(['dep'], (dep) => api)`; asynchronous loading for browsers. Rare today.
+
+**4. UMD:** a wrapper that supports several environments at once.
+
+```js
+(function (root, factory) {
+  if (typeof define === 'function' && define.amd) define([], factory);       // AMD
+  else if (typeof module === 'object' && module.exports) module.exports = factory(); // CommonJS
+  else root.Greeter = factory();                                             // browser global
+})(typeof self !== 'undefined' ? self : this, function () {
+  return { hi: (name) => 'hi ' + name };
+});
+```
+
+**5. ES modules (`import` and `export`):** static, asynchronous, strict mode, live bindings.
+
+```js
+// lib.mjs
+export let count = 0;
+export function inc() { count++; }
+
+// use.mjs
+import { count, inc } from './lib.mjs';
+inc();
+count;                               // 1: a live binding
+const m = await import('./lib.mjs'); // dynamic import, a promise
+```
+
+### Differences that come up
+
+| | CommonJS | ES modules |
+|---|---|---|
+| Syntax | `require`, `module.exports` | `import`, `export` |
+| Loading | Synchronous | Asynchronous |
+| Structure | Dynamic (`require` can be anywhere) | Static (analysable, so tree shaking works) |
+| Exports | Copied values | Live bindings |
+| `this` at top level | `module.exports` | `undefined` |
+| Top-level `await` | No | Yes |
+
+### Interop in practice
+
+- A `<script type="module">` runs ESM in the browser; a plain `<script>` is a global (often UMD).
+- Node decides by file extension (`.mjs`, `.cjs`) or `"type"` in `package.json`.
+- ESM can import CommonJS (you get the whole `module.exports` as the default export); CommonJS can only `import()` ESM, because loading is asynchronous (recent Node versions also allow `require` of ESM that has no top-level `await`).
+- Libraries publish with the `exports` field, offering `import` and `require` conditions; shipping both carries the risk of two copies of the same package (the "dual package hazard").
+- Bundlers (Webpack, Rollup, Vite, esbuild) understand all of them and output what you ask for.
+
+### Follow-ups
+
+- **"Why can't tree shaking work on CommonJS?"** Exports are computed at run time, so a bundler cannot know which are unused.
+- **"What is the difference between `export default` and named exports for refactoring?"** Named exports keep one name across files and help tools; default exports can be imported under any name.
+- **"How do you load a module lazily?"** `import()` (also the basis of code splitting).
+
+### References
+
+- [MDN: JavaScript modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)
+- [Node.js: Modules, packages](https://nodejs.org/api/packages.html)
+
+Appears in a shared list of frontend interview prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.

@@ -887,3 +887,203 @@ Designing for traffic you do not have, drawing boxes before asking what scale me
 - [web.dev: Performance budgets](https://web.dev/articles/performance-budgets-101)
 
 Appears in a widely shared list of "24 real-time frontend interview questions" (second-hand; source unverified), as both a short prompt and a longer scenario. The answer is original.
+
+## React meta-frameworks (Next.js, Remix, React Router, TanStack Start): why we need them and what they actually add
+<!--
+id: react-meta-frameworks
+level: senior
+tags: react, next.js, remix, ssr, routing, meta-framework, architecture, rsc
+minutes: 20
+-->
+
+> [!PROMPT]
+> What are React meta-frameworks, and why do we need them? What would you have to build yourself if you used plain React with Vite, and when would you not use one?
+
+> [!HINT]
+> - React is a UI library: what does a real product need beyond rendering components?
+> - Walk through one request: routing, data, HTML on the server, hydration.
+> - Where do meta-frameworks add cost?
+
+> [!TLDR]
+> React renders components; it does not decide routing, how data is loaded, how HTML reaches the browser quickly, how code is split, or how the app is deployed. A meta-framework (Next.js, Remix and React Router framework mode, TanStack Start, Astro with React) packages those decisions: file-based routing, data loading tied to routes (loaders, server components), server rendering and streaming for fast first paint and SEO, static generation and caching, automatic code splitting, a build and deploy pipeline, and often API routes and server actions. You get a working architecture and avoid assembling and maintaining it. The costs are lock-in to the framework's conventions and runtime, a larger mental model (what runs on the server versus the client), upgrade churn, and hosting requirements; a client-only SPA behind a login can be simpler without one.
+
+### What the plain setup leaves to you
+
+| Concern | Plain React + Vite | Meta-framework |
+|---|---|---|
+| Routing | Pick and wire a router | File or config routes, nested layouts |
+| Data loading | Fetch in effects or a query library; waterfalls are easy | Loaders or server components run before render, in parallel |
+| First paint and SEO | Empty HTML until JavaScript runs | HTML rendered on the server or at build time |
+| Code splitting | Manual `lazy` boundaries | Per route, automatic |
+| Mutations | Hand-built API and cache invalidation | Actions or server functions with revalidation |
+| Caching and deploy | Static hosting plus your own server | Built-in rendering modes and adapters |
+| Errors and loading states | Boundaries by hand | Per-route error and loading conventions |
+
+### The idea in a small, runnable sketch
+
+This is the core a meta-framework runs on every request (a toy version I ran in Node): match the URL to a route, load that route's data on the server, render HTML, and send the same data so the client can hydrate without refetching.
+
+```tsx
+const routes = {
+  product: {
+    path: /^\/products\/(?<id>[^/]+)$/,
+    load: async ({ id }) => ({ id, name: `Product ${id}` }),
+    View: ({ data }) => <main><h1>{data.name}</h1></main>,
+  },
+};
+
+async function render(url: string) {
+  for (const route of Object.values(routes)) {
+    const match = route.path.exec(url);
+    if (!match) continue;
+    const data = await route.load({ ...match.groups });            // 1. data before render
+    const body = renderToString(<route.View data={data} />);       // 2. HTML on the server
+    const payload = JSON.stringify(data).replace(/</g, '\\u003c'); // 3. data for hydration, escaped
+    return { status: 200, html: `<div id="root">${body}</div><script>window.__DATA__=${payload}</script>` };
+  }
+  return { status: 404, html: '<h1>Not found</h1>' };              // a real 404 status
+}
+```
+
+Real frameworks add streaming, nested routes loading in parallel, partial hydration or server components, caching and revalidation, and bundling for you. Note the escaping of `<` in the serialised data: embedding JSON in HTML without it is an XSS hole.
+
+### The same thing in a real framework
+
+```tsx
+// React Router framework mode / Remix style
+export async function loader({ params }: LoaderArgs) {
+  return { product: await db.product.find(params.id) };   // runs on the server
+}
+export default function Product() {
+  const { product } = useLoaderData<typeof loader>();
+  return <h1>{product.name}</h1>;
+}
+```
+
+```tsx
+// Next.js App Router: a server component fetches directly
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const product = await getProduct(id);                    // never ships this code to the browser
+  return <h1>{product.name}</h1>;
+}
+```
+
+### Choosing
+
+- **Use one** when SEO or first paint matters (marketing, commerce, content), when you want server-side data access close to the UI, or when many teams need one consistent structure.
+- **Skip it** for an authenticated dashboard where SEO is irrelevant and an SPA on a CDN with an API is simplest; or when your backend team already owns rendering (then use islands or plain templates).
+- **Compare** on rendering modes supported, data and mutation model, deploy targets (Node, edge, static), ecosystem, and how hard leaving would be.
+
+### Risks to mention
+
+- **Lock-in** to routing and data conventions, and to a hosting model.
+- **Server and client boundaries** cause bugs (code or secrets leaking to the client, hooks used in a server component).
+- **Hydration mismatches** when server and client output differ (dates, random ids, locale).
+- **Upgrades** between major versions can be large.
+
+### Follow-ups
+
+- **"SSR versus SSG versus ISR?"** See the rendering architecture question.
+- **"What are React Server Components?"** Components that run only on the server and send a serialised result, so their code and dependencies never reach the browser.
+
+### References
+
+- [React: Build a React app from scratch (what frameworks provide)](https://react.dev/learn/build-a-react-app-from-scratch)
+- [Next.js: App Router](https://nextjs.org/docs/app)
+- [React Router: Framework mode](https://reactrouter.com/start/framework/installation)
+
+Appears in a shared interview write-up (second-hand; source unverified). The explanation is my own; the toy request handler was run with React 19's `renderToString`.
+
+## Frontend deployment strategies and trade-offs: static hosting, rolling, blue-green, canary, feature flags and rollbacks
+<!--
+id: frontend-deployment-strategies
+level: lead
+tags: deployment, canary, blue-green, rollback, feature flags, cdn, skew protection
+minutes: 20
+-->
+
+> [!PROMPT]
+> Explain the different frontend deployment strategies and their trade-offs. How do you release safely, and how do you roll back a bad release?
+
+> [!HINT]
+> - Separate deploy (code on servers) from release (users see it).
+> - What is different about frontend: the code runs on devices you do not control, and old tabs stay open.
+> - How do you roll back, and what must stay backwards compatible?
+
+> [!TLDR]
+> The common strategies: replace everything at once (simple, risky), rolling (replace instances gradually, needs two versions to coexist), blue-green (run a full new environment and switch traffic atomically; instant rollback, double the infrastructure), canary (send a small percentage of users to the new version, watch metrics, then widen), and feature flags (ship the code dark and release by flag, so deploy and release are independent). Static frontends are special: with immutable, hashed assets on a CDN, a deploy is just adding new files and flipping the `index.html` that points to them, which is already a blue-green switch, and rollback is flipping it back. Always plan for version skew (old tabs requesting files and APIs from an older build), keep API changes backwards compatible, and release progressively with metrics and automatic rollback.
+
+### The strategies
+
+| Strategy | How | Strength | Cost or risk |
+|---|---|---|---|
+| Big bang | Replace everything | Simple | Downtime or a bad release hits everyone |
+| Rolling | Replace instances a few at a time | No extra capacity | Two versions live together; slow rollback |
+| Blue-green | Keep two environments, switch traffic | Instant, atomic rollback; test before switching | Double the infrastructure; shared database must be compatible |
+| Canary | A small share of users first, then more | Real-traffic validation, small blast radius | Needs routing, metrics and the discipline to watch them |
+| Feature flags | Code ships off, a flag releases it | Release without deploy; kill switch; targeted rollout | Flag debt; both paths must be tested |
+| Preview deployments | A URL per pull request | Review and QA before merge | Not a production strategy |
+
+### Frontend specifics
+
+- **Hashed assets, immutable:** `app.3f9a1c.js` with `Cache-Control: immutable`, never overwritten. A new deploy uploads new files and keeps the old ones for a while.
+- **`index.html` is the switch:** served with `no-cache`, it points at one set of assets; changing it is the release and restoring it is the rollback.
+- **Version skew:** a user with an old tab requests a lazy chunk from a deleted build and gets a 404. Keep old assets for days, or use a host with skew protection, and reload on a chunk-load failure.
+- **Service workers** keep an old shell alive; plan an update prompt and a way to kill a broken worker.
+- **Backwards-compatible APIs:** the frontend and backend deploy separately, so use expand-then-contract changes: add the new field, ship the client, then remove the old.
+- **Mobile and extensions** cannot be rolled back after install; they need flags and server-side kill switches.
+
+### A percentage rollout that is stable per user
+
+```ts
+import { createHash } from 'node:crypto';
+
+function bucket(userId: string, flag: string): number {    // 0 to 99, same every time
+  return createHash('sha256').update(`${flag}:${userId}`).digest().readUInt32BE(0) % 100;
+}
+const inRollout = (userId: string, flag: string, percent: number) => bucket(userId, flag) < percent;
+
+inRollout('user-1', 'new-checkout', 5);   // true or false, and the same on every call
+```
+
+I ran this over 20,000 users: 5% gave 968 users and 25% gave 4,987, everyone in the 5% group stayed in the 25% group (widening never drops people), and a different flag name produced a different set. Hashing the flag and the user id keeps the same people from always being the guinea pigs. Prefer a stable id (user or device id) over a random draw per request, which would flip people between versions.
+
+### Rolling update on Kubernetes (for a server-rendered frontend)
+
+```yaml
+strategy:
+  type: RollingUpdate
+  rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }   # add one new pod before removing an old one
+readinessProbe: { httpGet: { path: /healthz, port: 8080 } }
+```
+
+For a canary, route a percentage through the ingress or service mesh (weighted routes), or run two Deployments behind one Service and scale the new one slowly.
+
+### How to release safely
+
+1. Merge to main, run tests, build once, and deploy that same artifact everywhere.
+2. Deploy dark behind a flag, or to a canary of 1 to 5%.
+3. Watch error rate, Core Web Vitals, key business metrics and logs for the new version (tag telemetry with the release id).
+4. Widen in steps, with automatic rollback if a guardrail metric degrades.
+5. Remove the flag and the old code afterwards.
+
+### Rollback
+
+- **Static or edge hosting:** re-point to the previous deployment (instant).
+- **Flags:** turn off.
+- **Containers:** roll back the Deployment (`kubectl rollout undo deployment/web`), which only works if the previous version still works with current data.
+- **Database changes** are the reason rollbacks fail: make migrations backward compatible.
+
+### Follow-ups
+
+- **"Blue-green or canary?"** Blue-green for an atomic switch and fast rollback; canary when you want evidence from real users before everyone gets it. Many teams do both.
+- **"How do you test in production?"** Flags, canaries, synthetic checks, and session replay of the canary group.
+
+### References
+
+- [Martin Fowler: Blue Green Deployment](https://martinfowler.com/bliki/BlueGreenDeployment.html)
+- [Martin Fowler: Canary Release](https://martinfowler.com/bliki/CanaryRelease.html)
+- [Kubernetes: Performing a rolling update](https://kubernetes.io/docs/tutorials/kubernetes-basics/update/update-intro/)
+
+Appears in a shared interview write-up (second-hand; source unverified). The explanation is my own; the bucketing function was run over 20,000 simulated users and the Deployment snippet was parsed as valid YAML.

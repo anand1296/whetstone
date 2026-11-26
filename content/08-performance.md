@@ -1527,3 +1527,180 @@ Other React traps: a `useMemo` whose dependency is an object created in render n
 - [React Compiler](https://react.dev/learn/react-compiler)
 
 Appears in a shared list of frontend scenario prompts (second-hand; source unverified). The explanation and code are my own and were run in Node and a React test renderer.
+
+## How Webpack builds and optimizes the production bundle: graph, loaders, tree shaking, minification, splitting and hashing
+<!--
+id: webpack-production-bundle
+level: senior
+tags: webpack, bundling, tree shaking, code splitting, minification, caching, build
+minutes: 20
+-->
+
+> [!PROMPT]
+> Explain how Webpack optimizes the final production bundle. Show a configuration and say which setting is responsible for each optimization.
+
+> [!HINT]
+> - Start from the pipeline: entry, module graph, loaders, plugins, output.
+> - Separate what shrinks the code (tree shaking, minification) from what improves caching and loading (splitting, hashes, lazy chunks).
+> - How do you check that it worked?
+
+> [!TLDR]
+> Webpack starts at the entry files, follows every `import` to build a module graph, passes each file through loaders (Babel, CSS, assets), and emits chunks. `mode: 'production'` switches on the main optimizations: it marks exports nobody uses and drops them (tree shaking, which needs ES modules and respects `sideEffects`), concatenates modules into fewer functions (scope hoisting), replaces `process.env.NODE_ENV` so development-only branches become dead code, and minifies with Terser. On top of that you add code splitting (`import()` and `splitChunks`) so users download only what a route needs, a separate runtime chunk, and content hashes in file names so unchanged chunks stay cached across deploys. Verify with a bundle analyzer and size budgets.
+
+### The pipeline
+
+```text
+entry ──▶ resolve imports ──▶ module graph ──▶ loaders transform each file
+      ──▶ optimizations (tree shake, concatenate, minify) ──▶ chunks ──▶ hashed files + manifest
+```
+
+### A configuration and what each line does
+
+```js
+// webpack.config.js
+module.exports = {
+  mode: 'production',                         // enables tree shaking, scope hoisting, Terser, NODE_ENV=production
+  entry: './src/index.js',
+  devtool: 'source-map',                      // maps for debugging; upload to your error tracker, do not serve publicly
+  output: {
+    filename: '[name].[contenthash:8].js',    // new hash only when content changes: long-term caching
+    chunkFilename: '[name].[contenthash:8].js',
+    clean: true,
+  },
+  optimization: {
+    splitChunks: { chunks: 'all' },           // shared and vendor code in its own chunks
+    runtimeChunk: 'single',                   // the small loader changes often; keep it out of app chunks
+    moduleIds: 'deterministic',               // stable ids, so unrelated changes do not bust hashes
+  },
+};
+```
+
+```json
+{ "name": "app", "sideEffects": ["./src/polyfill.js", "*.css"] }
+```
+
+`sideEffects` in `package.json` tells Webpack that every other file can be dropped if nothing imported from it is used; list the files that must run anyway (polyfills, global CSS).
+
+### What I checked in a small build
+
+A tiny project with an unused export, a polyfill, a `process.env.NODE_ENV !== 'production'` branch and one dynamic `import()` produced, in production mode:
+
+- the unused function was **absent** from every output file (it was present in development mode);
+- the development-only `console.log` was **absent** (the `NODE_ENV` check was replaced with a constant and the dead branch removed);
+- the polyfill stayed (it is listed in `sideEffects`) even though nothing used its exports;
+- the `import('./admin.js')` code became a **separate file** loaded on demand;
+- every file name carried a content hash, and the runtime was its own file.
+
+### Optimizations in the order they happen
+
+1. **Tree shaking:** ES module `import` and `export` are static, so Webpack can mark unused exports; Terser then deletes them. CommonJS, `import *` with dynamic access, and side-effectful barrel files defeat it.
+2. **Scope hoisting (module concatenation):** modules in the same chunk are merged into one function scope, which shrinks and speeds up the output.
+3. **Minification:** Terser (or esbuild/SWC minifier) removes whitespace and comments, renames locals, and removes provably dead code.
+4. **Code splitting:** `import()` for routes and heavy features, `splitChunks` for vendor and shared code.
+5. **Caching:** content hashes plus `Cache-Control: immutable`, with the entry HTML revalidated every time.
+6. **Assets:** image and font handling, CSS extraction and minification (`mini-css-extract-plugin`), compression (gzip or Brotli at build or at the CDN).
+7. **Compile-time constants:** `DefinePlugin` and `process.env.NODE_ENV` remove development code and feature branches.
+
+### Verify, do not guess
+
+- `webpack-bundle-analyzer` (or `source-map-explorer`) shows what is in each chunk; look for duplicated libraries, whole-library imports (`import _ from 'lodash'`) and moment-style locale bloat.
+- `performance.hints` and `performance.maxAssetSize` fail the build over a budget.
+- `stats.usedExports` shows which exports were kept.
+
+### Follow-ups
+
+- **"Webpack versus Vite?"** Vite serves source as native modules in development and uses Rollup (or Rolldown) for production; production optimizations (tree shaking, splitting, hashing) are conceptually the same. Webpack has the larger plugin ecosystem and Module Federation.
+- **"Why is my bundle still large?"** Dependencies that are CommonJS, barrel files with side effects, polyfills for browsers you do not support, and one giant route chunk.
+- **"What are loaders versus plugins?"** Loaders transform individual files; plugins hook into the whole build.
+
+### References
+
+- [Webpack: Tree Shaking](https://webpack.js.org/guides/tree-shaking/)
+- [Webpack: Code Splitting](https://webpack.js.org/guides/code-splitting/)
+- [Webpack: Caching](https://webpack.js.org/guides/caching/)
+
+Appears in a shared interview write-up (second-hand; source unverified). The explanation is my own; the build described above was run with Webpack 5 and its output inspected.
+
+## Tree shaking versus minification: what each removes, why `sideEffects` matters, and how to check
+<!--
+id: tree-shaking-vs-minification
+level: senior
+tags: tree shaking, minification, bundling, dead code, side effects, esm, build
+minutes: 12
+-->
+
+> [!PROMPT]
+> What is tree shaking, and how is it different from minification? Why might an unused import still end up in your bundle?
+
+> [!HINT]
+> - One works on the module graph, the other on the text of the code. Which is which?
+> - What must a bundler know before it can drop a file?
+> - What do barrel files and CommonJS do to the answer?
+
+> [!TLDR]
+> Tree shaking removes code that is never used: the bundler uses the static `import`/`export` graph to find exports nobody imports, and a minifier then deletes them. Minification makes the code that remains smaller without changing behaviour: it strips whitespace and comments, shortens local names and simplifies expressions. Tree shaking reduces what is shipped, minification reduces how it is written, and they combine. A bundler can only drop code it can prove has no side effects, so CommonJS modules, files that run code on import, and barrel files (`index.ts` re-exporting everything) often keep unused code unless `package.json` declares `"sideEffects": false`.
+
+### Side by side
+
+| | Tree shaking | Minification |
+|---|---|---|
+| Works on | The module graph (imports and exports) | The text and syntax tree of a file |
+| Removes | Unused exports, modules, and dead branches | Whitespace, comments, long names, redundant code |
+| Needs | ES modules; side-effect information | Nothing special |
+| Tools | Rollup, Webpack, esbuild (with a minifier removing the dead code) | Terser, esbuild, SWC |
+| Changes behaviour? | Only if you wrongly claim no side effects | No |
+
+### The same code, both ways
+
+```js
+// math.js
+export function used() { return 'sum'; }
+export function unused() { return 'a very long string nobody needs'; }
+
+// index.js
+import { used } from './math.js';
+console.log(used());
+```
+
+- **Without tree shaking, with minification:** `function a(){return"sum"}function b(){return"a very long string nobody needs"}console.log(a())` (shorter, but `unused` is still shipped).
+- **With both:** `console.log("sum")` (the unused function is gone, and the call is inlined).
+
+I confirmed this with a Webpack 5 production build: the unused export's string did not appear in any output file, but did in a development build.
+
+### Why an unused import can still be in the bundle
+
+```js
+// utils/index.js: a barrel
+export * from './date';
+export * from './charts';     // pulls in a heavy library if charts has top-level side effects
+
+// somewhere
+import { formatDate } from './utils';   // may drag in the charts code
+```
+
+- **CommonJS:** `require` and `module.exports` are dynamic, so exports cannot be analysed.
+- **Side effects at import time:** a module that registers something or patches a global must be kept; the bundler assumes the worst unless told otherwise.
+- **Whole-library imports:** `import _ from 'lodash'` brings everything; use `lodash-es` and named imports.
+- **Transpiling modules to CommonJS** (a Babel preset set to `commonjs`) before the bundler sees them removes the information it needs; keep ES modules until bundling.
+- **Classes and objects with static properties** are harder to prove side-effect free.
+
+```json
+{ "name": "ui-lib", "sideEffects": false }
+```
+
+Use `"sideEffects": ["*.css", "./src/polyfills.js"]` when some files must always be included.
+
+### Checking
+
+- A bundle analyzer shows whether a library you only use a little is fully included.
+- Search the output for a marker string from code that should have been removed.
+- Compare production sizes after removing an import; the difference is your answer.
+- In Angular, `ng build` runs this pipeline (esbuild or Webpack) and the build budgets fail the build when output exceeds your limit.
+
+### References
+
+- [Webpack: Tree Shaking](https://webpack.js.org/guides/tree-shaking/)
+- [Rollup: Tree-shaking](https://rollupjs.org/introduction/#tree-shaking)
+- [web.dev: Reduce JavaScript payloads with tree shaking](https://web.dev/articles/reduce-javascript-payloads-with-tree-shaking)
+
+Appears in a shared list of Angular interview prompts (second-hand; source unverified). The explanation is my own; the build comparison was run with Webpack 5.

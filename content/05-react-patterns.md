@@ -2360,3 +2360,254 @@ Putting `delay` or `value` out of the dependency array, creating the timer outsi
 - [MDN: AbortSignal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal)
 
 Reported as a practical React coding question (`useDebouncedValue` for dashboard search and filtering) in a shared dashboard-developer interview paper (second-hand; source unverified). The code was tested with React 19 and fake timers, including StrictMode and unmount.
+
+## Design reusable `Button` and `Image` components: variants, accessibility, ref forwarding, loading and error states
+<!--
+id: reusable-button-image-components
+level: senior
+tags: react, component design, design system, button, image, accessibility, typescript
+minutes: 25
+-->
+
+> [!PROMPT]
+> Design reusable `Button` and `Image` components for a design system used by many teams. What is the API, what do you handle for the consumer, and what do you deliberately leave out?
+
+> [!HINT]
+> - Extend the native element's props instead of inventing your own list.
+> - Which states and variants need to be impossible to misuse?
+> - For the image: layout shift, loading priority, responsive sizes, failure.
+
+> [!TLDR]
+> Build thin wrappers over the native elements: accept all the native props, pass them through, and add only the design decisions (a `variant` and `size` from closed unions, `loading`, an optional icon). Set safe defaults (`type="button"` so a button never submits a form by accident), keep it accessible (real `<button>`, visible focus, `aria-busy` and `disabled` while loading, an accessible name), and forward the ref (a plain prop in React 19, `forwardRef` before it). For `Image`, require `alt`, `width` and `height` to reserve space and avoid layout shift, default to lazy loading with a `priority` opt-out for the hero image, offer `srcSet` and `sizes` for responsive loading, and handle load failure with a fallback. Leave out one-off styling props and business logic.
+
+### Button
+
+```tsx
+import type { ComponentPropsWithRef, ReactNode } from 'react';
+
+type ButtonProps = Omit<ComponentPropsWithRef<'button'>, 'children'> & {
+  variant?: 'primary' | 'secondary' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  loading?: boolean;
+  leadingIcon?: ReactNode;
+  children: ReactNode;
+};
+
+export function Button({
+  variant = 'primary', size = 'md', loading = false, leadingIcon,
+  disabled, type = 'button', className, children, ...rest
+}: ButtonProps) {
+  return (
+    <button
+      {...rest}
+      type={type}                                  // never submits a form by accident
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className={['btn', `btn-${variant}`, `btn-${size}`, className].filter(Boolean).join(' ')}
+    >
+      {loading ? <span className="spinner" aria-hidden="true" /> : leadingIcon}
+      {children}
+    </button>
+  );
+}
+```
+
+I rendered this and checked: the default output is `<button type="button" class="btn btn-primary btn-md">`, `loading` adds `disabled` and `aria-busy="true"`, extra props such as `type="submit"` and `data-testid` pass through, and a `ref` reaches the DOM node.
+
+Decisions to state out loud:
+
+- **Closed unions for variants,** not free `color` strings; the design system owns the look.
+- **Native props pass through** (`onClick`, `aria-*`, `form`, `name`), so the component never blocks an accessibility need.
+- **An icon-only button needs an accessible name:** require `aria-label` in the type for that case, for example with a union where either `children` or `aria-label` is present.
+- **Link-looking buttons** are a different element: offer `as`/`asChild` or a separate `LinkButton`, because `<a>` and `<button>` have different semantics (a button that navigates is a bug for screen readers).
+- **`disabled` while loading** stops double submits but also removes focus; `aria-disabled` keeps focus and needs a click guard. Choose deliberately.
+- **Styles** through CSS modules, CSS variables or a class-variance helper; `className` merges, it does not replace.
+
+### Polymorphic version (when needed)
+
+```tsx
+type PolyProps<E extends React.ElementType> = { as?: E } & Omit<React.ComponentPropsWithoutRef<E>, 'as'>;
+
+function Box<E extends React.ElementType = 'div'>({ as, ...rest }: PolyProps<E>) {
+  const Component: React.ElementType = as ?? 'div';
+  return <Component {...rest} />;
+}
+// <Box as="a" href="/x">link</Box> is type-checked as an anchor
+```
+
+### Image
+
+```tsx
+type ImageProps = Omit<ComponentPropsWithRef<'img'>, 'src' | 'alt' | 'width' | 'height'> & {
+  src: string;
+  alt: string;               // required; use "" for purely decorative images
+  width: number;             // required: reserves space, no layout shift
+  height: number;
+  priority?: boolean;        // true for the LCP image
+  fallbackSrc?: string;
+  widths?: number[];
+  sizes?: string;
+};
+
+export function Image({
+  src, alt, width, height, priority = false, fallbackSrc,
+  widths = [320, 640, 1280], sizes = '100vw', onError, style, ...rest
+}: ImageProps) {
+  const [failed, setFailed] = useState(false);
+  const current = failed && fallbackSrc ? fallbackSrc : src;
+  const srcSet = failed ? undefined : widths.map((w) => `${src}?w=${w} ${w}w`).join(', ');
+
+  return (
+    <img
+      {...rest}
+      src={current}
+      srcSet={srcSet}
+      sizes={sizes}
+      alt={alt}
+      width={width}
+      height={height}
+      loading={priority ? 'eager' : 'lazy'}
+      decoding="async"
+      fetchPriority={priority ? 'high' : undefined}
+      style={{ aspectRatio: `${width} / ${height}`, ...style }}
+      onError={(event) => { setFailed(true); onError?.(event); }}
+    />
+  );
+}
+```
+
+Verified by rendering: lazy loading is the default, `priority` switches to `eager` with `fetchpriority="high"`, `srcset` is produced, and firing an `error` event swapped the source to the fallback.
+
+### Image decisions
+
+- **Layout shift:** width and height (or `aspect-ratio`) let the browser reserve space before the file arrives.
+- **Priority:** never lazy-load the LCP image; lazy-load everything below the fold.
+- **Responsive:** `srcSet` and `sizes` let the browser choose a file; modern formats through `<picture>` or an image CDN.
+- **Failure:** fallback image or a placeholder; do not leave a broken icon. Reset the failed state when `src` changes.
+- **Accessibility:** `alt` is part of the type, not an afterthought; decorative images use `alt=""`.
+- **Leave out:** crop and filter props, and tracking; they belong in the image service or the caller.
+
+### Follow-ups
+
+- **"How do you evolve the API without breaking teams?"** Add optional props, deprecate with a warning and a codemod, version by package.
+- **"How do you test it?"** Render each variant, assert roles and names (`getByRole('button', { name })`), keyboard activation, and a visual regression snapshot.
+- **"Compound components or props?"** A button is a leaf, so props; for menus, tabs and dialogs prefer composition (see the compound components question).
+
+### References
+
+- [React: Passing props to a component](https://react.dev/learn/passing-props-to-a-component)
+- [MDN: `<img>` loading, fetchpriority and srcset](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/img)
+- [W3C: Images tutorial (alt text)](https://www.w3.org/WAI/tutorials/images/)
+
+Appears in an interview write-up shared online (second-hand; source unverified). The explanation is my own; both components were rendered and exercised in a React 19 test and type-checked.
+
+## React debugging round: fix a broken flow inside a working app (stale closures, mutation, races, effects, keys)
+<!--
+id: react-debugging-round
+level: senior
+tags: react, debugging, stale closure, state mutation, race condition, effects, keys, devtools
+minutes: 25
+-->
+
+> [!PROMPT]
+> You are handed a working React app with one broken flow (a counter stops counting, a list does not update, search shows old results, an input loses focus). How do you find and fix the problem, and what are the bugs you expect?
+
+> [!HINT]
+> - First reproduce, then narrow: which state, which render, which effect?
+> - What do the React DevTools Profiler and "highlight updates" tell you?
+> - The usual suspects: mutation, stale closures, missing cleanup, unstable keys or components defined inside components.
+
+> [!TLDR]
+> Work like a debugger, not a guesser: reproduce the bug and write down expected and actual behaviour, find the state or prop that is wrong, then trace where it is set (an event handler, an effect, a fetch callback). Most broken flows in a working app are one of a small set: state mutated in place, a stale closure in an effect or interval, an effect with the wrong dependencies or no cleanup (so late responses overwrite newer ones), an unstable `key` or a component defined inside another component (state lost on every render), or derived state copied into `useState` that never updates. Fix the cause with the smallest change, add a test that fails before and passes after, and say what you checked.
+
+### A method that works under time pressure
+
+1. **Reproduce and state it:** "Clicking add does not update the count" or "typing `ab` shows results for `a`".
+2. **Check the data first:** log or inspect the state, props and the network response. Is the state wrong, or is the screen not reflecting correct state?
+3. **React DevTools:** Components tab for state and props, Profiler and "highlight updates" to see what re-renders, and the "why did this render" option.
+4. **Bisect the flow:** handler, state update, effect, derived value, render. Confirm each step with a log or breakpoint.
+5. **Look at the console:** warnings about keys, hook dependencies (`react-hooks/exhaustive-deps`) and unmounted updates point straight at bugs.
+6. **Fix, then prove it** with a test or a reproducible manual check, and look for the same pattern elsewhere.
+
+### The bugs, each run before and after
+
+**1. Stale closure in an interval** (the counter stops at 1)
+
+```tsx
+// Bug: n is 0 inside the interval forever, so it sets 1 every time
+useEffect(() => {
+  const id = setInterval(() => setN(n + 1), 1000);
+  return () => clearInterval(id);
+}, []);
+
+// Fix: a functional update does not need the old value in the closure
+useEffect(() => {
+  const id = setInterval(() => setN((count) => count + 1), 1000);
+  return () => clearInterval(id);
+}, []);
+```
+
+**2. Mutating state** (the button works but the screen does not change)
+
+```tsx
+// Bug: same array reference, so React sees no change
+onClick={() => { items.push('x'); setItems(items); }}
+
+// Fix
+onClick={() => setItems([...items, 'x'])}
+```
+
+**3. A late response overwrites a newer one** (typing `ab` shows results for `a`)
+
+```tsx
+// Bug: the slow request for "a" finishes after the one for "ab"
+useEffect(() => { fetchResults(q).then(setResults); }, [q]);
+
+// Fix: ignore results from an effect that has been cleaned up
+useEffect(() => {
+  let ignore = false;
+  fetchResults(q).then((value) => { if (!ignore) setResults(value); });
+  return () => { ignore = true; };
+}, [q]);
+```
+
+I ran all three in a React 19 test: the buggy versions stayed at `1`, kept length `1`, and showed the old result; the fixed versions gave `2` or more, length `2`, and `ab`.
+
+**4. Component defined inside a component** (the input loses focus on every keystroke)
+
+```tsx
+function Form() {
+  const [text, setText] = useState('');
+  const Field = () => <input value={text} onChange={(e) => setText(e.target.value)} />; // new type each render
+  return <Field />;
+}
+// Fix: define Field outside Form (or call it as a function, or inline the JSX)
+```
+
+**5. Index keys on a reorderable list** (inputs keep the wrong text after a delete): use a stable id as the key.
+
+**6. Derived state copied into state:** `const [name, setName] = useState(props.name)` ignores later prop changes. Compute during render, or reset with `key={props.id}` on the component.
+
+**7. Unstable dependencies:** an object or function created in render in a dependency array re-runs the effect every render (and can loop when the effect sets state). Memoise it, move it outside the component, or depend on primitives.
+
+**8. Effects that should be events:** a fetch triggered by a click belongs in the handler, not an effect watching a flag.
+
+**9. Missing cleanup:** listeners, intervals and subscriptions not removed after unmount; in Strict Mode development, effects run twice on purpose to expose it.
+
+### Typing exercises that often come with it
+
+- Type the `useReducer` actions as a discriminated union so impossible actions fail to compile.
+- Type `useState<User | null>(null)` and narrow before use.
+- Give an event handler the right type: `React.ChangeEvent<HTMLInputElement>`.
+
+### What to say while you work
+
+State your hypothesis before each check, keep the change small, mention what you rejected and why, and finish by saying how you would prevent the class of bug (a lint rule, a typed reducer, a shared data hook).
+
+### References
+
+- [React: You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect)
+- [React: Updating Objects and Arrays in State](https://react.dev/learn/updating-objects-in-state)
+- [React: Synchronizing with Effects (fetching and cleanup)](https://react.dev/learn/synchronizing-with-effects)
+
+Appears in an interview write-up shared online (second-hand; source unverified). The explanation is my own; the three before-and-after pairs were run in a React 19 test.
