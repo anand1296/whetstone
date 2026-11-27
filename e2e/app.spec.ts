@@ -50,7 +50,7 @@ test('ticking questions persists across reloads and drives "continue"', async ({
   const resume = page.locator('.action-card.is-primary');
   await expect(resume.locator('.action-label')).toHaveText('Pick up where you left off');
   await expect(resume.locator('.action-title')).toContainText(thirdTitle);
-  await expect(page.locator('.loop-ring')).toContainText('2/304');
+  await expect(page.locator('.loop-ring')).toContainText('2/308');
 
   await resume.click();
   const third = page.locator('.q').nth(2);
@@ -195,7 +195,7 @@ test('import, spaced review and reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Yes, clear it' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.goto(EVERYTHING_URL);
-  await expect(page.locator('.loop-ring')).toContainText('0/304');
+  await expect(page.locator('.loop-ring')).toContainText('0/308');
 });
 
 test('filters, theme and keyboard basics', async ({ page }) => {

@@ -557,7 +557,7 @@ Exact and percent strategies reject input that does not sum to the total (or 100
 
 ### Simplifying debts
 
-Compute each user's net (paid minus owed), then repeatedly match the largest debtor with the largest creditor. The result has at most `n-1` payments.
+Compute each user's net (paid minus owed), then repeatedly match the largest debtor with the largest creditor. The result has at most `n-1` payments, which is a good answer but not always the minimum: the true minimum comes from splitting the group into as many independent zero-sum subgroups as possible, which is a harder problem (see the minimum transactions question in Data Structures and Algorithms, and the Splitwise high-level design question).
 
 ### Traps
 
@@ -1011,3 +1011,195 @@ class Controller {
 ### Traps
 
 Simulating time with sleeps instead of an injectable tick; one giant `if` on direction and state (use State objects); assigning one request to several cars.
+
+## Design an in-memory file system: `mkdir`, `cd`, `ls` and `pwd` with path resolution and error handling
+<!--
+id: lld-in-memory-file-system
+level: senior
+tags: lld, file system, composite pattern, trie, path resolution, error handling, machine coding
+minutes: 45
+-->
+
+> [!PROMPT]
+> Implement an in-memory file system that supports `mkdir`, `cd`, `ls` and `pwd`. Paths can be absolute (`/a/b`) or relative (`b/c`, `..`, `.`). Design the classes, handle errors properly, and be ready to extend it (files, `rm`, `mv`).
+
+> [!HINT]
+> - What is the data structure: a tree of nodes, with what at each node?
+> - How do you resolve a path once, in one place, for every command?
+> - What happens at the root with `..`, with an empty path, or when `cd` targets a file?
+
+> [!TLDR]
+> Model the file system as a tree using the Composite pattern: a `Node` base type, `Directory` nodes that hold their children in a `Map<string, Node>` (O(1) lookup by name) and a parent pointer, and `FileNode` leaves. Keep the current working directory as a reference to a `Directory`. Put path handling in one resolver that splits on `/`, starts from the root for absolute paths or from the current directory for relative ones, and walks segment by segment, treating `.` as stay, `..` as the parent (the root's parent is the root), and empty segments as nothing. All commands reuse it, so error handling is consistent: use typed errors (not found, already exists, not a directory, invalid) and make failed commands leave the state unchanged. Sort `ls` output, support `mkdir -p`, and spend the last minutes on edge cases and tests.
+
+### Time plan (about 45 minutes)
+
+1. 3 minutes: clarify (absolute and relative paths? `mkdir -p`? files? what does `ls` print? errors as exceptions or return values?).
+2. 10 minutes: classes and the path resolver.
+3. 20 minutes: commands and error handling.
+4. 10 minutes: tests, edge cases and extensions.
+
+### Classes
+
+```ts
+class FsError extends Error {
+  constructor(readonly code: 'ENOENT' | 'EEXIST' | 'ENOTDIR' | 'EINVAL', message: string) {
+    super(message);
+    this.name = 'FsError';
+  }
+}
+
+abstract class Node {
+  constructor(public readonly name: string, public parent: Directory | null) {}
+}
+
+class FileNode extends Node {
+  content = '';
+}
+
+class Directory extends Node {
+  readonly children = new Map<string, Node>();           // name -> node: O(1) lookup, insert and delete
+
+  get path(): string {                                    // walk up to the root, then reverse
+    const parts: string[] = [];
+    for (let d: Directory | null = this; d && d.parent; d = d.parent) parts.push(d.name);
+    return '/' + parts.reverse().join('/');
+  }
+}
+```
+
+Why a `Map` and not an array or a trie? Names within one directory are unique and looked up by exact name, so a hash map is the right structure; the tree itself gives you the path prefixes a trie would. `ls` sorts the keys when printing, which costs O(m log m) for a directory with `m` entries and is only paid when listing.
+
+### The file system and the single path resolver
+
+```ts
+class FileSystem {
+  private readonly root = new Directory('', null);
+  private cwd: Directory = this.root;
+
+  pwd(): string { return this.cwd.path; }
+
+  cd(path: string): void { this.cwd = this.resolveDir(path, 'cd'); }     // assign only after success
+
+  ls(path = '.'): string[] {
+    const target = this.resolve(path);
+    if (target instanceof FileNode) return [target.name];                  // ls on a file prints the file
+    return [...target.children.values()]
+      .map((n) => (n instanceof Directory ? n.name + '/' : n.name))
+      .sort();
+  }
+
+  mkdir(path: string, { parents = false }: { parents?: boolean } = {}): void {
+    const { start, parts } = this.split(path);
+    if (parts.length === 0) throw new FsError('EEXIST', `mkdir: '${path}' already exists`);
+    let dir = start;
+    parts.forEach((part, i) => {
+      const last = i === parts.length - 1;
+      if (part === '.') return;
+      if (part === '..') { dir = dir.parent ?? dir; return; }
+      const next = dir.children.get(part);
+      if (!next) {
+        if (!last && !parents) throw new FsError('ENOENT', `mkdir: no such directory '${part}'`);
+        const created = new Directory(part, dir);
+        dir.children.set(part, created);
+        dir = created;
+      } else if (next instanceof Directory) {
+        if (last && !parents) throw new FsError('EEXIST', `mkdir: '${part}' already exists`);
+        dir = next;
+      } else {
+        throw new FsError('ENOTDIR', `mkdir: '${part}' is a file`);
+      }
+    });
+  }
+
+  // ---- path resolution: the one place that understands paths
+  private split(path: string): { start: Directory; parts: string[] } {
+    if (path === '') throw new FsError('EINVAL', 'empty path');
+    return {
+      start: path.startsWith('/') ? this.root : this.cwd,
+      parts: path.split('/').filter((p) => p !== ''),                      // '//' and trailing '/' vanish
+    };
+  }
+
+  private resolve(path: string): Node {
+    const { start, parts } = this.split(path);
+    let node: Node = start;
+    for (const part of parts) {
+      if (!(node instanceof Directory)) throw new FsError('ENOTDIR', `'${part}': parent is a file`);
+      if (part === '.') continue;
+      if (part === '..') { node = node.parent ?? node; continue; }        // the root's parent is the root
+      const next = node.children.get(part);
+      if (!next) throw new FsError('ENOENT', `no such file or directory: '${path}'`);
+      node = next;
+    }
+    return node;
+  }
+
+  private resolveDir(path: string, cmd: string): Directory {
+    const node = this.resolve(path);
+    if (!(node instanceof Directory)) throw new FsError('ENOTDIR', `${cmd}: '${path}' is not a directory`);
+    return node;
+  }
+}
+```
+
+### What I ran
+
+```ts
+const fs = new FileSystem();
+fs.mkdir('/a'); fs.mkdir('a/b'); fs.mkdir('/a/b/c');
+fs.cd('/a/b');            fs.pwd();            // '/a/b'
+fs.ls();                                         // ['c/']
+fs.cd('..');              fs.pwd();            // '/a'
+fs.cd('../..');           fs.pwd();            // '/'      (.. at the root stays at the root)
+fs.cd('a/./b/../b//c');   fs.pwd();            // '/a/b/c' (., .. and // are normalized)
+fs.cd('/');
+fs.mkdir('x/y/z', { parents: true });           // creates x, x/y and x/y/z
+fs.mkdir('/p/q');                               // FsError ENOENT: /p does not exist
+fs.mkdir('/a');                                 // FsError EEXIST
+fs.mkdir('/a', { parents: true });              // fine, -p is idempotent
+fs.cd('/nope');                                 // FsError ENOENT, and the cwd did not change
+```
+
+Also checked: `cd` into a file gives `ENOTDIR`, `mkdir -p` through a file gives `ENOTDIR`, an empty path gives `EINVAL`, a failed `cd` leaves `pwd` unchanged, and a 5,000-level deep path works because resolution is iterative (a recursive resolver would risk a stack overflow).
+
+### Design decisions to state out loud
+
+- **Composite pattern:** files and directories share a `Node` type, so operations like `ls` or a later `find` treat them uniformly where they can.
+- **One resolver:** every command calls it, so `.`, `..`, empty segments and error behaviour are consistent and fixed in one place.
+- **Typed errors:** callers can handle `ENOENT` differently from `EEXIST`; the codes follow POSIX names, which interviewers recognize.
+- **Failed commands change nothing:** `cd` assigns only after resolving successfully. For `mkdir -p`, say that a failure half way (a file in the middle of the path) may leave the directories created before it, which is also what a real shell does; if the interviewer wants atomicity, resolve and validate first, then create.
+- **Parent pointers** make `pwd` and `..` O(depth) and O(1); the cost is keeping them correct when you add `mv`.
+- **Storing the path as a string** per directory would make `mv` expensive; computing it from parents avoids that.
+
+### Edge cases to cover before time runs out
+
+- `cd` with no argument (home) or `cd -`, if asked.
+- Trailing slashes and repeated slashes.
+- `mkdir` of an existing file name, and names containing `/` (reject).
+- Very long paths, and `ls` of an empty directory.
+- Names that look like `.` or `..` in `mkdir` (reject, they are reserved).
+- Concurrency: this version is single-threaded; for a shared file system you would lock per directory or use a readers-writer lock (see the thread-safety question).
+
+### Extensions
+
+1. **Files:** `touch`, `write`, `cat` on `FileNode`; the tree already supports it.
+2. **`rm` and `rm -r`:** remove from the parent's map; recursive removal is automatic with garbage collection, but check you are not deleting an ancestor of the cwd (or define what `pwd` returns afterwards).
+3. **`mv` and `cp`:** re-parent a node (check you are not moving a directory into its own subtree); copy is a deep clone.
+4. **`find` and `tree`:** a depth-first traversal; `ls -R` is the same.
+5. **Command pattern:** each command as an object, enabling history, undo and a script runner.
+6. **Permissions and ownership:** a mode on each node, checked in the resolver.
+7. **Symbolic links:** a node that points to a path; resolve with a hop limit to prevent cycles.
+8. **Persistence:** serialize the tree to JSON, or store as path to node entries in a key-value store.
+
+### Follow-ups
+
+- **"Complexity of each command?"** `cd`, `mkdir` (single level): O(path length). `ls`: O(m log m) for `m` entries. `pwd`: O(depth).
+- **"What if there are millions of files in one directory?"** The hash map handles lookups; `ls` becomes the cost, so add pagination or a sorted structure.
+- **"How would you test it?"** Table-driven tests for the resolver (absolute, relative, `.`, `..`, root, trailing slashes) and one test per error code.
+
+### References
+
+- [POSIX: Pathname resolution](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13)
+- [Refactoring Guru: Composite pattern](https://refactoring.guru/design-patterns/composite)
+
+Appears in an interview write-up shared online (second-hand; source unverified). The design and code are my own and were run in Node.

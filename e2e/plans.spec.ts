@@ -27,7 +27,7 @@ test('a first visit asks what you are preparing for, and says what the choice do
   await expect(page.locator('.lede')).toContainText('tracked against that plan');
   await expect(page.locator('.nav-rounds')).toHaveCount(0);
   await expect(focus(page)).toHaveCount(0); // chips appear once a role is chosen
-  await expect(size(page)).toContainText('26 topics');
+  await expect(size(page)).toContainText('28 topics');
 
   // Roles with no content yet are visible but disabled, with a tooltip.
   const qe = roles(page).getByRole('button', { name: /^QE/ });
@@ -35,11 +35,11 @@ test('a first visit asks what you are preparing for, and says what the choice do
   await qe.hover();
   await expect(page.locator('.chip-wrap', { hasText: 'QE' }).getByRole('tooltip')).toHaveCSS('opacity', '1');
   await qe.click({ force: true }); // aria-disabled: Playwright would otherwise wait for it to be enabled
-  await expect(size(page)).toContainText('26 topics');
+  await expect(size(page)).toContainText('28 topics');
 
   // Backend: low-level design, Java, Node.js, Go and Kubernetes, with Python announced.
   await roles(page).getByRole('button', { name: /^Backend/ }).click();
-  await expect(size(page)).toContainText('6 topics');
+  await expect(size(page)).toContainText('8 topics');
   await expect(focus(page).getByRole('button', { name: 'Python' })).toHaveAttribute('aria-disabled', 'true');
   await focus(page).getByRole('button', { name: /^Go/ }).click();
   await expect(size(page)).toContainText('1 topic ·');
@@ -72,7 +72,7 @@ test('"start with everything" is one click for people who are not sure yet', asy
   await page.goto('/');
   await page.getByRole('button', { name: /Start with everything/ }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Everything');
-  await expect(page.locator('.round-list .round')).toHaveCount(26);
+  await expect(page.locator('.round-list .round')).toHaveCount(28);
 });
 
 test('several plans, each tracking only its own topics; a finished question counts in every plan that has it', async ({ page }) => {
@@ -103,23 +103,23 @@ test('several plans, each tracking only its own topics; a finished question coun
   await page.getByRole('button', { name: 'All plans' }).click();
 
   await expect(page.locator('.plan-card:not(.plan-card-new)')).toHaveCount(3);
-  await expect(card(page, 'Frontend + Design')).toContainText('0/247 done');
+  await expect(card(page, 'Frontend + Design')).toContainText('0/250 done');
   await expect(card(page, 'Go + Kubernetes')).toContainText('0/12 done');
-  await expect(card(page, 'Backend')).toContainText('0/48 done');
+  await expect(card(page, 'Backend')).toContainText('0/52 done');
 
   // Work in the Go plan: the sidebar follows it, and says what it leaves out.
   await card(page, 'Go + Kubernetes').getByRole('button', { name: /^Start/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Go Backend' })).toBeVisible();
   const sidebarTopics = page.locator('.nav-rounds .nav-round');
   await expect(sidebarTopics).toHaveCount(2);
-  await expect(page.getByRole('button', { name: /24 topics are outside this plan/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /26 topics are outside this plan/ })).toBeVisible();
   await page.locator('.q').first().getByRole('checkbox').check();
 
   // One finished question moves the Go plan and the Backend plan, and leaves Frontend + Design alone.
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'My plans' }).click();
   await expect(card(page, 'Go + Kubernetes')).toContainText('1/12 done');
-  await expect(card(page, 'Backend')).toContainText('1/48 done');
-  await expect(card(page, 'Frontend + Design')).toContainText('0/247 done');
+  await expect(card(page, 'Backend')).toContainText('1/52 done');
+  await expect(card(page, 'Frontend + Design')).toContainText('0/250 done');
 
   // The plan page is scoped too.
   await card(page, 'Go + Kubernetes').getByRole('button', { name: /Go \+ Kubernetes progress|^Go \+ Kubernetes/ }).first().click();
@@ -146,7 +146,7 @@ test('edit a plan, delete it, and start again when none are left', async ({ page
   await dialog.getByRole('button', { name: 'Save changes' }).click();
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'My plans' }).click();
   await expect(card(page, 'Design and backend')).toContainText('1/');
-  await expect(card(page, 'Design and backend')).toContainText('7 topics');
+  await expect(card(page, 'Design and backend')).toContainText('9 topics');
 
   // Deleting asks first, and keeps the progress on the questions.
   await card(page, 'Design and backend').getByRole('button', { name: 'Edit' }).click();
@@ -161,9 +161,9 @@ test('edit a plan, delete it, and start again when none are left', async ({ page
 
   // A new plan over the same topics picks the finished question up again.
   await page.getByRole('button', { name: /Start with everything/ }).click();
-  await expect(page.locator('.loop-ring')).toContainText('1/304');
+  await expect(page.locator('.loop-ring')).toContainText('1/308');
   await page.reload();
-  await expect(page.locator('.loop-ring')).toContainText('1/304');
+  await expect(page.locator('.loop-ring')).toContainText('1/308');
 });
 
 test('people who used the app before plans keep their topic filter as their first plan', async ({ page }) => {
@@ -197,7 +197,7 @@ test('people with progress but no filter get an Everything plan, not a question'
     { key: PROGRESS_KEY },
   );
   await page.goto('/');
-  await expect(card(page, 'Everything')).toContainText('1/304 done');
+  await expect(card(page, 'Everything')).toContainText('1/308 done');
 });
 
 test('review follows the plan you are working in, with the rest one click away', async ({ page }) => {
