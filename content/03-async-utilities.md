@@ -1980,3 +1980,117 @@ This covers both a synchronous throw and an async rejection from a handler. Keep
 - [Node.js: Process events](https://nodejs.org/api/process.html#process-events)
 
 Appears in a shared list of JavaScript scenario prompts (second-hand; source unverified). The explanation and code are my own and were run in Node.
+
+## Preventing and cancelling duplicate API requests: in-flight sharing, `AbortController`, submit guards and idempotency keys
+<!--
+id: duplicate-api-requests
+level: senior
+tags: async, fetch, abortcontroller, deduplication, idempotency, switchmap, race conditions
+minutes: 20
+-->
+
+> [!PROMPT]
+> Explain and implement approaches to prevent or cancel duplicate API requests: a user double-clicks Save, two components ask for the same data, and a search box fires a request per keystroke.
+
+> [!HINT]
+> - Three different problems: identical requests at the same time, a newer request replacing an older one, and a click happening twice.
+> - What does aborting a `fetch` do to the server?
+> - How can the server protect itself when the client cannot?
+
+> [!TLDR]
+> Pick the tool that matches the problem. Identical reads at the same time: keep a map of in-flight promises keyed by method and URL and return the existing promise (deduping). A newer request should replace an older one (search, filters): abort the previous with `AbortController` and ignore its result (latest wins). A button pressed twice: disable it and guard with a busy flag (exhaust). Retried or double-submitted writes: send an idempotency key so the server executes it once. Aborting only stops the client waiting; the server may still process the request, which is why writes need server-side protection.
+
+### 1. Share the in-flight request (dedupe)
+
+```js
+const inflight = new Map();
+
+function dedupedFetch(url, init) {
+  const key = (init?.method ?? 'GET') + ' ' + url;
+  const existing = inflight.get(key);
+  if (existing) return existing;               // everyone gets the same promise
+  const promise = fetch(url, init)
+    .then((res) => res.json())
+    .finally(() => inflight.delete(key));      // after it settles, the next call is a real request
+  inflight.set(key, promise);
+  return promise;
+}
+
+const [a, b] = await Promise.all([dedupedFetch('/api/user'), dedupedFetch('/api/user')]);
+// one network request, two consumers
+```
+
+Only dedupe reads (GET); sharing a POST would silently drop a second, intentional write. Libraries such as TanStack Query and SWR do this per query key and add a cache and a stale time on top.
+
+### 2. Cancel the previous request (latest wins)
+
+```js
+function latest(fn) {
+  let controller;
+  return async (...args) => {
+    controller?.abort();                       // cancel whatever was still in flight
+    controller = new AbortController();
+    try {
+      return await fn(controller.signal, ...args);
+    } catch (error) {
+      if (error.name === 'AbortError') return undefined;   // expected, not a failure
+      throw error;
+    }
+  };
+}
+
+const search = latest(async (signal, q) => (await fetch(`/api/search?q=${q}`, { signal })).json());
+```
+
+This is `switchMap` in RxJS and the cleanup function of a React effect (`return () => controller.abort()`). Pair it with a debounce so fewer requests start at all. If cancelling is not possible (a library call without a signal), ignore stale results by comparing a request counter before writing state.
+
+### 3. Block repeated actions (exhaust)
+
+```js
+function exhaust(fn) {
+  let busy = false;
+  return async (...args) => {
+    if (busy) return;                          // ignore clicks while a save is running
+    busy = true;
+    try { return await fn(...args); } finally { busy = false; }
+  };
+}
+```
+
+Disable the button too (`aria-disabled` and a spinner), but keep the guard in code: a disabled attribute updates on the next render, and Enter in a form can submit twice before it does. This is `exhaustMap`; `concatMap` instead queues them in order.
+
+### 4. Make writes safe on the server (idempotency)
+
+```js
+const key = crypto.randomUUID();                // one key per user intent, reused on retries
+await fetch('/api/payments', {
+  method: 'POST',
+  headers: { 'Idempotency-Key': key, 'Content-Type': 'application/json' },
+  body: JSON.stringify(order),
+});
+```
+
+The server stores the result under that key and returns it again if it sees the key twice, so retries, double clicks and flaky networks do not charge twice.
+
+### Which one
+
+| Situation | Use |
+|---|---|
+| Same GET from several components | Dedupe in flight (and cache) |
+| Typeahead, filters, tab switching | Abort previous, plus debounce |
+| Save, submit, pay | Busy guard plus idempotency key |
+| Long list that loads pages | Abort when the view is left; keep pages that finished |
+
+### Things to say out loud
+
+- Aborting rejects with `AbortError` (or the signal's `reason`); treat it as normal flow and never show it as an error.
+- `AbortSignal.timeout(ms)` gives a timeout, and `AbortSignal.any([a, b])` combines a user cancel with a timeout.
+- Cancelling does not undo a write that already reached the server.
+- Dedupe by a stable key: sort query parameters, include headers that change the response (such as `Accept-Language`).
+
+### References
+
+- [MDN: AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
+- [IETF: The Idempotency-Key HTTP Header Field](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/)
+
+Appears in an interview write-up shared online (second-hand; source unverified). The explanation and code are my own; the helpers were run in Node against a local server.

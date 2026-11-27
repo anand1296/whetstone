@@ -709,3 +709,151 @@ Use `gap` instead of margins between items, `min-width: 0` on flex or grid child
 ### Pitfalls
 
 Nested flex boxes to fake a grid; fixed pixel breakpoints tied to devices; text overflow (`min-width: auto` default in flex); hiding content with `display: none` and losing accessibility without a replacement.
+
+## `fetch` gotchas: why it does not reject on a 404, what CORS protects, and a safe JSON helper
+<!--
+id: fetch-errors-and-cors-protection
+level: junior
+tags: fetch, http, errors, cors, same-origin policy, abortcontroller
+minutes: 12
+-->
+
+> [!PROMPT]
+> Why does `fetch` not reject on a 404 or 500? What does CORS actually protect, in one sentence? Write a small helper that handles errors properly.
+
+> [!HINT]
+> - What does a promise returned by `fetch` mean: "the server answered" or "the request succeeded"?
+> - Who enforces CORS, and who does it protect?
+> - What else can fail besides the status code?
+
+> [!TLDR]
+> `fetch` rejects only when no HTTP response could be obtained (network failure, DNS, CORS block, abort); an HTTP error status is still a valid response, so you must check `response.ok` yourself and throw. CORS in one sentence: it is the browser relaxing the same-origin policy so a page may read a cross-origin response only if that server opted in, which protects the user's logged-in data from being read by other sites, not the server from requests. Write a helper that throws a typed error on `!ok`, parses the body defensively, and supports timeouts.
+
+### A helper that does it right
+
+```js
+class HttpError extends Error {
+  constructor(response, body) {
+    super(`HTTP ${response.status}`);
+    this.status = response.status;
+    this.body = body;
+  }
+}
+
+async function getJson(url, init) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(10_000), ...init });
+  const body = await response.json().catch(() => null);   // error pages are not always JSON
+  if (!response.ok) throw new HttpError(response, body);
+  return body;
+}
+
+try {
+  await getJson('/api/missing');
+} catch (error) {
+  if (error instanceof HttpError && error.status === 404) showNotFound();
+  else if (error.name === 'TimeoutError') showRetry();
+  else if (error instanceof TypeError) showOffline();     // network failure or blocked by CORS
+  else throw error;
+}
+```
+
+```js
+const res = await fetch('/api/missing');
+res.ok;      // false
+res.status;  // 404   (the promise still resolved)
+await fetch('http://127.0.0.1:1/');   // rejects with TypeError: the connection failed
+```
+
+### What CORS is and is not
+
+- **It is enforced by the browser,** not by the server. `curl` and other servers ignore it.
+- **It protects the user,** whose cookies would otherwise let any site read their data from another site's API. The server states who may read with `Access-Control-Allow-Origin` (and `Allow-Credentials`, `Allow-Headers`).
+- **It does not stop the request being sent** for "simple" requests (a cross-site form post still reaches the server), which is why CSRF defences are separate. Other requests are preceded by a preflight `OPTIONS`.
+- **It does not authenticate anyone.** An allowed origin is not an authorised user.
+- **A failed CORS check looks like a network error** in JavaScript (a `TypeError`); the console shows the real reason.
+
+### Other things that go wrong
+
+- Reading the body twice throws; call `response.clone()` first if you must.
+- `204 No Content` has no body, so `response.json()` throws.
+- Retry only idempotent requests, and only for network errors, `429` and `5xx`.
+- `credentials: 'include'` is needed to send cookies cross-origin, and then `Allow-Origin` cannot be `*`.
+
+### References
+
+- [MDN: Using the Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)
+- [MDN: Cross-Origin Resource Sharing (CORS)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
+
+Appears in a shared list of JavaScript phone-screen prompts (second-hand; source unverified). The explanation and code are my own; the helper was run in Node against a local server.
+
+## Refreshing `/orders/42` returns a server 404 in a single-page app: client routing, history fallback and its traps
+<!--
+id: spa-deep-link-404
+level: junior
+tags: spa, routing, history api, deployment, nginx, rewrites, 404
+minutes: 12
+-->
+
+> [!PROMPT]
+> Clicking a link to `/orders/42` works, but refreshing that URL returns a server 404. Why do those two actions behave differently, and how do you fix it?
+
+> [!HINT]
+> - Who handles the URL in each case: the browser's router or the server?
+> - What file does the server have for `/orders/42`?
+> - What should still return a 404 after your fix?
+
+> [!TLDR]
+> A link click is intercepted by the client-side router, which calls `history.pushState` and renders the route in JavaScript without asking the server for anything. A refresh (or a pasted link) is a real navigation: the browser asks the server for `/orders/42`, and the server has only `index.html` and static assets, no such file, so it answers 404. The fix is a history fallback: for navigation requests that match no file, serve `index.html` with status 200 so the router can render the route. Keep real 404s for missing assets and API paths, and return a proper 404 status for unknown routes (or use server rendering) so crawlers are not told every URL exists.
+
+### Why they differ
+
+```text
+Click a link      router → history.pushState('/orders/42') → render      (no request)
+Refresh / paste   browser → GET /orders/42 → server → ?                  (server must answer)
+```
+
+### The fix on the server
+
+```js
+// Node: a static server with a history fallback (tested)
+const looksLikeFile = path.extname(pathname) !== '';
+
+if (files.has(file)) serve(file);                       // real files first
+else if (!looksLikeFile && req.method === 'GET' && accepts('text/html')) {
+  res.setHeader('Cache-Control', 'no-cache');           // the shell must revalidate
+  serve('/index.html');                                  // status 200: the router takes over
+} else {
+  res.statusCode = 404;                                  // missing assets and API paths stay 404
+}
+```
+
+```text
+location / { try_files $uri /index.html; }
+location /assets/ { try_files $uri =404; expires 1y; add_header Cache-Control "public, immutable"; }
+```
+
+```json
+{ "rewrites": [{ "source": "/((?!api/|assets/).*)", "destination": "/index.html" }] }
+```
+
+Most hosts have a switch for this (a Vercel rewrite, a Netlify `_redirects` line with `/* /index.html 200`, S3 and CloudFront custom error responses, Firebase `rewrites`). The Vite dev server does it automatically, which is why the bug only appears after deploying.
+
+### Traps
+
+- **Missing assets returning HTML:** if the fallback also catches `/assets/old.js`, a stale tab gets `index.html` as JavaScript and fails with a syntax error instead of a clear 404 (see the stale chunk question).
+- **Soft 404s:** the server says 200 for `/orders/does-not-exist`, and search engines index junk. Render a not-found page and, when possible, send 404 (server rendering or an edge function that checks the route).
+- **Relative asset paths:** `src="app.js"` on `/orders/42` resolves to `/orders/app.js`; use root-absolute paths or a `<base>`.
+- **Hash routing** (`/#/orders/42`) avoids the problem because the server never sees the fragment, at the cost of ugly URLs and weaker SEO.
+- **Caching:** the fallback response is the HTML shell, so give it `no-cache`.
+
+### Follow-ups
+
+- **"How would SSR change this?"** The server renders the right HTML for each URL, so unknown routes can truly return 404.
+- **"What about a CDN?"** Configure the rewrite there, and do not cache 404s for assets for long.
+
+### References
+
+- [MDN: History API](https://developer.mozilla.org/en-US/docs/Web/API/History_API)
+- [Vite: Building for production](https://vite.dev/guide/build)
+
+Appears in a shared list of Angular interview prompts (second-hand; source unverified). The explanation was written by me and the fallback logic was run in Node.

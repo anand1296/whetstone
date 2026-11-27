@@ -1391,3 +1391,702 @@ Payment confirmation can arrive later (a bank redirect, a webhook). The confirma
 - [web.dev: Optimize Largest Contentful Paint](https://web.dev/articles/optimize-lcp)
 
 Listed ("E-commerce application") among example frontend system design problems in a candidate's interview-loop outline shared online (second-hand; source unverified). The design and the order-placement tests are my own. For the object-oriented version, see the e-commerce platform question.
+
+## Design a travel booking site (Airbnb-style): search, map and list, date picker, availability and checkout
+<!--
+id: design-travel-booking
+level: lead
+tags: system design, booking, search, maps, date range, availability, checkout, airbnb
+minutes: 35
+-->
+
+> [!PROMPT]
+> Design the frontend of a travel booking product like Airbnb: search by place, dates and guests, results on a list and a map, a listing page with a calendar and price, and a booking flow.
+
+> [!HINT]
+> - Search state in the URL, a list and a map that stay in sync.
+> - Availability and price depend on the dates: what is cacheable and what is not?
+> - The booking flow: holds, double booking, payment, and recovering from failure.
+
+> [!TLDR]
+> Treat the search as URL state (place, dates, guests, map bounds) so results are shareable and survive reloads, and fetch results for the current bounds and filters with cancellation of stale requests. Keep the list and the map in sync through one shared selection and a "search this area" button instead of refetching on every pan. Split the listing page by cacheability: photos and description are cacheable and server-rendered for SEO, while price and availability for the chosen dates are fetched fresh. The date picker is a small state machine that rejects ranges crossing booked nights and enforces minimum stays, and the total is computed from nightly prices plus fees. Checkout is a multi-step flow with server-side holds and idempotent payment, because the client can never be the source of truth for availability.
+
+### Requirements
+
+- Functional: search (place, dates, guests, filters), results list and map, listing page with photos, amenities, reviews and a calendar, price quote, booking and payment, trips list.
+- Non-functional: fast first result (SEO for destination and listing pages), smooth map interaction, accessible calendar, resilient checkout (no double charge, no double booking), works on mobile, i18n and currency.
+
+### Architecture
+
+```text
+Search page                         Listing page                        Checkout
+ ├─ SearchBar (where/dates/guests)   ├─ Gallery (lazy, LCP first)        ├─ Details → Pay → Confirm
+ ├─ Filters (URL state)              ├─ Calendar + PriceBox (fresh)      ├─ Hold timer (server)
+ ├─ ResultsList (virtualized)        ├─ Reviews (paginated)              ├─ Idempotent payment
+ └─ Map (clusters, bounds)           └─ Host, rules, map                 └─ Confirmation page
+        │ shared selection + bounds         │ GET /quote?dates, /availability
+        └──────────────── API / BFF ────────┴───────────────────────────────
+```
+
+### Search state lives in the URL
+
+```ts
+function toParams(s: { where: string; start?: string; end?: string; guests: number; bounds?: [number, number, number, number] }) {
+  const p = new URLSearchParams();
+  p.set('where', s.where);
+  if (s.start) p.set('checkin', s.start);
+  if (s.end) p.set('checkout', s.end);
+  p.set('guests', String(s.guests));
+  if (s.bounds) p.set('bbox', s.bounds.map((n) => n.toFixed(3)).join(','));   // rounded: fewer distinct cache keys
+  return p.toString();
+}
+```
+
+The URL is the source of truth; components read it and write it (`replace` while panning, `push` for deliberate searches). Debounce map movement, cancel the previous request, and round the bounds so nearby pans share a cache entry.
+
+### Date range as a small state machine
+
+```ts
+function pick(range: Range, clicked: ISODate, l: Listing): Range {
+  if (l.booked.has(clicked)) return range;                                   // cannot start on a booked night
+  if (!range.start || range.end) return { start: clicked, end: null };       // start a new range
+  if (clicked <= range.start) return { start: clicked, end: null };
+  for (let d = range.start; d < clicked; d = addDays(d, 1))
+    if (l.booked.has(d)) return { start: clicked, end: null };               // would cross a booked night
+  return { start: range.start, end: clicked };                               // end is the checkout day
+}
+
+function quote(range: Range, l: Listing) {
+  if (!range.start || !range.end) return { ok: false, reason: 'choose dates' };
+  const nights = nightsBetween(range.start, range.end);
+  if (nights < l.minNights) return { ok: false, reason: `minimum ${l.minNights} nights` };
+  let sum = 0;
+  for (let i = 0; i < nights; i++) sum += l.nightlyPrice[addDays(range.start, i)] ?? NaN;
+  return Number.isNaN(sum) ? { ok: false, reason: 'price unavailable' } : { ok: true, nights, total: sum + l.cleaningFee };
+}
+```
+
+I ran this with a three-night stay (two nights at 100, one at 150, plus a 40 cleaning fee) and got 390; a one-night pick returned "minimum 2 nights", and a range crossing a booked night restarted. Use UTC dates (or a date-only type) so daylight saving never shifts a night, and treat the quote on screen as a preview: the server recomputes it.
+
+### List and map together
+
+- One **selection** state (hovered or selected listing id) drives marker highlight and card highlight, in both directions.
+- Show **clusters** at low zoom; render at most a few hundred markers; virtualize the list.
+- "Search as I move the map" off by default on mobile; a **"Search this area"** button avoids constant refetching.
+- Keep the **previous results** on screen while a new request runs; show a thin progress indicator, not a blank list.
+- Map library loaded on demand (it is large); list works without it.
+
+### Listing page rendering
+
+| Part | Strategy |
+|---|---|
+| Photos, description, amenities, rules | Server-render or statically generate; cache at the edge; structured data for SEO |
+| Calendar availability, price for the dates | Fetch fresh on the client; never cached for long |
+| Reviews | Paginated, loaded after the shell |
+| Similar listings | Deferred; failure must not break booking |
+
+LCP is the hero photo: preload it, reserve its aspect ratio, serve responsive AVIF or WebP, and load the rest of the gallery lazily.
+
+### Booking flow
+
+1. **Quote** (server-side price, taxes, fees, currency) and a **hold** on the dates for a short time, shown as a timer.
+2. **Details and payment** with the provider's hosted fields (card data never touches your servers), 3-D Secure handled by redirect or modal.
+3. **Confirm** with an **idempotency key** so a retry or double click cannot charge twice or create two bookings.
+4. If the hold expires or the dates were taken, show a clear message with alternatives; never silently change the price.
+5. Persist the flow state (URL step plus server-side draft) so a refresh or a switch of device resumes it.
+
+### Optimizations and risks
+
+- **Accessibility:** the calendar as a grid with arrow-key navigation, announced selection and range, real buttons; the map is an enhancement, the list is the accessible equivalent.
+- **Performance:** skeleton cards with fixed height, image lazy loading, prefetch the listing on hover or intent, cache search results by key.
+- **Resilience:** retry reads, never auto-retry a payment without the key, offline-friendly trips page.
+- **Metrics:** search-to-listing click rate, listing-to-booking conversion, quote errors, hold expirations, map interactions per session.
+
+### Follow-ups
+
+- **"How do you avoid double booking?"** The database enforces it (a transaction or exclusion constraint on listing and date range); the client only shows a hold.
+- **"How would you localise prices and dates?"** `Intl.NumberFormat` and `Intl.DateTimeFormat`, currency chosen by the user, not the server's guess.
+
+### References
+
+- [web.dev: Optimize Largest Contentful Paint](https://web.dev/articles/optimize-lcp)
+- [WAI-ARIA Authoring Practices: Date Picker Dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/examples/datepicker-dialog/)
+- [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
+
+Listed among popular frontend system design prompts (second-hand; source unverified). The explanation is my own; the date-range and quote logic was run in Node.
+
+## Design an Instagram-style photo sharing app: feed, stories, upload pipeline, optimistic posting and image delivery
+<!--
+id: design-photo-sharing
+level: lead
+tags: system design, instagram, photo sharing, upload, optimistic ui, image delivery, stories
+minutes: 35
+-->
+
+> [!PROMPT]
+> Design the frontend of an Instagram-like photo sharing app: a feed of photos, stories, posting a photo with a caption, likes and comments, and profile grids, on mobile web.
+
+> [!HINT]
+> - Images dominate: placeholders, responsive sizes, formats, and bandwidth.
+> - Posting must feel instant even on slow networks: what does the UI do before the server answers?
+> - Where is the complexity: feed, upload, or stories?
+
+> [!TLDR]
+> The product is image delivery plus a fast, forgiving posting flow. For viewing: a cursor-paginated feed with virtualization, each image served as a responsive set of AVIF or WebP sizes from a CDN, with a reserved aspect ratio and a tiny blurred placeholder so nothing shifts, and the first image prioritised. For posting: pick, crop and compress on the client, create an optimistic post immediately with a client id, upload in resumable chunks with progress and retry, and then reconcile the real id into the same row so there is no flicker; failures stay visible with a retry button. Stories are a separate, time-boxed viewer with prefetching of the next item, and likes and comments are optimistic with rollback. Design for flaky mobile networks and low memory.
+
+### Requirements
+
+- Functional: feed, stories ring and viewer, create post (photo, caption), like and comment, profile grid, follow.
+- Non-functional: fast on mid-range phones and slow networks, no layout shift, smooth scrolling, resumable uploads, data saver mode, accessible (alt text, captions, reduced motion).
+
+### Architecture
+
+```text
+Feed (virtualized)            Composer                         Stories
+ ├─ PostCard (memo)            ├─ Picker + crop + compress      ├─ Tray (avatars, seen state)
+ │   ├─ Image (blur-up)        ├─ Optimistic post (clientId)    └─ Viewer (timer, preload next)
+ │   └─ Actions (optimistic)   └─ Upload queue (chunks, retry)
+ └─ Query cache (normalized)        │
+                         CDN (resized variants) ◀── Media service ◀── upload endpoint
+```
+
+### Image delivery
+
+- Server (or an image CDN) produces several widths in AVIF, WebP and JPEG; the client uses `srcset` and `sizes`.
+- The API returns **width, height and a tiny placeholder** (a blurhash or a 20-pixel data URL) so the card reserves space and shows a blur until the real image decodes.
+- First image: `fetchpriority="high"` and no lazy loading; the rest lazy with a margin so they load just before they appear.
+- Decode off the main thread (`decoding="async"`), cap decoded sizes, and release off-screen images in long lists to protect memory.
+- Honour **data saver** and slow connections (`navigator.connection.saveData`, effective type) by choosing smaller variants.
+
+### Posting: optimistic and resumable
+
+```ts
+type Post = { id: string; clientId: string; status: 'uploading' | 'posted' | 'failed'; progress: number; caption: string; mediaUrl?: string };
+
+function posts(state: Post[], a: Action): Post[] {
+  switch (a.type) {
+    case 'create':   return [{ id: a.clientId, clientId: a.clientId, status: 'uploading', progress: 0, caption: a.caption }, ...state];
+    case 'progress': return state.map((p) => (p.clientId === a.clientId && p.status === 'uploading' ? { ...p, progress: a.progress } : p));
+    case 'posted':   return state.map((p) => (p.clientId === a.clientId ? { ...p, id: a.id, status: 'posted', progress: 1, mediaUrl: a.mediaUrl } : p)); // same row, real id
+    case 'failed':   return state.map((p) => (p.clientId === a.clientId ? { ...p, status: 'failed' } : p));
+    case 'retry':    return state.map((p) => (p.clientId === a.clientId ? { ...p, status: 'uploading', progress: 0 } : p));
+  }
+}
+```
+
+```ts
+async function uploadResumable(file: Uint8Array, o: {
+  chunkSize: number;
+  send: (offset: number, chunk: Uint8Array, total: number) => Promise<number>;   // returns the offset the server acknowledged
+  onProgress: (fraction: number) => void;
+  maxRetries?: number;
+  signal?: AbortSignal;
+}) {
+  let offset = 0, failures = 0;
+  while (offset < file.length) {
+    o.signal?.throwIfAborted();
+    const chunk = file.subarray(offset, offset + o.chunkSize);
+    try {
+      offset = await o.send(offset, chunk, file.length);
+      failures = 0;
+      o.onProgress(offset / file.length);
+    } catch (error) {
+      if (++failures > (o.maxRetries ?? 3)) throw error;       // retry the same chunk
+    }
+  }
+}
+```
+
+I ran both: a failed chunk was retried and the upload finished with progress `0.4, 0.8, 1`; late progress after a failure was ignored; the real id replaced the client id in the same row; an aborted signal stopped the upload.
+
+Other steps in the pipeline: resize and re-encode on the client (canvas or `createImageBitmap`) to cut upload size, strip location metadata unless the user opts in, a draft saved locally so a closed tab does not lose the post, and a background queue (service worker Background Sync where supported) for flaky networks.
+
+### Feed and engagement
+
+- Cursor pagination with prefetch when the user nears the end; a normalized cache (post, user, comment) so a like in one place updates everywhere.
+- **Optimistic like:** flip locally, send, roll back and toast on failure; coalesce rapid taps (double tap to like) into one request.
+- **Comments:** optimistic insertion with a pending style, load more on demand, and virtualize long threads.
+- **Video** (reels): autoplay muted in view, one video playing at a time, `preload="metadata"` for the next.
+
+### Stories
+
+- A tray of rings (seen or unseen from local state plus server).
+- The viewer plays items on a timer with progress bars, pauses on press, and **prefetches the next item** while the current one plays.
+- Keyboard and swipe navigation; honour `prefers-reduced-motion`; a visible pause control for accessibility.
+
+### Optimizations and risks
+
+- **Memory:** hundreds of decoded images crash low-end phones; virtualize and unload.
+- **Accessibility:** `alt` text field when posting (and generated suggestions), buttons with names, focus management in the story viewer.
+- **Security and privacy:** validate file type by content, limit size, scan server-side, sanitize captions, strip metadata.
+- **Metrics:** time to first image, upload success rate and time, share of failed posts retried, scroll jank (INP), data consumed per session.
+
+### Follow-ups
+
+- **"How do you keep the feed fresh without jumping?"** A "new posts" pill, never inserting above the reader (see the news feed question).
+- **"What if the user goes offline mid-upload?"** The queue pauses, the post stays visible with a pending state, and resumes from the last acknowledged offset.
+
+### References
+
+- [web.dev: Serve images in modern formats](https://web.dev/articles/serve-images-avif)
+- [MDN: Background Synchronization API](https://developer.mozilla.org/en-US/docs/Web/API/Background_Synchronization_API)
+- [tus: resumable upload protocol](https://tus.io/protocols/resumable-upload)
+
+Listed among popular frontend system design prompts (second-hand; source unverified). The explanation is my own; the reducer and the resumable upload loop were run in Node with a flaky sender.
+
+## Design a Pinterest-style masonry grid: layout algorithm, virtualization, infinite loading and image handling
+<!--
+id: design-masonry-grid
+level: lead
+tags: system design, pinterest, masonry, layout, virtualization, infinite scroll, images
+minutes: 30
+-->
+
+> [!PROMPT]
+> Design the frontend of Pinterest: an infinite masonry grid of images of different heights, a pin detail view, saving to boards, and search. Focus on layout, performance and loading.
+
+> [!HINT]
+> - CSS columns, grid, or JavaScript layout: what does each cost, and what order does the reader see?
+> - If images load later, how do you know their heights?
+> - How do you keep thousands of pins from slowing the page?
+
+> [!TLDR]
+> A masonry grid places each item in the currently shortest column, which only works well if each item's height is known before its image loads: the API returns width and height (and a dominant colour or blurhash), so the layout is computed from aspect ratios without waiting for downloads, with no shifting. Compute positions in JavaScript (absolute positioning or a transform), recompute on container resize by changing the column count, and virtualize by rendering only the items whose boxes intersect the viewport plus an overscan. Load more with an `IntersectionObserver` sentinel and cursor pagination, append items without moving existing ones, lazy-load images with priority for the first screen, and keep the pin detail as a route so back navigation restores the scroll position.
+
+### Choosing the layout technique
+
+| Approach | Order | Notes |
+|---|---|---|
+| CSS `column-count` | Top to bottom per column (reading order is odd) | No JavaScript; bad for infinite loading because new items reshuffle |
+| CSS grid with `grid-template-rows: masonry` | Left to right | Not widely supported yet |
+| Row-span trick in CSS grid (`grid-row: span n`) | Left to right | Needs heights known in rows; works with a layout pass |
+| JavaScript shortest-column | Left to right by insertion | Full control, works with virtualization; the usual choice at scale |
+
+### The algorithm
+
+```ts
+function layoutMasonry(items: { id: string; aspect: number }[], columns: number, colWidth: number, gap: number) {
+  const heights = new Array(columns).fill(0);
+  const placed: { id: string; col: number; top: number; height: number }[] = [];
+  for (const it of items) {
+    let col = 0;
+    for (let c = 1; c < columns; c++) if (heights[c] < heights[col]) col = c;   // shortest column, leftmost on ties
+    const height = Math.round(colWidth / it.aspect);                            // known from width and height in the API
+    placed.push({ id: it.id, col, top: heights[col], height });
+    heights[col] += height + gap;
+  }
+  return { placed, heights };
+}
+
+function visible(placed: Placed[], scrollTop: number, viewport: number, overscan = 200) {
+  return placed.filter((p) => p.top + p.height >= scrollTop - overscan && p.top <= scrollTop + viewport + overscan);
+}
+```
+
+I ran it with ten items of varied aspect ratios in three columns: the first three went to columns 0, 1 and 2, the fourth to the shortest column, the final column heights were within a few hundred pixels of each other, appending items never moved the earlier ones, and the visibility filter returned fewer items than the total.
+
+Render each visible item with `position: absolute; transform: translate(x, y)` inside a container whose height is the tallest column. Positions are cheap to recompute: keep the placed array in a ref and rebuild only when the column count or width changes.
+
+### Data and loading
+
+- API: cursor-paginated pins `{ id, width, height, color, src variants, title }`; the **dimensions are required**, otherwise layout shifts as images load.
+- Prefetch the next page when the sentinel is within about two viewports of the end; append without touching existing positions.
+- Images: placeholder colour or blurhash, `loading="lazy"` except the first screen, `srcset` by column width, AVIF or WebP.
+- Cancel in-flight loads for items that scroll far away; unload decoded images in very long sessions.
+- Deduplicate pins across pages (the same pin can be returned twice when ranking changes).
+
+### Responsiveness and resize
+
+- Column count from container width (`Math.max(1, Math.floor((width + gap) / (minCol + gap)))`), observed with `ResizeObserver`.
+- Changing the column count re-lays out everything, so debounce resize and keep the **first visible pin** anchored by recomputing the scroll position from its new `top`.
+
+### Pin detail and saving
+
+- Route `/pin/:id` rendered as a modal over the grid with its own URL; closing returns to the same scroll position (store it, or keep the grid mounted behind the overlay).
+- Save to board: optimistic, with a board picker; the saved state is a normalized entity shared by grid and detail.
+- Related pins load below the pin as another masonry grid reusing the same component.
+
+### Accessibility and performance
+
+- The visual order is not the DOM order for screen readers unless you keep DOM in insertion order (the algorithm above does); expose a list with item names, and keyboard focus that scrolls items into view.
+- Reduce motion for hover effects, give every image alt text from the pin title or description.
+- Metrics: scroll frame rate and INP on the grid, time to first row of images, layout shift (should be near zero), memory after 5 minutes of scrolling.
+
+### Follow-ups
+
+- **"What if the API cannot give heights?"** Measure with `ResizeObserver` or `img.decode()` and re-place, accepting a shift; better, fix the API or compute the size on upload.
+- **"How do you virtualize with variable heights?"** Because all `top` and `height` values are known from layout, filter the placed array by the viewport, as above.
+
+### References
+
+- [MDN: Masonry layout](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_grid_layout/Masonry_layout)
+- [web.dev: Optimize Cumulative Layout Shift](https://web.dev/articles/optimize-cls)
+- [MDN: ResizeObserver](https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver)
+
+Listed among popular frontend system design prompts (second-hand; source unverified). The explanation is my own; the placement and windowing functions were run in Node.
+
+## Design a rich text editor: document model, selection, formatting commands, collaboration hooks and paste
+<!--
+id: design-rich-text-editor
+level: principal
+tags: system design, rich text editor, document model, contenteditable, selection, undo, prosemirror
+minutes: 40
+-->
+
+> [!PROMPT]
+> Design a rich text editor for a web app: bold, italic, headings, lists, links, images, undo and redo, paste from Word or the web, and later real-time collaboration. Where does the complexity live?
+
+> [!HINT]
+> - What is the source of truth: the DOM, or your own model?
+> - How do you represent formatting so that applying and removing bold is simple?
+> - What happens on paste, on IME input and on undo?
+
+> [!TLDR]
+> The key decision is to make your own document model the source of truth and render the DOM from it, instead of treating `contenteditable` HTML as the data. The model is a tree of blocks (paragraphs, headings, list items) containing runs of text with marks (bold, italic, link); every change is a small, explicit operation or transaction, which makes undo, redo, validation, serialization and later collaboration tractable. `contenteditable` supplies input, selection and IME, but its behaviour differs across browsers, so intercept `beforeinput`, translate it into transactions, and keep the selection mapped to model positions. Paste must be parsed and sanitized into the model, not inserted as HTML. Use ProseMirror, Lexical, Slate or TipTap unless an editor is your product; know why they are built this way.
+
+### What goes wrong with "just use contenteditable HTML"
+
+- The browser mutates the DOM in inconsistent ways (extra `<div>`, `<br>`, nested spans), so the HTML is unpredictable.
+- Undo from the browser is global and breaks when you change the DOM yourself.
+- No schema: anything can end up inside anything, including pasted scripts and styles.
+- No good way to merge two people's edits to the same HTML.
+
+### Document model
+
+```ts
+type Mark = 'bold' | 'italic';
+type Run = { text: string; marks: Mark[] };
+type Block = { type: 'paragraph' | 'heading' | 'list-item'; level?: number; runs: Run[] };
+type Doc = Block[];
+```
+
+Keep runs **normalized**: no empty runs, and adjacent runs with identical marks are merged. Formatting is then a function on runs: split at the selection, change marks on the middle part, normalize.
+
+```ts
+function toggleMark(runs: Run[], from: number, to: number, mark: Mark): Run[] {
+  const [before, mid, after] = split(runs, from, to);
+  const allHave = mid.length > 0 && mid.every((r) => r.marks.includes(mark));   // toggle off only if everything has it
+  const changed = mid.map((r) => ({
+    text: r.text,
+    marks: allHave ? r.marks.filter((m) => m !== mark) : r.marks.includes(mark) ? r.marks : [...r.marks, mark],
+  }));
+  return normalize([...before, ...changed, ...after]);
+}
+```
+
+I ran this on "Hello brave world": making characters 6 to 11 bold gave three runs; adding italic over 3 to 8 gave five runs (`Hel`, `lo ` italic, `br` bold and italic, `ave` bold, ` world`) with the text unchanged; toggling bold off again merged everything back into one run. Serialization to HTML escapes text (`a<b` becomes `a&lt;b` inside `<strong>`).
+
+### Architecture
+
+```text
+ keyboard / IME / paste / drag ──▶ beforeinput + clipboard handlers
+                                        │ translate to
+                                        ▼
+                                 Transaction (steps + selection)
+                                        │ apply
+   history (undo stack) ◀──── State { doc, selection } ──▶ plugins (validation, input rules, collab)
+                                        │ render (diff)
+                                        ▼
+                                  DOM (contenteditable)
+```
+
+- **Transactions:** a list of steps (insert text, delete range, add or remove mark, split or join block). Each step has an inverse, which gives undo for free, and can be transformed against concurrent steps for collaboration.
+- **Selection:** convert between DOM ranges and model positions; handle collapsed cursor, ranges across blocks, and IME composition (do not re-render the DOM under an active composition or the input method breaks).
+- **Rendering:** update only changed blocks; preserve the DOM selection after rendering.
+- **Toolbar state:** derived from the selection (is bold active here? what is the block type?), not stored separately.
+
+### Undo and redo
+
+- A stack of inverse transactions; group typing into one entry (merge steps within a short time) so one undo removes a word, not a letter.
+- Undo is **local** in collaboration: it reverses your own steps, transformed against others'.
+- Do not use `document.execCommand('undo')`; it does not know your model.
+
+### Paste, drag and images
+
+- Read `text/html` and `text/plain` from the clipboard, parse into your schema with a whitelist (drop styles, scripts, unknown tags, event attributes), and normalize Word's markup.
+- Plain paste (`Ctrl+Shift+V`) bypasses formatting.
+- Images: insert a placeholder node, upload, then replace with the URL; store dimensions to avoid layout shift.
+- Links: validate protocols (`http`, `https`, `mailto`), add `rel="noopener noreferrer"`.
+
+### Collaboration hooks
+
+Because every edit is an operation, you can add collaboration later: **OT** (transform concurrent operations against each other, with a central server) or a **CRDT** (operations that merge in any order, such as Yjs). Positions become relative anchors rather than integer offsets. See the collaborative editor question for the trade-offs.
+
+### Accessibility and quality
+
+- The editable region has `role="textbox"` and `aria-multiline`, the toolbar uses a roving tabindex with `aria-pressed`, shortcuts match user expectations, and screen readers announce formatting changes.
+- Test: pure functions on the model (like `toggleMark`) with unit tests, property tests (apply then undo returns the original), and a browser test matrix for IME, paste and selection.
+- Performance: virtualize very large documents by block, avoid re-rendering unchanged blocks, and keep transactions O(size of change).
+
+### Follow-ups
+
+- **"Build or buy?"** Use ProseMirror, Lexical, Slate or TipTap; building from scratch is justified only when the editor is the product.
+- **"How do you store the document?"** The model as JSON (versioned schema) with HTML or Markdown as export formats.
+- **"How do you sanitize output?"** Render from the model, never `innerHTML` of user HTML; sanitize imports with an allowlist.
+
+### References
+
+- [ProseMirror guide: Document, state and transactions](https://prosemirror.net/docs/guide/)
+- [Lexical documentation](https://lexical.dev/docs/intro)
+- [MDN: `beforeinput` event](https://developer.mozilla.org/en-US/docs/Web/API/Element/beforeinput_event)
+
+Listed among popular frontend system design prompts (second-hand; source unverified). The explanation is my own; the mark-toggling and normalization functions were run in Node.
+
+## Design a Live Sales Widget with polling: high-level architecture, intervals, ETags and scaling polling to a million clients
+<!--
+id: design-live-sales-widget-polling
+level: lead
+tags: system design, polling, real-time, etag, backoff, caching, cdn, widget
+minutes: 30
+-->
+
+> [!PROMPT]
+> Design the high-level architecture of a real-time Live Sales Widget (a number and a small chart of sales, updated continuously) using polling. How do you optimize polling at scale?
+
+> [!HINT]
+> - Why polling and not WebSockets? When is that the right answer?
+> - Who pays for each poll: the client, the network, the origin?
+> - What makes a million pollers cheap: caching, conditional requests, jitter, pausing.
+
+> [!TLDR]
+> Poll a small, cacheable JSON endpoint on an interval that matches how fresh the data must be. Make each poll cheap: conditional requests with `ETag` and `If-None-Match` so unchanged data returns `304` with no body, a short CDN cache (micro-caching for a few seconds) so a million clients cause only a handful of origin requests, and a payload that contains only what changed since a cursor. Make the clients well behaved: pause while the tab is hidden, add jitter so clients do not synchronise, back off exponentially on errors, abort in-flight requests, and use server hints (a `Retry-After` or a `nextPollMs` field) to slow everyone down under load. Choose polling when updates are infrequent, simple infrastructure matters, or proxies block long-lived connections; move to SSE or WebSockets when updates are frequent and latency must be sub-second.
+
+### Requirements
+
+- A widget showing today's sales total, orders per minute and a recent trend, fresh within about 5 seconds, on many dashboards at once (say a million concurrent viewers).
+- Resilient to errors and slow networks; cheap on mobile data and battery; protects the backend.
+
+### Architecture
+
+```text
+ Orders ──▶ Aggregator (per second) ──▶ Cache/Store ──▶ API /sales/live ──▶ CDN (micro-cache 5s) ──▶ Browsers (poll)
+                                                            ETag, Cache-Control: public, max-age=5, stale-while-revalidate=5
+```
+
+- The aggregation happens **once** on the server, not per request: a job maintains the current totals; the endpoint reads a precomputed value.
+- The response is identical for everyone (public data), so a CDN can serve it. For per-user data, poll a separate small private endpoint.
+- Response: `{ total, ordersPerMinute, series: [...], cursor, nextPollMs }` with an `ETag` derived from the cursor.
+
+### Client poller
+
+```ts
+class Poller {
+  private etag: string | null = null; private fails = 0; private timer: number | null = null;
+  private ctl: AbortController | null = null; private stopped = true;
+  constructor(private o: PollerOptions) {}
+
+  start() { this.stopped = false; this.schedule(0); }
+  stop() { this.stopped = true; if (this.timer !== null) clearTimeout(this.timer); this.ctl?.abort(); }
+
+  nextDelay(): number {
+    const base = this.o.baseMs ?? 5000, max = this.o.maxMs ?? 60000, jitter = this.o.jitter ?? 0.2;
+    const backoff = Math.min(max, base * 2 ** this.fails);                      // exponential on failures
+    return Math.round(backoff * (1 - jitter + 2 * jitter * Math.random()));     // +/- 20% so clients spread out
+  }
+
+  private async tick() {
+    this.timer = null; if (this.stopped || document.hidden) return;
+    this.ctl = new AbortController();
+    try {
+      const res = await fetch(this.o.url, { headers: this.etag ? { 'If-None-Match': this.etag } : {}, signal: this.ctl.signal });
+      if (res.status === 304) this.fails = 0;                                   // nothing changed: no body, no render
+      else if (res.ok) { this.etag = res.headers.get('ETag'); this.fails = 0; this.o.onData(await res.json()); }
+      else throw new Error(`HTTP ${res.status}`);
+    } catch (e) { if ((e as Error).name === 'AbortError') return; this.fails++; }
+    if (!this.stopped && !document.hidden) this.schedule(this.nextDelay());
+  }
+  /* schedule() sets the timer; visibilitychange pauses on hidden and polls at once on visible */
+}
+```
+
+I ran this class against a fake clock and a fake server: the first poll rendered data; the next sent `If-None-Match` and the `304` changed nothing on screen; a version change rendered once; two `503` responses lengthened the delay (5 s, then 10 s, then 20 s); while hidden no requests were sent, and becoming visible polled immediately; `stop()` ended all polling. With a random value of 0 and 1 the delay was 4,000 and 6,000 ms for a 5,000 ms base, which is the jitter window.
+
+### The arithmetic that justifies micro-caching
+
+```text
+1,000,000 viewers / 5 s interval = 200,000 requests per second at the edge
+50 CDN points of presence x 1 revalidation / 5 s TTL = about 10 origin requests per second
+```
+
+That is the point of a short `max-age` plus `stale-while-revalidate`: the edge absorbs the crowd, and freshness is bounded by the TTL.
+
+### Optimizations that matter
+
+1. **Conditional requests:** `ETag` with `304`, so unchanged polls cost headers only.
+2. **Edge caching:** a few seconds is enough; request coalescing at the CDN prevents a stampede when the cache expires.
+3. **Smaller payloads:** send the delta since a `cursor` (`/sales/live?since=...`) or only the aggregates; compress.
+4. **Jitter and backoff:** avoid synchronised spikes (for example everyone polling on the minute) and retry storms.
+5. **Server-directed intervals:** `nextPollMs` or `Retry-After` lets you slow every client during an incident without a deploy.
+6. **Visibility and activity:** pause in hidden tabs, slow down on idle, use the Page Visibility API, and refresh immediately on return.
+7. **Adaptive interval:** poll faster when data is changing, slower when it is flat.
+8. **Cancel and ignore stale:** abort the previous request and ignore out-of-order responses.
+9. **Render only on change:** compare the cursor or version before updating state.
+10. **Share one poller per page** (or per browser, through a `BroadcastChannel` or shared worker) so ten widgets do not make ten requests.
+
+### Polling, long polling, SSE or WebSocket
+
+| | Good for | Cost |
+|---|---|---|
+| Polling | Infrequent changes, simple, cache-friendly, works everywhere | Wasted requests, latency up to the interval |
+| Long polling | Lower latency than polling without a new protocol | Holds connections; reconnect logic |
+| SSE | One-way server push, automatic reconnect, works over HTTP | Connection per client; proxies |
+| WebSocket | Frequent two-way messages | Stateful servers, scaling and reconnection complexity |
+
+For a dashboard number updating every few seconds, cached polling is often the cheapest and most robust. If the product needs sub-second updates, switch to SSE and keep polling as the fallback.
+
+### Failure and UX
+
+- Show the **last good value** with an "updated 12 s ago" stamp, and a subtle "reconnecting" state after repeated failures; never blank the widget.
+- Handle a clock skew by trusting server timestamps; format with `Intl`.
+- Accessibility: use `aria-live="polite"` and announce only meaningful changes, not every tick.
+- Metrics: request rate, 304 ratio, cache hit ratio, p95 poll latency, data freshness (client time minus server timestamp), error rate by region.
+
+### Follow-ups
+
+- **"What about a thundering herd after an outage?"** Jitter, backoff and `Retry-After`; the CDN serves stale content on origin errors (`stale-if-error`).
+- **"How would you test it?"** A fake clock and fake server, as above, plus a load test for the origin.
+
+### References
+
+- [MDN: HTTP conditional requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Conditional_requests)
+- [MDN: Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
+- [RFC 5861: stale-while-revalidate and stale-if-error](https://datatracker.ietf.org/doc/html/rfc5861)
+
+Reported in an interview write-up (second-hand; source unverified). The explanation is my own; the poller was run against a fake clock and fake server in Node.
+
+## Design a list interface with search and filters that persist across reloads: URL state, rendering, pagination and caching
+<!--
+id: design-filterable-list
+level: senior
+tags: system design, filters, url state, pagination, caching, state management, performance
+minutes: 30
+-->
+
+> [!PROMPT]
+> Design a list-based interface with search and filters whose state persists across page reloads. Explain the component architecture, rendering behaviour, state management, performance optimizations, pagination and caching strategy.
+
+> [!HINT]
+> - Where should filter state live so that reloading and sharing a link restore it?
+> - What triggers a fetch, and how do you avoid fetching for every keystroke or showing stale results?
+> - Page or cursor pagination, and what does the cache key contain?
+
+> [!TLDR]
+> Put the filter, sort and page state in the URL: it survives reloads, is shareable, and supports the back button. Parse it into a typed object with defaults and validation, and serialize it omitting defaults so URLs stay short. Components read that state, a data layer keyed by the same normalized state fetches pages (debounced search, aborted stale requests, previous results kept while loading), and caches each key with a short stale time so going back is instant. Reset the page to 1 whenever a filter changes. Use server-side filtering and pagination for large data (cursor pagination if the list changes while browsing), and client-side filtering only when all data is already loaded. Keep non-shareable preferences (columns, density) in local storage. Render rows with stable keys, memoized rows, and virtualization if pages are large.
+
+### Component architecture
+
+```text
+ListPage (reads URL state, owns nothing else)
+ ├─ SearchBox (local text, debounced → URL)
+ ├─ FilterPanel (controlled by URL state)
+ ├─ ResultsSummary (count, active filters as removable chips, "clear all")
+ ├─ ResultsList (rows, empty/error/loading states)
+ │    └─ Row (memo, stable key)
+ └─ Pagination (or "Load more")
+        data layer: useList(filters) → cache keyed by normalized filters
+```
+
+### State: URL as the source of truth
+
+```ts
+interface Filters { q: string; categories: string[]; sort: 'relevance' | 'price' | 'newest'; page: number; inStock: boolean }
+const DEFAULTS: Filters = { q: '', categories: [], sort: 'relevance', page: 1, inStock: false };
+
+function parseFilters(search: string): Filters {
+  const p = new URLSearchParams(search);
+  const page = Number(p.get('page'));
+  const sort = p.get('sort') as Filters['sort'];
+  return {
+    q: (p.get('q') ?? '').slice(0, 100),
+    categories: [...new Set(p.getAll('cat'))].sort(),                     // order-insensitive, deduplicated
+    sort: ['relevance', 'price', 'newest'].includes(sort) ? sort : DEFAULTS.sort,   // invalid values fall back
+    page: Number.isInteger(page) && page >= 1 ? page : 1,
+    inStock: p.get('stock') === '1',
+  };
+}
+
+function serializeFilters(f: Filters): string {
+  const p = new URLSearchParams();
+  if (f.q) p.set('q', f.q);
+  [...f.categories].sort().forEach((c) => p.append('cat', c));
+  if (f.sort !== DEFAULTS.sort) p.set('sort', f.sort);
+  if (f.inStock) p.set('stock', '1');
+  if (f.page > 1) p.set('page', String(f.page));                          // defaults are omitted
+  return p.toString();
+}
+
+function update(f: Filters, patch: Partial<Filters>): Filters {
+  const changedFilter = (Object.keys(patch) as (keyof Filters)[]).some((k) => k !== 'page');
+  return { ...f, ...patch, page: patch.page ?? (changedFilter ? 1 : f.page) };   // a new filter resets the page
+}
+
+const cacheKey = (f: Filters) => JSON.stringify([f.q, f.categories, f.sort, f.page, f.inStock]);
+```
+
+I ran these: an empty query string parses to the defaults; bad values (`sort=bogus`, `page=-3`) fall back; a round trip returns the same state; defaults produce an empty URL; changing the query resets `page` to 1 and changing only the page keeps it; and `cat=b&cat=a` and `cat=a&cat=b` produce the same cache key.
+
+### Updating the URL
+
+- Typing in the search box updates **local** text immediately, and the URL after a debounce (about 300 ms) using `replace`, so history is not filled with keystrokes.
+- Applying a filter or sort uses `push` (back returns to the previous filter set); paging uses `push` too.
+- On load and on `popstate`, parse the URL into state; **never** read from two places.
+
+### Data layer and caching
+
+```ts
+class QueryCache<T> {
+  private data = new Map<string, { v: T; at: number }>();
+  private inflight = new Map<string, Promise<T>>();
+  constructor(private ttl: number, private now = Date.now) {}
+  get(k: string) { const e = this.data.get(k); return e && this.now() - e.at < this.ttl ? e.v : undefined; }
+  load(k: string, fetcher: () => Promise<T>) {
+    const hit = this.get(k); if (hit !== undefined) return Promise.resolve(hit);       // fresh: no request
+    const pending = this.inflight.get(k); if (pending) return pending;                 // share in-flight
+    const p = fetcher().then((v) => { this.data.set(k, { v, at: this.now() }); return v; })
+                       .finally(() => this.inflight.delete(k));
+    this.inflight.set(k, p); return p;
+  }
+}
+```
+
+Tested: two simultaneous loads of one key made one request; a second load within the TTL made none; after the TTL it fetched again.
+
+In practice use TanStack Query, SWR or RTK Query with `queryKey = ['list', filters]`, `placeholderData: keepPreviousData` (show old rows, dimmed, while the new page loads), `staleTime`, and `AbortSignal` support. Prefetch the next page when the user nears the end.
+
+### Pagination choices
+
+| | Offset or page number | Cursor |
+|---|---|---|
+| Jump to page N | Yes | No |
+| Stable while data changes | No (items shift between pages) | Yes |
+| Cost on deep pages | High (skips rows) | Constant |
+| Use for | Admin tables, small data | Feeds, large changing lists |
+
+"Load more" or infinite scroll for browsing; numbered pages when people need to return to a position. Put the cursor or page in the URL, or accept that the list restarts on reload.
+
+### Rendering and performance
+
+- **Stable keys** (ids, never indexes); memoize rows and pass stable callbacks; lift state so typing does not re-render every row.
+- **Debounce** search, **abort** stale requests, and ignore out-of-order responses.
+- **Virtualize** when a page has hundreds of rows; otherwise pagination is simpler and more accessible.
+- **Skeletons and layout reservation** to avoid shifts; keep previous results while loading.
+- **Server-side filtering** for large data; client-side only when the full dataset is already in memory (then derive the visible list with `useMemo`).
+- **Persistence beyond the URL:** column visibility, density and last-used sort in `localStorage`, guarded with try/catch.
+
+### States to design
+
+Loading (first and subsequent), empty ("No results for ... Clear filters"), error with retry, partial failure, and "filters changed while a request was in flight". Announce result counts with `aria-live`, keep focus where it was, and make filter chips removable with the keyboard.
+
+### Follow-ups
+
+- **"Search across reload with unsaved text?"** Initialise the input from the URL, so it is restored.
+- **"What if the filter options come from the server?"** Fetch facets with counts, cache separately, and validate URL values against them.
+- **"Multiple tabs?"** The URL makes each tab independent; the shared cache can sync through `BroadcastChannel` if needed.
+
+### References
+
+- [TanStack Query: Paginated queries and keepPreviousData](https://tanstack.com/query/latest/docs/framework/react/guides/paginated-queries)
+- [MDN: URLSearchParams](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)
+- [MDN: History API](https://developer.mozilla.org/en-US/docs/Web/API/History_API)
+
+Reported in an interview write-up (second-hand; source unverified). The explanation is my own; the URL parsing, serialization, cache key and cache class were run in Node.

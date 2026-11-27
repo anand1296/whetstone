@@ -206,7 +206,7 @@ IDs are stable; tests and ADRs refer to them.
 
 | Area | Requirement | How it is met |
 | --- | --- | --- |
-| Performance | Static mode: no network for content. Server mode: one boot request; answers fetched per topic and cached; repeat fetches revalidate with ETag (304). | §13 |
+| Performance | Static mode: no network for content. Server mode: one boot request; answers fetched per topic and cached; repeat fetches revalidate with ETag (308). | §13 |
 | Latency budgets | API p95 < 300 ms warm on Vercel + Neon in the same region; cold start < 3 s including migrations check. | Pool limits, lazy init, small queries |
 | Availability | A backend outage or missing configuration must not break studying, and must be visible rather than silent. | The API answers `503` with a setup checklist (`not_configured` / `unavailable`); the app shows the setup screen with a "Study offline for now" escape hatch |
 | Security | OWASP ASVS L1 intent: no stored XSS, CSRF, session fixation, open redirects, credential storage. | §12 |
@@ -476,7 +476,7 @@ All endpoints are under `/api`, JSON in and out, same-origin, session cookie. **
 | --- | --- | --- |
 | `GET /health` | none | `{ok, database, version, github}`; 503 if the database is unreachable |
 | `GET /bootstrap` | optional | `{mode:"server", user, site, features, announcement, auth:{github,dev}, locked, content:{version, sections:[…]}}`; drafts included for admins; `content:null, locked:true` for anonymous visitors of a members-only site (the default). Unconfigured deployment: `503 {error:{code:"not_configured"|"unavailable"}, setup:{database, github, owner, appUrl}}` |
-| `GET /content/sections/{id}` | per site access | `{version, answers:{questionId: html}}` with ETag/304 |
+| `GET /content/sections/{id}` | per site access | `{version, answers:{questionId: html}}` with ETag/308 |
 | `GET /invites/{token}` | none (rate-limited) | `{status: active·used·expired·revoked·invalid, role, invitedBy, expiresAt, siteName}` |
 | `GET /auth/github/start?invite=&next=#route` | none (rate-limited) | 302 to GitHub; sets a 10-minute HttpOnly state cookie |
 | `GET /auth/github/callback?code&state` | state cookie | Verifies state, exchanges the code, signs in, sets the session cookie, 302 to `/#next` or `/?auth_error=<code>` |
@@ -545,7 +545,7 @@ content/*.md ──────▶│ build/content (marked + highlight.js) → 
 ```
 
 - **One format.** `content/*.md` (front matter + `## Question` + `<!-- id, level, tags, minutes -->` + answer) is the seed, the export format and the static build input. Export → parse is tested to round-trip exactly.
-- **Two renderers, one contract.** The TypeScript compiler (static builds) and the Go renderer (server mode) produce the same document structure. CI renders all 269 answers with both and compares them with highlighting spans stripped (`TestParityWithStaticBuild`), and a unit test asserts both accept exactly the same fence languages.
+- **Two renderers, one contract.** The TypeScript compiler (static builds) and the Go renderer (server mode) produce the same document structure. CI renders all 308 answers with both and compares them with highlighting spans stripped (`TestParityWithStaticBuild`), and a unit test asserts both accept exactly the same fence languages.
 - **Rendered at write time.** The server stores HTML next to the Markdown, so reads are a plain SELECT and the preview equals what learners will see.
 - **Languages:** ts, tsx, js, jsx, html, xml, css, bash/sh/shell, json, yaml/yml, graphql, diff, http, text/txt, plus go/golang, sql, python/py, dockerfile/docker, proto/protobuf, toml, ini, hcl/terraform/tf (ready for backend and cloud topics).
 
@@ -697,7 +697,7 @@ Admins see per-learner summaries computed on the server (done counts per topic, 
 | --- | --- | --- | --- |
 | Go unit | `go test` | Markdown rendering (callouts, safety, code figures, every language), catalog parse/validate/export round-trip, progress parse/merge/summary | 15 |
 | Go integration | `go test` + real Postgres (`TEST_DATABASE_URL`) | Every API flow through HTTP: bootstrap, invite policy, roles, disabling, expiry/revocation, open registration, members-only, settings, full CMS lifecycle, revisions and trash, ETag, progress merge and privacy, account deletion, CSRF, repository sync, export, GitHub OAuth against a fake GitHub, concurrent invite race, serverless entry, email reminders (cron, claim, retry, unsubscribe), community submissions (limits, invisibility, approve/credit/notify, double approval, reject, withdraw, pause) | 16 |
-| Renderer parity | `go test` + TS fixture | All 269 answers identical (modulo highlighting) between Go and TypeScript renderers | 1 |
+| Renderer parity | `go test` + TS fixture | All 308 answers identical (modulo highlighting) between Go and TypeScript renderers | 1 |
 | TS unit | `node --test` | Walkthrough compiler (symbol lookup, block extraction, links, excerpts, broken references, fences left alone), compiler, progress model, search, selectors, Artifact sync, summaries, server sync over HTTP (no redundant writes), language-list parity | 37 |
 | E2E static | Playwright | Studying flows, How it's built (index, walkthrough, deep link), Contribute without a backend, hosted Artifact build in a sandboxed CSP frame, mobile | 11 |
 | E2E full stack | Playwright + Go server + Postgres | Owner creates a topic and question with live preview, publishes, announces, switches a feature, invites; learner accepts, studies, syncs to a second device; owner sees progress; strangers refused; learner submits a question, owner approves it, the learner sees it credited | 4 |
